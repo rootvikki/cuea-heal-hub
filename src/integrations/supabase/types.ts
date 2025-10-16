@@ -78,36 +78,6 @@ export type Database = {
           },
         ]
       }
-      audit_logs: {
-        Row: {
-          action: string
-          created_at: string | null
-          details: Json | null
-          id: string
-          ip_address: string | null
-          module: string
-          user_id: string | null
-        }
-        Insert: {
-          action: string
-          created_at?: string | null
-          details?: Json | null
-          id?: string
-          ip_address?: string | null
-          module: string
-          user_id?: string | null
-        }
-        Update: {
-          action?: string
-          created_at?: string | null
-          details?: Json | null
-          id?: string
-          ip_address?: string | null
-          module?: string
-          user_id?: string | null
-        }
-        Relationships: []
-      }
       departments: {
         Row: {
           created_at: string | null
@@ -750,7 +720,6 @@ export type Database = {
           status: Database["public"]["Enums"]["ticket_status"] | null
           ticket_number: string
           updated_at: string | null
-          workflow_stage: string | null
         }
         Insert: {
           appointment_id?: string | null
@@ -765,7 +734,6 @@ export type Database = {
           status?: Database["public"]["Enums"]["ticket_status"] | null
           ticket_number: string
           updated_at?: string | null
-          workflow_stage?: string | null
         }
         Update: {
           appointment_id?: string | null
@@ -780,7 +748,6 @@ export type Database = {
           status?: Database["public"]["Enums"]["ticket_status"] | null
           ticket_number?: string
           updated_at?: string | null
-          workflow_stage?: string | null
         }
         Relationships: [
           {
