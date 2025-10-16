@@ -41,10 +41,8 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: () => voi
         email: formData.email,
         password: formData.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/`,
           data: {
             full_name: formData.fullName,
-            phone: formData.phone,
           },
         },
       });
@@ -52,16 +50,15 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: () => voi
       if (authError) throw authError;
       if (!authData.user) throw new Error("User creation failed");
 
-      // Wait a bit for the trigger to create the profile
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Update profile with additional info
-      const { error: profileError } = await supabase.from("profiles").update({
+      // Create profile
+      const { error: profileError } = await supabase.from("profiles").insert({
+        user_id: authData.user.id,
+        full_name: formData.fullName,
         phone: formData.phone,
         date_of_birth: formData.dateOfBirth || null,
         gender: formData.gender || null,
         address: formData.address || null,
-      }).eq('user_id', authData.user.id);
+      });
 
       if (profileError) throw profileError;
 
