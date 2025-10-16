@@ -13,6 +13,10 @@ import Appointments from "./pages/Appointments";
 import Queue from "./pages/Queue";
 import Records from "./pages/Records";
 import Vitals from "./pages/Vitals";
+import Pharmacy from "./pages/Pharmacy";
+import Laboratory from "./pages/Laboratory";
+import Billing from "./pages/Billing";
+import Settings from "./pages/Settings";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 
@@ -83,6 +87,46 @@ const App = () => (
                 <div className="flex min-h-screen w-full">
                   <AppSidebar />
                   <main className="flex-1"><Vitals /></main>
+                </div>
+              </SidebarProvider>
+            </ProtectedRoute>
+          } />
+          <Route path="/pharmacy" element={
+            <ProtectedRoute>
+              <SidebarProvider>
+                <div className="flex min-h-screen w-full">
+                  <AppSidebar />
+                  <main className="flex-1"><Pharmacy /></main>
+                </div>
+              </SidebarProvider>
+            </ProtectedRoute>
+          } />
+          <Route path="/laboratory" element={
+            <ProtectedRoute>
+              <SidebarProvider>
+                <div className="flex min-h-screen w-full">
+                  <AppSidebar />
+                  <main className="flex-1"><Laboratory /></main>
+                </div>
+              </SidebarProvider>
+            </ProtectedRoute>
+          } />
+          <Route path="/billing" element={
+            <ProtectedRoute>
+              <SidebarProvider>
+                <div className="flex min-h-screen w-full">
+                  <AppSidebar />
+                  <main className="flex-1"><Billing /></main>
+                </div>
+              </SidebarProvider>
+            </ProtectedRoute>
+          } />
+          <Route path="/settings" element={
+            <ProtectedRoute>
+              <SidebarProvider>
+                <div className="flex min-h-screen w-full">
+                  <AppSidebar />
+                  <main className="flex-1"><Settings /></main>
                 </div>
               </SidebarProvider>
             </ProtectedRoute>
