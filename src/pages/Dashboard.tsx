@@ -4,7 +4,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { AdminRoleAssignment } from "@/components/AdminRoleAssignment";
 import { UserManagement } from "@/components/UserManagement";
 import { SuperAdminSetup } from "@/components/SuperAdminSetup";
-import { Users, Calendar, ClipboardList, DollarSign, Activity, Pill } from "lucide-react";
+import { RoleBasedDashboard } from "@/components/RoleBasedDashboard";
+import { Activity, Pill } from "lucide-react";
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -94,36 +95,7 @@ const Dashboard = () => {
     checkSystemSetup();
   }, []);
 
-  const statCards = [
-    {
-      title: "Total Patients",
-      value: stats.totalPatients,
-      icon: Users,
-      description: "Registered patients",
-      color: "text-primary",
-    },
-    {
-      title: "Today's Appointments",
-      value: stats.todayAppointments,
-      icon: Calendar,
-      description: "Scheduled for today",
-      color: "text-accent",
-    },
-    {
-      title: "Active Queue",
-      value: stats.activeTickets,
-      icon: ClipboardList,
-      description: "Patients in queue",
-      color: "text-warning",
-    },
-    {
-      title: "Pending Payments",
-      value: stats.pendingPayments,
-      icon: DollarSign,
-      description: "Awaiting payment",
-      color: "text-destructive",
-    },
-  ];
+  // ... keep existing code (statCards removed)
 
   if (checkingSystem) {
     return (
@@ -147,7 +119,7 @@ const Dashboard = () => {
           <div>
             <h1 className="text-4xl font-bold">Welcome back, {userName}!</h1>
             <p className="text-muted-foreground text-lg">
-              Here's what's happening in your hospital today.
+              {userRole && <span className="capitalize">{userRole.replace(/_/g, " ")} Dashboard</span>}
             </p>
           </div>
           {!hasRole && (
@@ -156,32 +128,14 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((stat) => (
-          <Card key={stat.title} className="hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.title}
-              </CardTitle>
-              <stat.icon className={`h-5 w-5 ${stat.color}`} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{stat.value}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {stat.description}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+      <RoleBasedDashboard role={userRole || "user"} stats={stats}>
+        {isAdmin && (
+          <div className="mt-6">
+            <UserManagement />
+          </div>
+        )}
 
-      {isAdmin && (
-        <div className="space-y-6">
-          <UserManagement />
-        </div>
-      )}
-
-      <div className="grid gap-6 md:grid-cols-2">
+        <div className="grid gap-6 md:grid-cols-2 mt-6">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -236,6 +190,7 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
+      </RoleBasedDashboard>
     </div>
   );
 };
