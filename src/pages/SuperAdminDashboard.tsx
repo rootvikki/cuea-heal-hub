@@ -4,6 +4,7 @@ import { FinancialAnalytics } from "@/components/dashboard/FinancialAnalytics";
 import { DepartmentSummary } from "@/components/dashboard/DepartmentSummary";
 import { UserManagementOverview } from "@/components/dashboard/UserManagementOverview";
 import { RoleBasedDashboard } from "@/components/RoleBasedDashboard";
+import { UserManagement } from "@/components/UserManagement";
 import { 
   LayoutDashboard, 
   DollarSign, 
@@ -90,8 +91,8 @@ export const SuperAdminDashboard = ({ stats, userName, userRole }: SuperAdminDas
         </TabsContent>
 
         {/* User Management */}
-        <TabsContent value="users">
-          <UserManagementOverview />
+        <TabsContent value="users" className="space-y-6">
+          <UserManagement />
         </TabsContent>
 
         {/* Operations & Patient Flow */}
