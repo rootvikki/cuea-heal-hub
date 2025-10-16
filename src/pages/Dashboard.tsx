@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdminRoleAssignment } from "@/components/AdminRoleAssignment";
+import { UserManagement } from "@/components/UserManagement";
 import { Users, Calendar, ClipboardList, DollarSign, Activity, Pill } from "lucide-react";
 
 const Dashboard = () => {
@@ -15,6 +16,8 @@ const Dashboard = () => {
   const [userId, setUserId] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [hasRole, setHasRole] = useState(false);
+  const [userRole, setUserRole] = useState<string | null>(null);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -31,10 +34,15 @@ const Dashboard = () => {
         const { data: roleData } = await supabase
           .from("user_roles")
           .select("role")
-          .eq("user_id", user.id)
-          .limit(1);
+          .eq("user_id", user.id);
         
         setHasRole((roleData && roleData.length > 0) || false);
+        
+        if (roleData && roleData.length > 0) {
+          const role = roleData[0].role;
+          setUserRole(role);
+          setIsAdmin(role === 'super_admin' || role === 'admin');
+        }
 
         // Fetch statistics
         const today = new Date().toISOString().split('T')[0];
@@ -123,6 +131,12 @@ const Dashboard = () => {
           </Card>
         ))}
       </div>
+
+      {isAdmin && (
+        <div className="space-y-6">
+          <UserManagement />
+        </div>
+      )}
 
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
