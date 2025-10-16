@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Search, UserPlus } from "lucide-react";
+import { Search } from "lucide-react";
+import { PatientRegistrationDialog } from "@/components/PatientRegistrationDialog";
 import {
   Table,
   TableBody,
@@ -12,6 +12,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Button } from "@/components/ui/button";
 
 interface Patient {
   id: string;
@@ -80,10 +81,7 @@ const Patients = () => {
             View and manage patient records
           </p>
         </div>
-        <Button className="gap-2">
-          <UserPlus className="h-4 w-4" />
-          Register New Patient
-        </Button>
+        <PatientRegistrationDialog onSuccess={fetchPatients} />
       </div>
 
       <Card>
