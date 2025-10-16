@@ -61,7 +61,7 @@ const Patients = () => {
 
   const fetchPatients = async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    const { data: patientsData, error } = await supabase
       .from("patients")
       .select("*")
       .order("created_at", { ascending: false });
@@ -77,26 +77,26 @@ const Patients = () => {
       return;
     }
 
-    // Fetch profiles and email separately
-    const patientIds = data?.map(p => p.user_id) || [];
-    const { data: profilesData } = await supabase
-      .from("profiles")
-      .select("*")
-      .in("user_id", patientIds);
+    if (!patientsData || patientsData.length === 0) {
+      setPatients([]);
+      setLoading(false);
+      return;
+    }
 
-    // Get emails from auth.users via a custom function or profiles
+    // Fetch profiles for each patient
     const patientsWithProfiles = await Promise.all(
-      (data || []).map(async (patient) => {
-        const profile = profilesData?.find(p => p.user_id === patient.user_id);
-        
-        // Get user email
-        const { data: { user } } = await supabase.auth.admin.getUserById(patient.user_id);
+      patientsData.map(async (patient) => {
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("*")
+          .eq("user_id", patient.user_id)
+          .maybeSingle();
         
         return {
           ...patient,
           profiles: {
-            ...profile,
-            email: user?.email || null,
+            ...profileData,
+            email: null, // Email not accessible from client
           }
         };
       })
