@@ -950,6 +950,11 @@ export type Database = {
         | "patient"
         | "super_admin"
         | "system_admin"
+        | "radiologist"
+        | "cashier"
+        | "accountant"
+        | "hr_admin"
+        | "auditor"
       appointment_status:
         | "scheduled"
         | "confirmed"
@@ -1109,6 +1114,11 @@ export const Constants = {
         "patient",
         "super_admin",
         "system_admin",
+        "radiologist",
+        "cashier",
+        "accountant",
+        "hr_admin",
+        "auditor",
       ],
       appointment_status: [
         "scheduled",
