@@ -57,7 +57,7 @@ const Appointments = () => {
     
     const { data, error } = await supabase
       .from("appointments")
-      .select("id, appointment_date, status, reason, department_id")
+      .select("id, appointment_date, status, reason, department_id, patient_id")
       .gte("appointment_date", dateStr)
       .lt("appointment_date", `${dateStr}T23:59:59`)
       .order("appointment_date");
