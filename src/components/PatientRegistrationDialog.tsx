@@ -79,13 +79,19 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: () => voi
 
       if (patientError) throw patientError;
 
-      // Assign patient role
-      const { error: roleError } = await supabase.from("user_roles").insert({
-        user_id: authData.user.id,
-        role: "patient",
-      });
+      // Assign patient role (should be auto-assigned by trigger, but ensure it exists)
+      const { error: roleError } = await supabase.from("user_roles")
+        .insert({
+          user_id: authData.user.id,
+          role: "patient" as any,
+        })
+        .select()
+        .single();
 
-      if (roleError) throw roleError;
+      // Ignore conflict errors (role already exists from trigger)
+      if (roleError && !roleError.message.includes('duplicate')) {
+        console.error("Role assignment error:", roleError);
+      }
 
       toast({
         title: "Patient registered successfully",

@@ -1,6 +1,7 @@
 import { ReactNode } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity, Users, Calendar, Pill, TestTube, Receipt, ClipboardList } from "lucide-react";
+import { PatientTicketView } from "./PatientTicketView";
 
 interface DashboardStat {
   title: string;
@@ -267,6 +268,41 @@ export const RoleBasedDashboard = ({ role, stats, children }: RoleBasedDashboard
           ],
         };
 
+      case "patient":
+        return {
+          title: "My Health Dashboard",
+          stats: [
+            {
+              title: "Upcoming Appointments",
+              value: stats.myAppointments || 0,
+              icon: Calendar,
+              description: "Scheduled visits",
+              color: "text-primary",
+            },
+            {
+              title: "My Tickets",
+              value: stats.myTickets || 0,
+              icon: ClipboardList,
+              description: "Active tickets",
+              color: "text-accent",
+            },
+            {
+              title: "Pending Payments",
+              value: `KES ${stats.myPendingPayments || 0}`,
+              icon: Receipt,
+              description: "Outstanding bills",
+              color: "text-warning",
+            },
+            {
+              title: "Last Visit",
+              value: stats.lastVisit || "N/A",
+              icon: Activity,
+              description: "Previous encounter",
+              color: "text-success",
+            },
+          ],
+        };
+
       default:
         return {
           title: "Dashboard",
@@ -303,6 +339,8 @@ export const RoleBasedDashboard = ({ role, stats, children }: RoleBasedDashboard
         ))}
       </div>
 
+      {role === "patient" && <PatientTicketView />}
+      
       {children}
     </div>
   );

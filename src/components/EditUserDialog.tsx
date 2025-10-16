@@ -24,6 +24,7 @@ interface EditUserDialogProps {
 type AppRole = Database['public']['Enums']['app_role'];
 
 const availableRoles: { value: AppRole; label: string }[] = [
+  { value: "patient", label: "Patient" },
   { value: "super_admin", label: "Super Admin" },
   { value: "admin", label: "Admin" },
   { value: "doctor", label: "Doctor" },
