@@ -19,7 +19,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
-import { z } from "zod";
 
 interface CreateUserDialogProps {
   open: boolean;
@@ -27,15 +26,8 @@ interface CreateUserDialogProps {
   onUserCreated: () => void;
 }
 
-// Validation schema
-const userSchema = z.object({
-  email: z.string().email("Invalid email address").min(1, "Email is required"),
-  password: z.string().min(8, "Password must be at least 8 characters"),
-  fullName: z.string().min(2, "Full name must be at least 2 characters").max(100, "Name too long"),
-  phone: z.string().regex(/^\+?[1-9]\d{1,14}$/, "Invalid phone number").optional().or(z.literal("")),
-});
-
 const AVAILABLE_ROLES = [
+  { value: "super_admin", label: "Super Admin" },
   { value: "admin", label: "System Administrator" },
   { value: "doctor", label: "Doctor" },
   { value: "nurse", label: "Nurse" },
@@ -43,11 +35,6 @@ const AVAILABLE_ROLES = [
   { value: "lab_technician", label: "Lab Technician" },
   { value: "pharmacist", label: "Pharmacist" },
   { value: "finance_officer", label: "Finance Officer" },
-  { value: "radiologist", label: "Radiologist" },
-  { value: "cashier", label: "Cashier" },
-  { value: "accountant", label: "Accountant" },
-  { value: "hr_admin", label: "HR Administrator" },
-  { value: "auditor", label: "System Auditor" },
 ];
 
 export const CreateUserDialog = ({
@@ -66,20 +53,6 @@ export const CreateUserDialog = ({
   const handleCreateUser = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Validate form data
-    try {
-      userSchema.parse({ email, password, fullName, phone });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        toast({
-          title: "Validation Error",
-          description: error.errors[0].message,
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-    
     if (selectedRoles.length === 0) {
       toast({
         title: "No roles selected",
@@ -92,26 +65,23 @@ export const CreateUserDialog = ({
     setLoading(true);
 
     try {
-      // Create user account with proper metadata
+      // Create user account
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: email.trim().toLowerCase(),
+        email,
         password,
         options: {
           data: {
-            full_name: fullName.trim(),
-            phone: phone.trim(),
+            full_name: fullName,
+            phone,
           },
-          emailRedirectTo: `${window.location.origin}/dashboard`,
+          emailRedirectTo: `${window.location.origin}/`,
         },
       });
 
       if (authError) throw authError;
-      if (!authData.user) throw new Error("Failed to create user account");
+      if (!authData.user) throw new Error("Failed to create user");
 
-      // Small delay to ensure profile is created
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Assign roles to the new user
+      // Assign roles
       const roleInserts = selectedRoles.map((role) => ({
         user_id: authData.user!.id,
         role: role as any,
@@ -121,10 +91,7 @@ export const CreateUserDialog = ({
         .from("user_roles")
         .insert(roleInserts);
 
-      if (rolesError) {
-        console.error("Role assignment error:", rolesError);
-        throw new Error(`Failed to assign roles: ${rolesError.message}`);
-      }
+      if (rolesError) throw rolesError;
 
       toast({
         title: "User created successfully",
@@ -180,34 +147,26 @@ export const CreateUserDialog = ({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="email">Email Address *</Label>
+            <Label htmlFor="email">Email *</Label>
             <Input
               id="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required
-              placeholder="user@cuea.edu"
-              autoComplete="email"
+              placeholder="john@example.com"
             />
-            <p className="text-xs text-muted-foreground">
-              Must be a valid email address
-            </p>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="phone">Phone Number</Label>
+            <Label htmlFor="phone">Phone</Label>
             <Input
               id="phone"
               type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="+254712345678"
-              autoComplete="tel"
+              placeholder="+254700000000"
             />
-            <p className="text-xs text-muted-foreground">
-              International format (e.g., +254712345678)
-            </p>
           </div>
 
           <div className="space-y-2">
@@ -219,12 +178,8 @@ export const CreateUserDialog = ({
               onChange={(e) => setPassword(e.target.value)}
               required
               placeholder="••••••••"
-              minLength={8}
-              autoComplete="new-password"
+              minLength={6}
             />
-            <p className="text-xs text-muted-foreground">
-              Minimum 8 characters required
-            </p>
           </div>
 
           <div className="space-y-2">

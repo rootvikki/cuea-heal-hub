@@ -146,13 +146,13 @@ export const UserManagement = () => {
                     <TableCell>
                       <div className="flex gap-1 flex-wrap">
                         {user.roles && user.roles.length > 0 ? (
-                          user.roles.filter(role => role).map((role) => (
+                          user.roles.map((role) => (
                             <Badge
                               key={role}
                               variant={getRoleBadgeVariant(role)}
                               className="text-xs"
                             >
-                              {role?.replace("_", " ") || role}
+                              {role.replace("_", " ")}
                             </Badge>
                           ))
                         ) : (
