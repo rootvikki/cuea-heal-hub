@@ -3,8 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdminRoleAssignment } from "@/components/AdminRoleAssignment";
 import { UserManagement } from "@/components/UserManagement";
-import { SuperAdminSetup } from "@/components/SuperAdminSetup";
 import { RoleBasedDashboard } from "@/components/RoleBasedDashboard";
+import { SuperAdminDashboard } from "@/pages/SuperAdminDashboard";
 import { Activity, Pill } from "lucide-react";
 
 const Dashboard = () => {
@@ -20,80 +20,55 @@ const Dashboard = () => {
   const [hasRole, setHasRole] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
-  const [showSuperAdminSetup, setShowSuperAdminSetup] = useState(false);
   const [checkingSystem, setCheckingSystem] = useState(true);
 
   useEffect(() => {
-    const checkSystemSetup = async () => {
-      try {
-        // Check if any super admin exists
-        const { data: adminData, error } = await supabase
-          .from("user_roles")
-          .select("id")
-          .eq("role", "super_admin")
-          .limit(1);
-
-        if (error) throw error;
-        
-        if (!adminData || adminData.length === 0) {
-          setShowSuperAdminSetup(true);
-          setCheckingSystem(false);
-          return;
-        }
-
-        fetchData();
-      } catch (error) {
-        console.error("Error checking system setup:", error);
-        setCheckingSystem(false);
-      }
-    };
-
-    const fetchData = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        // Get user name from metadata or profile
-        const fullName = user.user_metadata?.full_name || user.email?.split("@")[0] || "User";
-        setUserName(fullName);
-        setUserId(user.id);
-        setUserEmail(user.email || "");
-
-        // Check if user has a role
-        const { data: roleData } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user.id);
-        
-        setHasRole((roleData && roleData.length > 0) || false);
-        
-        if (roleData && roleData.length > 0) {
-          const role = roleData[0].role;
-          setUserRole(role);
-          setIsAdmin(role === 'super_admin' || role === 'admin');
-        }
-
-        // Fetch statistics
-        const today = new Date().toISOString().split('T')[0];
-
-        const [patientsRes, appointmentsRes, ticketsRes, invoicesRes] = await Promise.all([
-          supabase.from("patients").select("id", { count: "exact", head: true }),
-          supabase.from("appointments").select("id", { count: "exact", head: true }).gte("appointment_date", today),
-          supabase.from("tickets").select("id", { count: "exact", head: true }).neq("status", "checked_out"),
-          supabase.from("invoices").select("id", { count: "exact", head: true }).eq("status", "pending"),
-        ]);
-
-        setStats({
-          totalPatients: patientsRes.count || 0,
-          todayAppointments: appointmentsRes.count || 0,
-          activeTickets: ticketsRes.count || 0,
-          pendingPayments: invoicesRes.count || 0,
-        });
-      }
-      setCheckingSystem(false);
-    };
-
-    checkSystemSetup();
+    fetchData();
   }, []);
+
+  const fetchData = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (user) {
+      // Get user name from metadata or profile
+      const fullName = user.user_metadata?.full_name || user.email?.split("@")[0] || "User";
+      setUserName(fullName);
+      setUserId(user.id);
+      setUserEmail(user.email || "");
+
+      // Check if user has a role
+      const { data: roleData } = await supabase
+        .from("user_roles")
+        .select("role")
+        .eq("user_id", user.id);
+      
+      setHasRole((roleData && roleData.length > 0) || false);
+      
+      if (roleData && roleData.length > 0) {
+        const role = roleData[0].role;
+        setUserRole(role);
+        setIsAdmin(role === 'super_admin' || role === 'admin');
+      }
+
+      // Fetch statistics
+      const today = new Date().toISOString().split('T')[0];
+
+      const [patientsRes, appointmentsRes, ticketsRes, invoicesRes] = await Promise.all([
+        supabase.from("patients").select("id", { count: "exact", head: true }),
+        supabase.from("appointments").select("id", { count: "exact", head: true }).gte("appointment_date", today),
+        supabase.from("tickets").select("id", { count: "exact", head: true }).neq("status", "checked_out"),
+        supabase.from("invoices").select("id", { count: "exact", head: true }).eq("status", "pending"),
+      ]);
+
+      setStats({
+        totalPatients: patientsRes.count || 0,
+        todayAppointments: appointmentsRes.count || 0,
+        activeTickets: ticketsRes.count || 0,
+        pendingPayments: invoicesRes.count || 0,
+      });
+    }
+    setCheckingSystem(false);
+  };
 
   // ... keep existing code (statCards removed)
 
@@ -108,10 +83,12 @@ const Dashboard = () => {
     );
   }
 
-  if (showSuperAdminSetup) {
-    return <SuperAdminSetup onComplete={() => window.location.reload()} />;
+  // Super Admin gets full dashboard
+  if (userRole === 'super_admin') {
+    return <SuperAdminDashboard stats={stats} userName={userName} userRole={userRole} />;
   }
 
+  // Regular role-based dashboard for other users
   return (
     <div className="p-8 space-y-8">
       <div className="space-y-2">
