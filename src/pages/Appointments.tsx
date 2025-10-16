@@ -53,54 +53,39 @@ const Appointments = () => {
 
   const fetchAppointments = async () => {
     setLoading(true);
-    const dateStr = selectedDate?.toISOString().split('T')[0];
+    if (!selectedDate) {
+      setLoading(false);
+      return;
+    }
+    
+    const dateStr = selectedDate.toISOString().split('T')[0];
     
     const { data, error } = await supabase
       .from("appointments")
-      .select("id, appointment_date, status, reason, department_id, patient_id")
-      .gte("appointment_date", dateStr)
+      .select(`
+        id,
+        appointment_date,
+        status,
+        reason,
+        departments:department_id (name),
+        patients:patient_id (
+          patient_id,
+          profiles:user_id (full_name)
+        )
+      `)
+      .gte("appointment_date", `${dateStr}T00:00:00`)
       .lt("appointment_date", `${dateStr}T23:59:59`)
       .order("appointment_date");
 
     if (error) {
       console.error("Error fetching appointments:", error);
-    } else {
-      // Fetch patient and department info separately
-      const appointmentIds = data?.map(a => a.id) || [];
-      const patientPromises = data?.map(async (apt: any) => {
-        const { data: patientData } = await supabase
-          .from("patients")
-          .select("patient_id, user_id")
-          .eq("id", apt.patient_id)
-          .single();
-        
-        if (patientData) {
-          const { data: profileData } = await supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("user_id", patientData.user_id)
-            .single();
-          
-          return { ...apt, patients: { patient_id: patientData.patient_id, profiles: profileData } };
-        }
-        return apt;
-      }) || [];
-
-      const appointmentsWithData = await Promise.all(patientPromises);
-      
-      // Fetch departments
-      const deptPromises = appointmentsWithData.map(async (apt: any) => {
-        const { data: deptData } = await supabase
-          .from("departments")
-          .select("name")
-          .eq("id", apt.department_id)
-          .single();
-        
-        return { ...apt, departments: deptData };
+      toast({
+        title: "Error loading appointments",
+        description: error.message,
+        variant: "destructive",
       });
-
-      const finalAppointments = await Promise.all(deptPromises);
-      setAppointments(finalAppointments as any);
+    } else {
+      setAppointments(data || []);
     }
     setLoading(false);
   };
@@ -111,19 +96,23 @@ const Appointments = () => {
   };
 
   const fetchPatients = async () => {
-    const { data } = await supabase.from("patients").select("id, patient_id, user_id");
-    if (data) {
-      const patientsWithProfiles = await Promise.all(
-        data.map(async (patient) => {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("user_id", patient.user_id)
-            .single();
-          return { ...patient, profile };
-        })
-      );
-      setPatients(patientsWithProfiles);
+    const { data, error } = await supabase
+      .from("patients")
+      .select(`
+        id,
+        patient_id,
+        profiles:user_id (full_name)
+      `);
+    
+    if (error) {
+      console.error("Error fetching patients:", error);
+      toast({
+        title: "Error loading patients",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      setPatients(data || []);
     }
   };
 
@@ -195,9 +184,9 @@ const Appointments = () => {
                     <SelectValue placeholder="Select patient" />
                   </SelectTrigger>
                   <SelectContent>
-                    {patients.map((patient) => (
+                    {patients.map((patient: any) => (
                       <SelectItem key={patient.id} value={patient.id}>
-                        {patient.patient_id} - {patient.profile?.full_name}
+                        {patient.patient_id} - {patient.profiles?.full_name || 'Unknown'}
                       </SelectItem>
                     ))}
                   </SelectContent>
