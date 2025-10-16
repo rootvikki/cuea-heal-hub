@@ -60,19 +60,9 @@ const Appointments = () => {
     
     const dateStr = selectedDate.toISOString().split('T')[0];
     
-    const { data, error } = await supabase
+    const { data: appointmentsData, error } = await supabase
       .from("appointments")
-      .select(`
-        id,
-        appointment_date,
-        status,
-        reason,
-        departments:department_id (name),
-        patients:patient_id (
-          patient_id,
-          profiles:user_id (full_name)
-        )
-      `)
+      .select("id, appointment_date, status, reason, patient_id, department_id")
       .gte("appointment_date", `${dateStr}T00:00:00`)
       .lt("appointment_date", `${dateStr}T23:59:59`)
       .order("appointment_date");
@@ -84,9 +74,56 @@ const Appointments = () => {
         description: error.message,
         variant: "destructive",
       });
-    } else {
-      setAppointments(data || []);
+      setLoading(false);
+      return;
     }
+
+    if (!appointmentsData || appointmentsData.length === 0) {
+      setAppointments([]);
+      setLoading(false);
+      return;
+    }
+
+    // Fetch patient and department details for each appointment
+    const appointmentsWithDetails = await Promise.all(
+      appointmentsData.map(async (apt) => {
+        // Fetch patient details
+        const { data: patientData } = await supabase
+          .from("patients")
+          .select("patient_id, user_id")
+          .eq("id", apt.patient_id)
+          .maybeSingle();
+
+        let patientInfo = null;
+        if (patientData) {
+          const { data: profileData } = await supabase
+            .from("profiles")
+            .select("full_name")
+            .eq("user_id", patientData.user_id)
+            .maybeSingle();
+          
+          patientInfo = {
+            patient_id: patientData.patient_id,
+            profiles: profileData
+          };
+        }
+
+        // Fetch department details
+        const { data: deptData } = await supabase
+          .from("departments")
+          .select("name")
+          .eq("id", apt.department_id)
+          .maybeSingle();
+
+        return {
+          ...apt,
+          patients: patientInfo,
+          departments: deptData
+        };
+      })
+    );
+
+    setAppointments(appointmentsWithDetails as any);
     setLoading(false);
   };
 
@@ -96,13 +133,9 @@ const Appointments = () => {
   };
 
   const fetchPatients = async () => {
-    const { data, error } = await supabase
+    const { data: patientsData, error } = await supabase
       .from("patients")
-      .select(`
-        id,
-        patient_id,
-        profiles:user_id (full_name)
-      `);
+      .select("id, patient_id, user_id");
     
     if (error) {
       console.error("Error fetching patients:", error);
@@ -111,9 +144,31 @@ const Appointments = () => {
         description: error.message,
         variant: "destructive",
       });
-    } else {
-      setPatients(data || []);
+      return;
     }
+
+    if (!patientsData) {
+      setPatients([]);
+      return;
+    }
+
+    // Fetch profiles for each patient
+    const patientsWithProfiles = await Promise.all(
+      patientsData.map(async (patient) => {
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("user_id", patient.user_id)
+          .maybeSingle();
+        
+        return {
+          ...patient,
+          profiles: profileData
+        };
+      })
+    );
+    
+    setPatients(patientsWithProfiles);
   };
 
   const handleCreateAppointment = async (e: React.FormEvent) => {
