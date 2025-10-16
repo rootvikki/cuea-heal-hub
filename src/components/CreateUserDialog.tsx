@@ -36,7 +36,6 @@ const userSchema = z.object({
 });
 
 const AVAILABLE_ROLES = [
-  { value: "super_admin", label: "Super Admin" },
   { value: "admin", label: "System Administrator" },
   { value: "doctor", label: "Doctor" },
   { value: "nurse", label: "Nurse" },
@@ -44,6 +43,11 @@ const AVAILABLE_ROLES = [
   { value: "lab_technician", label: "Lab Technician" },
   { value: "pharmacist", label: "Pharmacist" },
   { value: "finance_officer", label: "Finance Officer" },
+  { value: "radiologist", label: "Radiologist" },
+  { value: "cashier", label: "Cashier" },
+  { value: "accountant", label: "Accountant" },
+  { value: "hr_admin", label: "HR Administrator" },
+  { value: "auditor", label: "System Auditor" },
 ];
 
 export const CreateUserDialog = ({

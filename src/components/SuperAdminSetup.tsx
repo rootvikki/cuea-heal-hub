@@ -10,7 +10,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { z } from "zod";
 
 const superAdminSchema = z.object({
-  email: z.string().email("Invalid email address"),
+  email: z.string().email("Invalid email address").refine((email) => email.toLowerCase() === "morgan@cuea.edu", {
+    message: "Super admin email must be morgan@cuea.edu",
+  }),
   password: z.string().min(8, "Password must be at least 8 characters"),
   fullName: z.string().min(2, "Full name required"),
   confirmPassword: z.string(),
@@ -21,10 +23,10 @@ const superAdminSchema = z.object({
 
 export const SuperAdminSetup = ({ onComplete }: { onComplete: () => void }) => {
   const [loading, setLoading] = useState(false);
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState("morgan@cuea.edu");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [fullName, setFullName] = useState("");
+  const [fullName, setFullName] = useState("Morgan Kanyi");
   const { toast } = useToast();
 
   const handleCreateSuperAdmin = async (e: React.FormEvent) => {
@@ -132,8 +134,8 @@ export const SuperAdminSetup = ({ onComplete }: { onComplete: () => void }) => {
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                placeholder="admin@cuea.edu"
-                disabled={loading}
+                placeholder="morgan@cuea.edu"
+                disabled={true}
                 autoComplete="email"
               />
             </div>
