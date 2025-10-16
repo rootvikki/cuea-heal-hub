@@ -12,7 +12,10 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Activity, FileText, Pill, FlaskConical, DollarSign, Save, Send, Loader2, User, Calendar } from "lucide-react";
+import { Activity, FileText, Pill, FlaskConical, DollarSign, Save, Send, Loader2, User, Calendar, AlertCircle } from "lucide-react";
+import { encounterSchema, prescriptionSchema } from "@/lib/validationSchemas";
+import { z } from "zod";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 
 interface Ticket {
   id: string;
@@ -197,6 +200,39 @@ export default function Consultation() {
 
   const handleSaveEncounter = async () => {
     if (!selectedTicket) return;
+    
+    // Validate SOAP notes
+    try {
+      encounterSchema.parse({ subjective, objective, assessment, plan });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        toast({
+          title: "Validation Error",
+          description: error.issues[0].message,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+    
+    // Validate prescriptions if any
+    if (prescriptions.length > 0) {
+      for (const presc of prescriptions) {
+        try {
+          prescriptionSchema.parse(presc);
+        } catch (error) {
+          if (error instanceof z.ZodError) {
+            toast({
+              title: "Prescription Validation Error",
+              description: `${presc.medication}: ${error.issues[0].message}`,
+              variant: "destructive",
+            });
+            return;
+          }
+        }
+      }
+    }
+    
     setSaving(true);
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -282,9 +318,11 @@ export default function Consultation() {
       .update({ workflow_stage: nextStage })
       .eq("id", selectedTicket.id);
 
-    // Note: Invoice will be auto-generated when ticket reaches billing
-
-    toast({ title: "Success", description: "Consultation completed successfully" });
+    toast({ 
+      title: "Success", 
+      description: "Consultation completed successfully. Patient moved to next stage.",
+      duration: 5000
+    });
     
     // Reset form
     setSelectedTicket(null);
@@ -350,137 +388,8 @@ export default function Consultation() {
         </Card>
 
         {/* Consultation Area */}
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Consultation</CardTitle>
-            <CardDescription>
-              {selectedTicket
-                ? `${selectedTicket.profiles?.full_name} - ${selectedTicket.ticket_number}`
-                : "Select a patient from the queue"}
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {!selectedTicket ? (
-              <div className="flex items-center justify-center h-[600px] text-muted-foreground">
-                <p>Select a patient to begin consultation</p>
-              </div>
-            ) : (
-              <Tabs defaultValue="patient-info" className="w-full">
-                <TabsList className="grid w-full grid-cols-5">
-                  <TabsTrigger value="patient-info">Patient Info</TabsTrigger>
-                  <TabsTrigger value="soap">SOAP Notes</TabsTrigger>
-                  <TabsTrigger value="prescriptions">Prescriptions</TabsTrigger>
-                  <TabsTrigger value="lab">Lab Tests</TabsTrigger>
-                  <TabsTrigger value="complete">Complete</TabsTrigger>
-                </TabsList>
-
-                <TabsContent value="patient-info" className="space-y-4">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Patient Details</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <p className="text-sm font-medium">Name</p>
-                          <p className="text-sm text-muted-foreground">{selectedTicket.profiles?.full_name}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">Gender</p>
-                          <p className="text-sm text-muted-foreground">{selectedTicket.profiles?.gender || "N/A"}</p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">Date of Birth</p>
-                          <p className="text-sm text-muted-foreground">
-                            {selectedTicket.profiles?.date_of_birth 
-                              ? new Date(selectedTicket.profiles.date_of_birth).toLocaleDateString()
-                              : "N/A"}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium">Phone</p>
-                          <p className="text-sm text-muted-foreground">{selectedTicket.profiles?.phone || "N/A"}</p>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-
-                  {latestVitals && (
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg">Latest Vitals</CardTitle>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="grid grid-cols-3 gap-4">
-                          <div>
-                            <p className="text-sm font-medium">Temperature</p>
-                            <p className="text-sm">{latestVitals.temperature}°C</p>
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium">BP</p>
-                            <p className="text-sm">{latestVitals.blood_pressure_systolic}/{latestVitals.blood_pressure_diastolic}</p>
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium">Pulse</p>
-                            <p className="text-sm">{latestVitals.pulse_rate} bpm</p>
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium">O2 Sat</p>
-                            <p className="text-sm">{latestVitals.oxygen_saturation}%</p>
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium">Weight</p>
-                            <p className="text-sm">{latestVitals.weight} kg</p>
-                          </div>
-                          <div>
-                            <p className="text-sm font-medium">Height</p>
-                            <p className="text-sm">{latestVitals.height} cm</p>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  )}
-
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Medical History</CardTitle>
-                    </CardHeader>
-                    <CardContent className="space-y-2">
-                      <div>
-                        <p className="text-sm font-medium">Allergies</p>
-                        <div className="flex gap-2 flex-wrap mt-1">
-                          {selectedTicket.patients?.allergies?.length > 0 ? (
-                            selectedTicket.patients.allergies.map((allergy, i) => (
-                              <Badge key={i} variant="destructive">{allergy}</Badge>
-                            ))
-                          ) : (
-                            <p className="text-sm text-muted-foreground">No known allergies</p>
-                          )}
-                        </div>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium">Chronic Conditions</p>
-                        <div className="flex gap-2 flex-wrap mt-1">
-                          {selectedTicket.patients?.chronic_conditions?.length > 0 ? (
-                            selectedTicket.patients.chronic_conditions.map((condition, i) => (
-                              <Badge key={i} variant="outline">{condition}</Badge>
-                            ))
-                          ) : (
-                            <p className="text-sm text-muted-foreground">No chronic conditions</p>
-                          )}
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </TabsContent>
-
-                <TabsContent value="soap" className="space-y-4">
-                  <div className="space-y-2">
-                    <Label>Subjective</Label>
-                    <Textarea
-                      placeholder="Chief complaint, patient's description of symptoms..."
-                      value={subjective}
-                      onChange={(e) => setSubjective(e.target.value)}
+        
+                    onChange={(e) => setSubjective(e.target.value)}
                       rows={4}
                     />
                   </div>
@@ -644,17 +553,27 @@ export default function Consultation() {
                 </TabsContent>
 
                 <TabsContent value="complete" className="space-y-4">
+                  {(!subjective || subjective.length < 10) && (
+                    <Alert variant="destructive">
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Subjective notes are required (minimum 10 characters)
+                      </AlertDescription>
+                    </Alert>
+                  )}
+                  
                   <Card>
                     <CardHeader>
                       <CardTitle>Consultation Summary</CardTitle>
+                      <CardDescription>Review before completing</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
                       <div>
                         <p className="font-medium">SOAP Notes</p>
                         <p className="text-sm text-muted-foreground">
-                          {subjective || objective || assessment || plan
-                            ? "Complete"
-                            : "Not filled"}
+                          {subjective && subjective.length >= 10
+                            ? "✓ Complete"
+                            : "✗ Incomplete - Subjective notes required"}
                         </p>
                       </div>
                       <div>
@@ -672,20 +591,26 @@ export default function Consultation() {
                       <Separator />
                       <Button
                         onClick={handleSaveEncounter}
-                        disabled={saving || !subjective}
+                        disabled={saving || !subjective || subjective.length < 10}
                         className="w-full"
                       >
                         {saving ? (
                           <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Saving...
+                            Saving consultation...
                           </>
                         ) : (
                           <>
                             <Save className="mr-2 h-4 w-4" />
-                            Complete Consultation
+                            Complete Consultation & Move Patient
                           </>
                         )}
+                      </Button>
+                      {(!subjective || subjective.length < 10) && (
+                        <p className="text-sm text-destructive text-center">
+                          Please complete subjective notes to proceed
+                        </p>
+                      )}
                       </Button>
                     </CardContent>
                   </Card>

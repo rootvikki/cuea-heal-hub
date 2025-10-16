@@ -13,10 +13,12 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ClipboardList, Plus } from "lucide-react";
+import { ClipboardList, Plus, Loader2, Filter } from "lucide-react";
 import { TicketWorkflowCard } from "@/components/workflow/TicketWorkflowCard";
 import { VitalsEntry } from "@/components/workflow/VitalsEntry";
 import { StageFilter } from "@/components/workflow/StageFilter";
+import { ticketSchema } from "@/lib/validationSchemas";
+import { z } from "zod";
 
 const Queue = () => {
   const { toast } = useToast();
@@ -27,6 +29,8 @@ const Queue = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [currentStage, setCurrentStage] = useState("all");
   const [userRoles, setUserRoles] = useState<string[]>([]);
+  const [userDepartment, setUserDepartment] = useState<string | null>(null);
+  const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [formData, setFormData] = useState({
     patientId: "",
     departmentId: "",
@@ -72,7 +76,22 @@ const Queue = () => {
       .eq("user_id", user.id);
 
     if (data) {
-      setUserRoles(data.map((r) => r.role));
+      const roles = data.map((r) => r.role);
+      setUserRoles(roles);
+      
+      // Fetch user's department if they're staff
+      if (!roles.includes("super_admin") && !roles.includes("admin")) {
+        const { data: staffData } = await supabase
+          .from("staff")
+          .select("department_id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        
+        if (staffData?.department_id) {
+          setUserDepartment(staffData.department_id);
+          setSelectedDepartment(staffData.department_id);
+        }
+      }
     }
   };
 
@@ -145,6 +164,24 @@ const Queue = () => {
   const handleCheckIn = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Validate form data
+    try {
+      ticketSchema.parse({
+        patientId: formData.patientId,
+        departmentId: formData.departmentId,
+        priority: parseInt(formData.priority),
+      });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        toast({
+          title: "Validation Error",
+          description: error.issues[0].message,
+          variant: "destructive",
+        });
+        return;
+      }
+    }
+
     const ticketNumber = `T-${Date.now().toString().slice(-6)}`;
 
     const { error } = await supabase.from("tickets").insert({
@@ -164,7 +201,7 @@ const Queue = () => {
       });
     } else {
       toast({
-        title: "Patient checked in",
+        title: "Patient checked in successfully",
         description: `Ticket number: ${ticketNumber}`,
       });
       setDialogOpen(false);
@@ -172,16 +209,29 @@ const Queue = () => {
     }
   };
 
-  const filteredTickets =
-    currentStage === "all"
-      ? tickets
-      : tickets.filter((t) => t.status === currentStage);
+  // Filter tickets by stage and department
+  let filteredTickets = tickets;
+  
+  // Department filtering (unless user is super_admin or admin)
+  if (selectedDepartment !== "all") {
+    filteredTickets = filteredTickets.filter(t => t.department_id === selectedDepartment);
+  }
+  
+  // Stage filtering
+  if (currentStage !== "all") {
+    filteredTickets = filteredTickets.filter((t) => t.status === currentStage);
+  }
 
   const stageCounts = tickets.reduce((acc: Record<string, number>, ticket) => {
-    acc[ticket.status] = (acc[ticket.status] || 0) + 1;
-    acc.all = (acc.all || 0) + 1;
+    // Only count tickets from selected department (or all if admin)
+    if (selectedDepartment === "all" || ticket.department_id === selectedDepartment) {
+      acc[ticket.status] = (acc[ticket.status] || 0) + 1;
+      acc.all = (acc.all || 0) + 1;
+    }
     return acc;
   }, {});
+
+  const canChangeDepartment = userRoles.includes("super_admin") || userRoles.includes("admin");
 
   return (
     <div className="p-8 space-y-6">
@@ -190,6 +240,11 @@ const Queue = () => {
           <h1 className="text-3xl font-bold">Patient Queue</h1>
           <p className="text-muted-foreground mt-1">
             Real-time patient flow management
+            {!canChangeDepartment && userDepartment && (
+              <span className="ml-2 text-primary font-medium">
+                (Your Department)
+              </span>
+            )}
           </p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -273,6 +328,32 @@ const Queue = () => {
         </Dialog>
       </div>
 
+      {canChangeDepartment && (
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-4">
+              <Filter className="h-5 w-5 text-muted-foreground" />
+              <div className="flex-1">
+                <Label>Filter by Department</Label>
+                <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
+                  <SelectTrigger className="mt-2">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Departments</SelectItem>
+                    {departments.map((dept) => (
+                      <SelectItem key={dept.id} value={dept.id}>
+                        {dept.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <StageFilter
         currentStage={currentStage}
         onStageChange={setCurrentStage}
@@ -293,7 +374,9 @@ const Queue = () => {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-center py-8 text-muted-foreground">Loading queue...</p>
+            <div className="flex justify-center items-center py-8">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
           ) : filteredTickets.length === 0 ? (
             <p className="text-center py-8 text-muted-foreground">
               No patients in this stage
