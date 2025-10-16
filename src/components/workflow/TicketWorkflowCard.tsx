@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import {
   CheckCircle,
 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
+import { AssignTicketDialog } from "./AssignTicketDialog";
+import { TicketCommentsDialog } from "./TicketCommentsDialog";
 
 type TicketStatus = Database["public"]["Enums"]["ticket_status"];
 
@@ -28,6 +30,27 @@ export const TicketWorkflowCard = ({
 }: TicketWorkflowCardProps) => {
   const { toast } = useToast();
   const [updating, setUpdating] = useState(false);
+  const [assignedStaffName, setAssignedStaffName] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (ticket.assigned_to) {
+      fetchAssignedStaffName();
+    }
+  }, [ticket.assigned_to]);
+
+  const fetchAssignedStaffName = async () => {
+    if (!ticket.assigned_to) return;
+    
+    const { data } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("user_id", ticket.assigned_to)
+      .single();
+    
+    if (data) {
+      setAssignedStaffName(data.full_name);
+    }
+  };
 
   const workflowStages: { status: TicketStatus; label: string; roles: string[] }[] = [
     { status: "checked_in", label: "Checked In", roles: ["receptionist", "admin", "super_admin"] },
@@ -159,9 +182,16 @@ export const TicketWorkflowCard = ({
           </Badge>
         </div>
 
-        {ticket.status !== "checked_out" && nextStages.length > 0 && (
-          <div className="flex gap-2 flex-wrap pt-3 border-t">
-            {nextStages.map((stage: any) => (
+        {assignedStaffName && (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-2">
+            <User className="h-4 w-4" />
+            <span>Assigned to: <span className="font-medium">{assignedStaffName}</span></span>
+          </div>
+        )}
+
+        {ticket.status !== "checked_out" && (
+          <div className="flex gap-2 flex-wrap pt-3 border-t mt-3">
+            {nextStages.length > 0 && nextStages.map((stage: any) => (
               <Button
                 key={stage.status}
                 size="sm"
@@ -174,6 +204,19 @@ export const TicketWorkflowCard = ({
                 <ArrowRight className="h-3 w-3" />
               </Button>
             ))}
+            
+            {userRoles.some((r) => ["super_admin", "admin", "doctor"].includes(r)) && (
+              <AssignTicketDialog
+                ticketId={ticket.id}
+                currentAssignedTo={ticket.assigned_to}
+                onAssigned={onUpdate}
+              />
+            )}
+            
+            <TicketCommentsDialog
+              ticketId={ticket.id}
+              currentStage={ticket.status}
+            />
           </div>
         )}
       </CardContent>

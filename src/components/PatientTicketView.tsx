@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Ticket, Clock, MapPin } from "lucide-react";
+import { Ticket, Clock, MapPin, MessageSquare } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import {
   Table,
@@ -13,6 +13,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { Progress } from "@/components/ui/progress";
 
 interface PatientTicket {
   id: string;
@@ -22,6 +23,10 @@ interface PatientTicket {
   department_id: string;
   checked_in_at: string;
   priority: number;
+  assigned_to: string | null;
+  department: {
+    name: string;
+  };
 }
 
 export const PatientTicketView = () => {
@@ -59,15 +64,15 @@ export const PatientTicketView = () => {
 
       setPatientId(patientData.id);
 
-      // Fetch tickets
+      // Fetch tickets with department info
       const { data: ticketsData, error: ticketsError } = await supabase
         .from("tickets")
-        .select("*")
+        .select("*, departments(name)")
         .eq("patient_id", patientData.id)
         .order("created_at", { ascending: false });
 
       if (ticketsError) throw ticketsError;
-      setTickets(ticketsData || []);
+      setTickets((ticketsData || []) as any);
     } catch (error: any) {
       toast({
         title: "Error loading tickets",
@@ -82,12 +87,31 @@ export const PatientTicketView = () => {
   const getStatusBadge = (status: string) => {
     const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
       checked_in: "default",
-      in_consultation: "secondary",
-      awaiting_lab: "outline",
-      awaiting_pharmacy: "outline",
-      checked_out: "destructive",
+      triage: "secondary",
+      waiting_for_doctor: "secondary",
+      in_consult: "secondary",
+      order_placed_lab: "outline",
+      at_lab: "outline",
+      at_pharmacy: "outline",
+      at_billing: "outline",
+      checked_out: "default",
     };
     return variants[status] || "outline";
+  };
+
+  const getProgressPercentage = (status: string) => {
+    const stages = [
+      "checked_in",
+      "triage",
+      "waiting_for_doctor",
+      "in_consult",
+      "at_lab",
+      "at_pharmacy",
+      "at_billing",
+      "checked_out"
+    ];
+    const index = stages.indexOf(status);
+    return index >= 0 ? ((index + 1) / stages.length) * 100 : 0;
   };
 
   if (loading) {
@@ -125,46 +149,60 @@ export const PatientTicketView = () => {
             </p>
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Ticket #</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Stage</TableHead>
-                <TableHead>Check-in Time</TableHead>
-                <TableHead>Priority</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {tickets.map((ticket) => (
-                <TableRow key={ticket.id}>
-                  <TableCell className="font-medium">{ticket.ticket_number}</TableCell>
-                  <TableCell>
-                    <Badge variant={getStatusBadge(ticket.status)}>
-                      {ticket.status.replace(/_/g, " ")}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <MapPin className="h-4 w-4 text-muted-foreground" />
-                      {ticket.workflow_stage.replace(/_/g, " ")}
+          <div className="space-y-4">
+            {tickets.map((ticket) => (
+              <Card key={ticket.id} className="overflow-hidden">
+                <CardContent className="p-4">
+                  <div className="space-y-4">
+                    <div className="flex items-start justify-between">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xl font-bold">{ticket.ticket_number}</span>
+                          <Badge variant={getStatusBadge(ticket.status)}>
+                            {ticket.status.replace(/_/g, " ")}
+                          </Badge>
+                          {ticket.priority > 1 && (
+                            <Badge variant="destructive">High Priority</Badge>
+                          )}
+                        </div>
+                        <p className="text-sm text-muted-foreground">
+                          {ticket.department?.name || "N/A"}
+                        </p>
+                      </div>
+                      <div className="text-right text-sm text-muted-foreground">
+                        <div className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          {new Date(ticket.checked_in_at).toLocaleString()}
+                        </div>
+                      </div>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Clock className="h-4 w-4 text-muted-foreground" />
-                      {new Date(ticket.checked_in_at).toLocaleString()}
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="font-medium">Current Stage:</span>
+                        <div className="flex items-center gap-1">
+                          <MapPin className="h-3 w-3" />
+                          {ticket.status.replace(/_/g, " ")}
+                        </div>
+                      </div>
+                      <Progress value={getProgressPercentage(ticket.status)} className="h-2" />
+                      <p className="text-xs text-muted-foreground text-center">
+                        {Math.round(getProgressPercentage(ticket.status))}% Complete
+                      </p>
                     </div>
-                  </TableCell>
-                  <TableCell>
-                    <Badge variant={ticket.priority > 1 ? "destructive" : "outline"}>
-                      {ticket.priority > 1 ? "High" : "Normal"}
-                    </Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+
+                    {ticket.status !== "checked_out" && (
+                      <div className="pt-3 border-t">
+                        <p className="text-sm text-muted-foreground">
+                          Your visit is in progress. Please wait for your turn.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
         )}
       </CardContent>
     </Card>
