@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { UserPlus, Shield, Edit, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { CreateUserDialog } from "./CreateUserDialog";
+import { EditUserDialog } from "./EditUserDialog";
 import {
   Table,
   TableBody,
@@ -38,6 +39,7 @@ export const UserManagement = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [editUserId, setEditUserId] = useState<string | null>(null);
   const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
   const { toast } = useToast();
 
@@ -165,7 +167,11 @@ export const UserManagement = () => {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button size="sm" variant="ghost">
+                        <Button 
+                          size="sm" 
+                          variant="ghost"
+                          onClick={() => setEditUserId(user.user_id)}
+                        >
                           <Edit className="h-4 w-4" />
                         </Button>
                         <Button
@@ -189,6 +195,13 @@ export const UserManagement = () => {
         open={createDialogOpen}
         onOpenChange={setCreateDialogOpen}
         onUserCreated={fetchUsers}
+      />
+
+      <EditUserDialog
+        open={!!editUserId}
+        onOpenChange={(open) => !open && setEditUserId(null)}
+        userId={editUserId}
+        onUserUpdated={fetchUsers}
       />
 
       <AlertDialog open={!!deleteUserId} onOpenChange={() => setDeleteUserId(null)}>

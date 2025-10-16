@@ -61,10 +61,14 @@ const Patients = () => {
 
   const fetchPatients = async () => {
     setLoading(true);
+    console.log("Fetching patients...");
+    
     const { data: patientsData, error } = await supabase
       .from("patients")
       .select("*")
       .order("created_at", { ascending: false });
+
+    console.log("Patients query result:", { patientsData, error });
 
     if (error) {
       console.error("Error fetching patients:", error);
@@ -78,6 +82,7 @@ const Patients = () => {
     }
 
     if (!patientsData || patientsData.length === 0) {
+      console.log("No patients found");
       setPatients([]);
       setLoading(false);
       return;
@@ -86,22 +91,25 @@ const Patients = () => {
     // Fetch profiles for each patient
     const patientsWithProfiles = await Promise.all(
       patientsData.map(async (patient) => {
-        const { data: profileData } = await supabase
+        const { data: profileData, error: profileError } = await supabase
           .from("profiles")
           .select("*")
           .eq("user_id", patient.user_id)
           .maybeSingle();
         
+        console.log(`Profile for patient ${patient.patient_id}:`, { profileData, profileError });
+        
         return {
           ...patient,
           profiles: {
             ...profileData,
-            email: null, // Email not accessible from client
+            email: null,
           }
         };
       })
     );
 
+    console.log("Patients with profiles:", patientsWithProfiles);
     setPatients(patientsWithProfiles as any);
     setLoading(false);
   };
