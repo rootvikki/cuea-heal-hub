@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { AdminRoleAssignment } from "@/components/AdminRoleAssignment";
 import { Users, Calendar, ClipboardList, DollarSign, Activity, Pill } from "lucide-react";
 
 const Dashboard = () => {
@@ -11,6 +12,9 @@ const Dashboard = () => {
     pendingPayments: 0,
   });
   const [userName, setUserName] = useState("");
+  const [userId, setUserId] = useState("");
+  const [userEmail, setUserEmail] = useState("");
+  const [hasRole, setHasRole] = useState(false);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -20,6 +24,17 @@ const Dashboard = () => {
         // Get user name from metadata or profile
         const fullName = user.user_metadata?.full_name || user.email?.split("@")[0] || "User";
         setUserName(fullName);
+        setUserId(user.id);
+        setUserEmail(user.email || "");
+
+        // Check if user has a role
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .limit(1);
+        
+        setHasRole((roleData && roleData.length > 0) || false);
 
         // Fetch statistics
         const today = new Date().toISOString().split('T')[0];
@@ -77,10 +92,17 @@ const Dashboard = () => {
   return (
     <div className="p-8 space-y-8">
       <div className="space-y-2">
-        <h1 className="text-4xl font-bold">Welcome back, {userName}!</h1>
-        <p className="text-muted-foreground text-lg">
-          Here's what's happening in your hospital today.
-        </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-4xl font-bold">Welcome back, {userName}!</h1>
+            <p className="text-muted-foreground text-lg">
+              Here's what's happening in your hospital today.
+            </p>
+          </div>
+          {!hasRole && (
+            <AdminRoleAssignment userId={userId} userEmail={userEmail} />
+          )}
+        </div>
       </div>
 
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
