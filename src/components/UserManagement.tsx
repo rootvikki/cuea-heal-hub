@@ -167,13 +167,15 @@ export const UserManagement = () => {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex justify-end gap-2">
-                        <Button 
-                          size="sm" 
-                          variant="ghost"
-                          onClick={() => setEditUserId(user.user_id)}
-                        >
-                          <Edit className="h-4 w-4" />
-                        </Button>
+                        {!(user.roles?.length === 1 && user.roles[0] === 'patient') && (
+                          <Button 
+                            size="sm" 
+                            variant="ghost"
+                            onClick={() => setEditUserId(user.user_id)}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Button>
+                        )}
                         <Button
                           size="sm"
                           variant="ghost"
