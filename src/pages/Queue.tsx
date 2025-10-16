@@ -2,7 +2,6 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
@@ -14,7 +13,10 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ClipboardList, Plus, ArrowRight } from "lucide-react";
+import { ClipboardList, Plus } from "lucide-react";
+import { TicketWorkflowCard } from "@/components/workflow/TicketWorkflowCard";
+import { VitalsEntry } from "@/components/workflow/VitalsEntry";
+import { StageFilter } from "@/components/workflow/StageFilter";
 
 const Queue = () => {
   const { toast } = useToast();
@@ -23,6 +25,8 @@ const Queue = () => {
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [currentStage, setCurrentStage] = useState("all");
+  const [userRoles, setUserRoles] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     patientId: "",
     departmentId: "",
@@ -30,6 +34,7 @@ const Queue = () => {
   });
 
   useEffect(() => {
+    fetchUserRoles();
     fetchTickets();
     fetchDepartments();
     fetchPatients();
@@ -55,6 +60,22 @@ const Queue = () => {
     };
   }, []);
 
+  const fetchUserRoles = async () => {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return;
+
+    const { data } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", user.id);
+
+    if (data) {
+      setUserRoles(data.map((r) => r.role));
+    }
+  };
+
   const fetchTickets = async () => {
     setLoading(true);
     const { data } = await supabase
@@ -71,19 +92,21 @@ const Queue = () => {
             .from("patients")
             .select("patient_id, user_id")
             .eq("id", ticket.patient_id)
-            .single();
+            .maybeSingle();
 
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("user_id", patient?.user_id)
-            .single();
+          const { data: profile } = patient
+            ? await supabase
+                .from("profiles")
+                .select("full_name")
+                .eq("user_id", patient.user_id)
+                .maybeSingle()
+            : { data: null };
 
           const { data: dept } = await supabase
             .from("departments")
             .select("name")
             .eq("id", ticket.department_id)
-            .single();
+            .maybeSingle();
 
           return {
             ...ticket,
@@ -111,7 +134,7 @@ const Queue = () => {
             .from("profiles")
             .select("full_name")
             .eq("user_id", patient.user_id)
-            .single();
+            .maybeSingle();
           return { ...patient, profile };
         })
       );
@@ -130,6 +153,7 @@ const Queue = () => {
       department_id: formData.departmentId,
       priority: parseInt(formData.priority),
       status: "checked_in",
+      workflow_stage: "checked_in",
     });
 
     if (error) {
@@ -148,60 +172,16 @@ const Queue = () => {
     }
   };
 
-  type TicketStatus = "checked_in" | "triage" | "waiting_for_doctor" | "in_consult" | "at_pharmacy" | "at_billing" | "checked_out" | "order_placed_lab" | "order_placed_imaging" | "at_lab" | "at_imaging";
+  const filteredTickets =
+    currentStage === "all"
+      ? tickets
+      : tickets.filter((t) => t.status === currentStage);
 
-  const updateTicketStatus = async (ticketId: string, newStatus: TicketStatus) => {
-    const { error } = await supabase
-      .from("tickets")
-      .update({ status: newStatus })
-      .eq("id", ticketId);
-
-    if (error) {
-      toast({
-        title: "Error updating ticket",
-        description: error.message,
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Ticket updated",
-        description: "Status changed successfully",
-      });
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      checked_in: "bg-muted",
-      triage: "bg-warning",
-      waiting_for_doctor: "bg-status-pending",
-      in_consult: "bg-status-in-progress",
-      order_placed_lab: "bg-primary",
-      order_placed_imaging: "bg-primary",
-      at_lab: "bg-accent",
-      at_imaging: "bg-accent",
-      at_pharmacy: "bg-success",
-      at_billing: "bg-secondary",
-      checked_out: "bg-status-completed",
-    };
-    return colors[status] || "bg-muted";
-  };
-
-  const getPriorityBadge = (priority: number) => {
-    if (priority === 3) return <Badge variant="destructive">Emergency</Badge>;
-    if (priority === 2) return <Badge className="bg-warning">High</Badge>;
-    return <Badge variant="outline">Normal</Badge>;
-  };
-
-  const statusFlow: TicketStatus[] = [
-    "checked_in",
-    "triage",
-    "waiting_for_doctor",
-    "in_consult",
-    "at_pharmacy",
-    "at_billing",
-    "checked_out",
-  ];
+  const stageCounts = tickets.reduce((acc: Record<string, number>, ticket) => {
+    acc[ticket.status] = (acc[ticket.status] || 0) + 1;
+    acc.all = (acc.all || 0) + 1;
+    return acc;
+  }, {});
 
   return (
     <div className="p-8 space-y-6">
@@ -293,63 +273,50 @@ const Queue = () => {
         </Dialog>
       </div>
 
+      <StageFilter
+        currentStage={currentStage}
+        onStageChange={setCurrentStage}
+        stageCounts={stageCounts}
+      />
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ClipboardList className="h-5 w-5" />
-            Active Tickets ({tickets.length})
+            Active Tickets ({filteredTickets.length})
           </CardTitle>
-          <CardDescription>Real-time patient queue status</CardDescription>
+          <CardDescription>
+            {currentStage === "all"
+              ? "All active tickets"
+              : `Tickets in ${currentStage.replace(/_/g, " ")}`}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
             <p className="text-center py-8 text-muted-foreground">Loading queue...</p>
-          ) : tickets.length === 0 ? (
-            <p className="text-center py-8 text-muted-foreground">No patients in queue</p>
+          ) : filteredTickets.length === 0 ? (
+            <p className="text-center py-8 text-muted-foreground">
+              No patients in this stage
+            </p>
           ) : (
             <div className="space-y-3">
-              {tickets.map((ticket) => (
-                <div
-                  key={ticket.id}
-                  className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xl font-bold">{ticket.ticket_number}</span>
-                        {getPriorityBadge(ticket.priority)}
+              {filteredTickets.map((ticket) => (
+                <div key={ticket.id} className="space-y-2">
+                  <TicketWorkflowCard
+                    ticket={ticket}
+                    onUpdate={fetchTickets}
+                    userRoles={userRoles}
+                  />
+                  {ticket.status === "triage" &&
+                    userRoles.some((r) => ["nurse", "admin", "super_admin"].includes(r)) && (
+                      <div className="flex justify-end">
+                        <VitalsEntry
+                          ticketId={ticket.id}
+                          patientId={ticket.patient_id}
+                          onComplete={fetchTickets}
+                        />
                       </div>
-                      <p className="font-medium">
-                        {ticket.patient?.profile?.full_name}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {ticket.patient?.patient_id} • {ticket.department?.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Checked in: {new Date(ticket.checked_in_at).toLocaleString()}
-                      </p>
-                    </div>
-                    <Badge className={getStatusColor(ticket.status)}>
-                      {ticket.status.replace(/_/g, " ")}
-                    </Badge>
-                  </div>
-
-                  <div className="flex gap-2 flex-wrap">
-                    {statusFlow.map((status, idx) => (
-                      <Button
-                        key={status}
-                        size="sm"
-                        variant={ticket.status === status ? "default" : "outline"}
-                        onClick={() => updateTicketStatus(ticket.id, status)}
-                        disabled={ticket.status === status}
-                      >
-                        {status.replace(/_/g, " ")}
-                        {idx < statusFlow.length - 1 && (
-                          <ArrowRight className="ml-1 h-3 w-3" />
-                        )}
-                      </Button>
-                    ))}
-                  </div>
+                    )}
                 </div>
               ))}
             </div>
