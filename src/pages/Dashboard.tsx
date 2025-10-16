@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdminRoleAssignment } from "@/components/AdminRoleAssignment";
 import { UserManagement } from "@/components/UserManagement";
+import { SuperAdminSetup } from "@/components/SuperAdminSetup";
 import { Users, Calendar, ClipboardList, DollarSign, Activity, Pill } from "lucide-react";
 
 const Dashboard = () => {
@@ -18,8 +19,34 @@ const Dashboard = () => {
   const [hasRole, setHasRole] = useState(false);
   const [userRole, setUserRole] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
+  const [showSuperAdminSetup, setShowSuperAdminSetup] = useState(false);
+  const [checkingSystem, setCheckingSystem] = useState(true);
 
   useEffect(() => {
+    const checkSystemSetup = async () => {
+      try {
+        // Check if any super admin exists
+        const { data: adminData, error } = await supabase
+          .from("user_roles")
+          .select("id")
+          .eq("role", "super_admin")
+          .limit(1);
+
+        if (error) throw error;
+        
+        if (!adminData || adminData.length === 0) {
+          setShowSuperAdminSetup(true);
+          setCheckingSystem(false);
+          return;
+        }
+
+        fetchData();
+      } catch (error) {
+        console.error("Error checking system setup:", error);
+        setCheckingSystem(false);
+      }
+    };
+
     const fetchData = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       
@@ -61,9 +88,10 @@ const Dashboard = () => {
           pendingPayments: invoicesRes.count || 0,
         });
       }
+      setCheckingSystem(false);
     };
 
-    fetchData();
+    checkSystemSetup();
   }, []);
 
   const statCards = [
@@ -96,6 +124,21 @@ const Dashboard = () => {
       color: "text-destructive",
     },
   ];
+
+  if (checkingSystem) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading system...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (showSuperAdminSetup) {
+    return <SuperAdminSetup onComplete={() => window.location.reload()} />;
+  }
 
   return (
     <div className="p-8 space-y-8">
