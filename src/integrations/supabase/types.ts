@@ -915,17 +915,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_all_users_with_roles: {
-        Args: Record<PropertyKey, never>
-        Returns: {
-          created_at: string
-          email: string
-          full_name: string
-          phone: string
-          roles: string[]
-          user_id: string
-        }[]
-      }
       get_user_roles: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"][]
@@ -948,8 +937,6 @@ export type Database = {
         | "pharmacist"
         | "finance_officer"
         | "patient"
-        | "super_admin"
-        | "system_admin"
       appointment_status:
         | "scheduled"
         | "confirmed"
@@ -1107,8 +1094,6 @@ export const Constants = {
         "pharmacist",
         "finance_officer",
         "patient",
-        "super_admin",
-        "system_admin",
       ],
       appointment_status: [
         "scheduled",
