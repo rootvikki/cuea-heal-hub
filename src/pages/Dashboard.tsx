@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { AdminRoleAssignment } from "@/components/AdminRoleAssignment";
 import { UserManagement } from "@/components/UserManagement";
 import { RoleBasedDashboard } from "@/components/RoleBasedDashboard";
-import { SuperAdminDashboard } from "@/pages/SuperAdminDashboard";
+import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
 import { Activity, Pill } from "lucide-react";
 
 const Dashboard = () => {
@@ -85,7 +85,7 @@ const Dashboard = () => {
 
   // Super Admin gets full dashboard
   if (userRole === 'super_admin') {
-    return <SuperAdminDashboard stats={stats} userName={userName} userRole={userRole} />;
+    return <SuperAdminDashboard />;
   }
 
   // Regular role-based dashboard for other users

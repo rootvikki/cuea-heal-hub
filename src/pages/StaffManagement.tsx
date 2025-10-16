@@ -49,16 +49,22 @@ export default function StaffManagement() {
   }, []);
 
   const fetchDepartments = async () => {
-    const { data, error } = await supabase
-      .from("departments")
-      .select("id, name")
-      .eq("active", true)
-      .order("name");
+    try {
+      const { data: deptData, error: deptError } = await supabase
+        .from("departments")
+        .select("id, name");
 
-    if (error) {
-      toast({ title: "Error fetching departments", description: error.message, variant: "destructive" });
-    } else {
-      setDepartments((data as Department[]) || []);
+      if (deptError) {
+        toast({ title: "Error fetching departments", description: deptError.message, variant: "destructive" });
+        return;
+      }
+      
+      if (deptData) {
+        const mappedDepts = deptData.map((d) => ({ id: d.id, name: d.name }));
+        setDepartments(mappedDepts);
+      }
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
     }
   };
 

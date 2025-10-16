@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { FinancialAnalytics } from "@/components/dashboard/FinancialAnalytics";
 import { DepartmentSummary } from "@/components/dashboard/DepartmentSummary";
 import { UserManagementOverview } from "@/components/dashboard/UserManagementOverview";
 import { RoleBasedDashboard } from "@/components/RoleBasedDashboard";
 import { UserManagement } from "@/components/UserManagement";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   LayoutDashboard, 
   DollarSign, 
@@ -17,18 +18,32 @@ import {
   Bell
 } from "lucide-react";
 
-interface SuperAdminDashboardProps {
-  stats: any;
-  userName: string;
-  userRole: string;
-}
-
-export const SuperAdminDashboard = ({ stats, userName, userRole }: SuperAdminDashboardProps) => {
+export default function SuperAdminDashboard() {
   const [activeTab, setActiveTab] = useState("overview");
+  const [userRole, setUserRole] = useState("super_admin");
+  const [userName, setUserName] = useState("");
+  const [stats] = useState({});
+
+  useEffect(() => {
+    const fetchUserData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("user_id", user.id)
+          .single();
+        
+        if (profile) {
+          setUserName(profile.full_name);
+        }
+      }
+    };
+    fetchUserData();
+  }, []);
 
   return (
     <div className="p-8 space-y-6">
-      {/* Header */}
       <div className="space-y-2">
         <h1 className="text-4xl font-bold bg-gradient-to-r from-primary via-accent to-primary bg-clip-text text-transparent">
           CUEA Infirmary - Super Admin Dashboard
@@ -38,7 +53,6 @@ export const SuperAdminDashboard = ({ stats, userName, userRole }: SuperAdminDas
         </p>
       </div>
 
-      {/* Main Navigation Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8 gap-2 bg-muted p-2 h-auto">
           <TabsTrigger value="overview" className="gap-2">
@@ -75,34 +89,28 @@ export const SuperAdminDashboard = ({ stats, userName, userRole }: SuperAdminDas
           </TabsTrigger>
         </TabsList>
 
-        {/* Hospital Overview */}
         <TabsContent value="overview" className="space-y-6">
           <RoleBasedDashboard role={userRole} stats={stats} />
         </TabsContent>
 
-        {/* Financial Analytics */}
         <TabsContent value="financial">
           <FinancialAnalytics />
         </TabsContent>
 
-        {/* Departmental Summary */}
         <TabsContent value="departments">
           <DepartmentSummary />
         </TabsContent>
 
-        {/* User Management */}
         <TabsContent value="users" className="space-y-6">
           <UserManagement />
         </TabsContent>
 
-        {/* Operations & Patient Flow */}
         <TabsContent value="operations">
           <div className="space-y-6">
             <div>
               <h2 className="text-2xl font-bold">Operations & Patient Flow</h2>
               <p className="text-muted-foreground">Real-time operational metrics</p>
             </div>
-            {/* Add patient flow, ticketing, medical services components here */}
             <div className="text-center py-20 text-muted-foreground">
               <Activity className="h-16 w-16 mx-auto mb-4 opacity-50" />
               <p>Patient flow visualization coming soon</p>
@@ -111,7 +119,6 @@ export const SuperAdminDashboard = ({ stats, userName, userRole }: SuperAdminDas
           </div>
         </TabsContent>
 
-        {/* Reports & Analytics */}
         <TabsContent value="reports">
           <div className="space-y-6">
             <div>
@@ -126,7 +133,6 @@ export const SuperAdminDashboard = ({ stats, userName, userRole }: SuperAdminDas
           </div>
         </TabsContent>
 
-        {/* Security & Audit */}
         <TabsContent value="security">
           <div className="space-y-6">
             <div>
@@ -141,7 +147,6 @@ export const SuperAdminDashboard = ({ stats, userName, userRole }: SuperAdminDas
           </div>
         </TabsContent>
 
-        {/* System Settings */}
         <TabsContent value="settings">
           <div className="space-y-6">
             <div>
@@ -158,4 +163,4 @@ export const SuperAdminDashboard = ({ stats, userName, userRole }: SuperAdminDas
       </Tabs>
     </div>
   );
-};
+}

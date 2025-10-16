@@ -14,6 +14,9 @@ import {
   Hospital,
   ClipboardList,
   Activity,
+  Stethoscope,
+  UserCog,
+  UserCheck,
 } from "lucide-react";
 import {
   Sidebar,
@@ -79,11 +82,14 @@ export function AppSidebar() {
     { title: "Patients", url: "/patients", icon: Users, roles: ["super_admin", "admin", "doctor", "nurse", "receptionist"] },
     { title: "Appointments", url: "/appointments", icon: Calendar, roles: ["all"] },
     { title: "Patient Queue", url: "/queue", icon: ClipboardList, roles: ["super_admin", "admin", "doctor", "nurse", "receptionist"] },
+    { title: "Consultation", url: "/consultation", icon: Stethoscope, roles: ["doctor"] },
     { title: "Medical Records", url: "/records", icon: FileText, roles: ["super_admin", "admin", "doctor", "nurse"] },
     { title: "Vitals", url: "/vitals", icon: Activity, roles: ["super_admin", "admin", "doctor", "nurse"] },
     { title: "Pharmacy", url: "/pharmacy", icon: Pill, roles: ["super_admin", "admin", "pharmacist", "doctor"] },
     { title: "Laboratory", url: "/laboratory", icon: TestTube, roles: ["super_admin", "admin", "lab_technician", "radiologist", "doctor"] },
     { title: "Billing", url: "/billing", icon: Receipt, roles: ["super_admin", "admin", "finance_officer", "cashier", "accountant"] },
+    { title: "Staff Management", url: "/staff", icon: UserCheck, roles: ["super_admin", "admin"] },
+    { title: "Super Admin", url: "/super-admin", icon: UserCog, roles: ["super_admin"] },
     { title: "Settings", url: "/settings", icon: Settings, roles: ["all"] },
   ];
 
