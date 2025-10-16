@@ -42,15 +42,18 @@ export function AppSidebar() {
     const fetchUserRole = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: roles } = await supabase
+        const { data: roles, error } = await supabase
           .from("user_roles")
           .select("role")
           .eq("user_id", user.id)
           .limit(1)
           .single();
         
+        console.log("Fetched user role:", roles, "Error:", error, "User ID:", user.id);
+        
         if (roles) {
           setUserRole(roles.role);
+          console.log("User role set to:", roles.role);
         }
       }
     };
