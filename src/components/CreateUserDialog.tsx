@@ -160,95 +160,130 @@ export const CreateUserDialog = ({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Create New User</DialogTitle>
           <DialogDescription>
             Add a new user to the system and assign their roles
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleCreateUser} className="space-y-4">
-          <div className="space-y-2">
-            <Label htmlFor="fullName">Full Name *</Label>
-            <Input
-              id="fullName"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              required
-              placeholder="John Doe"
-            />
-          </div>
+        <form onSubmit={handleCreateUser} className="space-y-6">
+          {/* Personal Information Section */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-primary border-b pb-2">Personal Information</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="fullName">Full Name *</Label>
+                <Input
+                  id="fullName"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                  placeholder="John Doe"
+                  className="w-full"
+                />
+              </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="email">Email Address *</Label>
-            <Input
-              id="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder="user@cuea.edu"
-              autoComplete="email"
-            />
-            <p className="text-xs text-muted-foreground">
-              Must be a valid email address
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="phone">Phone Number</Label>
-            <Input
-              id="phone"
-              type="tel"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder="+254712345678"
-              autoComplete="tel"
-            />
-            <p className="text-xs text-muted-foreground">
-              International format (e.g., +254712345678)
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="password">Password *</Label>
-            <Input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="••••••••"
-              minLength={8}
-              autoComplete="new-password"
-            />
-            <p className="text-xs text-muted-foreground">
-              Minimum 8 characters required
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label>Assign Roles *</Label>
-            <div className="space-y-2 border rounded-md p-3 max-h-48 overflow-y-auto">
-              {AVAILABLE_ROLES.map((role) => (
-                <div key={role.value} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={role.value}
-                    checked={selectedRoles.includes(role.value)}
-                    onCheckedChange={() => toggleRole(role.value)}
-                  />
-                  <label
-                    htmlFor={role.value}
-                    className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer"
-                  >
-                    {role.label}
-                  </label>
-                </div>
-              ))}
+              <div className="space-y-2">
+                <Label htmlFor="phone">Phone Number</Label>
+                <Input
+                  id="phone"
+                  type="tel"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="+254712345678"
+                  autoComplete="tel"
+                  className="w-full"
+                />
+                <p className="text-xs text-muted-foreground">
+                  International format (e.g., +254712345678)
+                </p>
+              </div>
             </div>
           </div>
 
-          <div className="flex justify-end gap-2 pt-4">
+          {/* Account Credentials Section */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-primary border-b pb-2">Account Credentials</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="email">Email Address *</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  required
+                  placeholder="user@cuea.edu"
+                  autoComplete="email"
+                  className="w-full"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Must be a valid email address
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="password">Password *</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  placeholder="••••••••"
+                  minLength={8}
+                  autoComplete="new-password"
+                  className="w-full"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Minimum 8 characters required
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Roles Assignment Section */}
+          <div className="space-y-4">
+            <h3 className="text-sm font-semibold text-primary border-b pb-2">Role Assignment *</h3>
+            <div className="border rounded-lg p-4 bg-muted/30">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-64 overflow-y-auto">
+                {AVAILABLE_ROLES.map((role) => (
+                  <div key={role.value} className="flex items-center space-x-2 p-2 hover:bg-background rounded transition-colors">
+                    <Checkbox
+                      id={role.value}
+                      checked={selectedRoles.includes(role.value)}
+                      onCheckedChange={() => toggleRole(role.value)}
+                    />
+                    <label
+                      htmlFor={role.value}
+                      className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 cursor-pointer flex-1"
+                    >
+                      {role.label}
+                    </label>
+                  </div>
+                ))}
+              </div>
+              {selectedRoles.length > 0 && (
+                <div className="mt-3 pt-3 border-t">
+                  <p className="text-xs font-medium text-muted-foreground mb-2">Selected Roles:</p>
+                  <div className="flex flex-wrap gap-1">
+                    {selectedRoles.map((roleValue) => {
+                      const role = AVAILABLE_ROLES.find(r => r.value === roleValue);
+                      return (
+                        <span key={roleValue} className="text-xs bg-primary text-primary-foreground px-2 py-1 rounded">
+                          {role?.label}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Action Buttons */}
+          <div className="flex justify-end gap-3 pt-4 border-t">
             <Button
               type="button"
               variant="outline"
@@ -258,7 +293,7 @@ export const CreateUserDialog = ({
               Cancel
             </Button>
             <Button type="submit" disabled={loading}>
-              {loading ? "Creating..." : "Create User"}
+              {loading ? "Creating User..." : "Create User"}
             </Button>
           </div>
         </form>
