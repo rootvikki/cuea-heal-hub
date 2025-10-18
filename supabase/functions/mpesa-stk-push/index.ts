@@ -46,7 +46,20 @@ serve(async (req) => {
       }
     );
 
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
+      console.error('Token request failed:', tokenResponse.status, errorText);
+      throw new Error(`Failed to get M-Pesa access token: ${tokenResponse.status} - ${errorText}`);
+    }
+
     const tokenData = await tokenResponse.json();
+    console.log('Token response:', tokenData);
+    
+    if (!tokenData.access_token) {
+      console.error('No access token in response:', tokenData);
+      throw new Error(`M-Pesa token error: ${JSON.stringify(tokenData)}`);
+    }
+    
     const accessToken = tokenData.access_token;
 
     // Generate password and timestamp
