@@ -6,6 +6,7 @@ import { UserManagement } from "@/components/UserManagement";
 import { RoleBasedDashboard } from "@/components/RoleBasedDashboard";
 import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
 import { Activity, Pill } from "lucide-react";
+import { CriticalAlertsPanel } from "@/components/CriticalAlertsPanel";
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -104,6 +105,8 @@ const Dashboard = () => {
           )}
         </div>
       </div>
+
+      <CriticalAlertsPanel />
 
       <RoleBasedDashboard role={userRole || "user"} stats={stats}>
         {isAdmin && (

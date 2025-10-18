@@ -177,46 +177,47 @@ const Billing = () => {
 
     toast({
       title: "Processing M-Pesa payment",
-      description: "STK push sent to " + paymentPhone,
+      description: "Initiating STK push to " + paymentPhone,
     });
 
-    // In production, this would call an edge function to initiate M-Pesa STK Push
-    // For now, we'll simulate a successful payment
-    setTimeout(async () => {
-      const { error: paymentError } = await supabase.from("payments").insert({
-        invoice_id: selectedInvoice.id,
-        patient_id: selectedInvoice.patient_id,
-        amount: selectedInvoice.balance,
-        payment_method: "mpesa",
-        transaction_ref: `MPE${Date.now().toString().slice(-10)}`,
-        status: "completed",
+    try {
+      const { data, error } = await supabase.functions.invoke('mpesa-stk-push', {
+        body: {
+          invoiceId: selectedInvoice.id,
+          phoneNumber: paymentPhone,
+          amount: selectedInvoice.balance,
+        },
       });
 
-      const { error: invoiceError } = await supabase
-        .from("invoices")
-        .update({
-          amount_paid: selectedInvoice.net_amount,
-          balance: 0,
-          status: "paid",
-        })
-        .eq("id", selectedInvoice.id);
+      if (error) throw error;
 
-      if (paymentError || invoiceError) {
+      if (data?.success) {
         toast({
-          title: "Payment error",
-          description: "Failed to record payment",
-          variant: "destructive",
-        });
-      } else {
-        toast({
-          title: "Payment successful",
-          description: "M-Pesa payment completed",
+          title: "STK Push sent",
+          description: "Please check your phone and enter M-Pesa PIN",
         });
         setPaymentDialogOpen(false);
         setPaymentPhone("");
-        fetchInvoices();
+        
+        // Poll for payment status
+        setTimeout(() => {
+          fetchInvoices();
+          toast({
+            title: "Payment processing",
+            description: "Please wait for M-Pesa confirmation",
+          });
+        }, 5000);
+      } else {
+        throw new Error(data?.message || 'Payment initiation failed');
       }
-    }, 2000);
+    } catch (error: any) {
+      console.error('M-Pesa payment error:', error);
+      toast({
+        title: "Payment error",
+        description: error.message || "Failed to initiate M-Pesa payment",
+        variant: "destructive",
+      });
+    }
   };
 
   const getStatusColor = (status: string) => {
