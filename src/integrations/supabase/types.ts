@@ -1128,7 +1128,7 @@ export type Database = {
     }
     Functions: {
       get_all_users_with_roles: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: {
           created_at: string
           email: string
