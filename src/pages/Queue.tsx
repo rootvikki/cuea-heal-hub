@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog,
@@ -13,12 +14,7 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ClipboardList, Plus, Loader2, Filter } from "lucide-react";
-import { TicketWorkflowCard } from "@/components/workflow/TicketWorkflowCard";
-import { VitalsEntry } from "@/components/workflow/VitalsEntry";
-import { StageFilter } from "@/components/workflow/StageFilter";
-import { ticketSchema } from "@/lib/validationSchemas";
-import { z } from "zod";
+import { ClipboardList, Plus, ArrowRight } from "lucide-react";
 
 const Queue = () => {
   const { toast } = useToast();
@@ -27,10 +23,6 @@ const Queue = () => {
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [currentStage, setCurrentStage] = useState("all");
-  const [userRoles, setUserRoles] = useState<string[]>([]);
-  const [userDepartment, setUserDepartment] = useState<string | null>(null);
-  const [selectedDepartment, setSelectedDepartment] = useState<string>("all");
   const [formData, setFormData] = useState({
     patientId: "",
     departmentId: "",
@@ -38,7 +30,6 @@ const Queue = () => {
   });
 
   useEffect(() => {
-    fetchUserRoles();
     fetchTickets();
     fetchDepartments();
     fetchPatients();
@@ -64,37 +55,6 @@ const Queue = () => {
     };
   }, []);
 
-  const fetchUserRoles = async () => {
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data } = await supabase
-      .from("user_roles")
-      .select("role")
-      .eq("user_id", user.id);
-
-    if (data) {
-      const roles = data.map((r) => r.role);
-      setUserRoles(roles);
-      
-      // Fetch user's department if they're staff
-      if (!roles.includes("super_admin") && !roles.includes("admin")) {
-        const { data: staffData } = await supabase
-          .from("staff")
-          .select("department_id")
-          .eq("user_id", user.id)
-          .maybeSingle();
-        
-        if (staffData?.department_id) {
-          setUserDepartment(staffData.department_id);
-          setSelectedDepartment(staffData.department_id);
-        }
-      }
-    }
-  };
-
   const fetchTickets = async () => {
     setLoading(true);
     const { data } = await supabase
@@ -111,21 +71,19 @@ const Queue = () => {
             .from("patients")
             .select("patient_id, user_id")
             .eq("id", ticket.patient_id)
-            .maybeSingle();
+            .single();
 
-          const { data: profile } = patient
-            ? await supabase
-                .from("profiles")
-                .select("full_name")
-                .eq("user_id", patient.user_id)
-                .maybeSingle()
-            : { data: null };
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name")
+            .eq("user_id", patient?.user_id)
+            .single();
 
           const { data: dept } = await supabase
             .from("departments")
             .select("name")
             .eq("id", ticket.department_id)
-            .maybeSingle();
+            .single();
 
           return {
             ...ticket,
@@ -153,7 +111,7 @@ const Queue = () => {
             .from("profiles")
             .select("full_name")
             .eq("user_id", patient.user_id)
-            .maybeSingle();
+            .single();
           return { ...patient, profile };
         })
       );
@@ -164,24 +122,6 @@ const Queue = () => {
   const handleCheckIn = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Validate form data
-    try {
-      ticketSchema.parse({
-        patientId: formData.patientId,
-        departmentId: formData.departmentId,
-        priority: parseInt(formData.priority),
-      });
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        toast({
-          title: "Validation Error",
-          description: error.issues[0].message,
-          variant: "destructive",
-        });
-        return;
-      }
-    }
-
     const ticketNumber = `T-${Date.now().toString().slice(-6)}`;
 
     const { error } = await supabase.from("tickets").insert({
@@ -190,7 +130,6 @@ const Queue = () => {
       department_id: formData.departmentId,
       priority: parseInt(formData.priority),
       status: "checked_in",
-      workflow_stage: "checked_in",
     });
 
     if (error) {
@@ -201,7 +140,7 @@ const Queue = () => {
       });
     } else {
       toast({
-        title: "Patient checked in successfully",
+        title: "Patient checked in",
         description: `Ticket number: ${ticketNumber}`,
       });
       setDialogOpen(false);
@@ -209,29 +148,60 @@ const Queue = () => {
     }
   };
 
-  // Filter tickets by stage and department
-  let filteredTickets = tickets;
-  
-  // Department filtering (unless user is super_admin or admin)
-  if (selectedDepartment !== "all") {
-    filteredTickets = filteredTickets.filter(t => t.department_id === selectedDepartment);
-  }
-  
-  // Stage filtering
-  if (currentStage !== "all") {
-    filteredTickets = filteredTickets.filter((t) => t.status === currentStage);
-  }
+  type TicketStatus = "checked_in" | "triage" | "waiting_for_doctor" | "in_consult" | "at_pharmacy" | "at_billing" | "checked_out" | "order_placed_lab" | "order_placed_imaging" | "at_lab" | "at_imaging";
 
-  const stageCounts = tickets.reduce((acc: Record<string, number>, ticket) => {
-    // Only count tickets from selected department (or all if admin)
-    if (selectedDepartment === "all" || ticket.department_id === selectedDepartment) {
-      acc[ticket.status] = (acc[ticket.status] || 0) + 1;
-      acc.all = (acc.all || 0) + 1;
+  const updateTicketStatus = async (ticketId: string, newStatus: TicketStatus) => {
+    const { error } = await supabase
+      .from("tickets")
+      .update({ status: newStatus })
+      .eq("id", ticketId);
+
+    if (error) {
+      toast({
+        title: "Error updating ticket",
+        description: error.message,
+        variant: "destructive",
+      });
+    } else {
+      toast({
+        title: "Ticket updated",
+        description: "Status changed successfully",
+      });
     }
-    return acc;
-  }, {});
+  };
 
-  const canChangeDepartment = userRoles.includes("super_admin") || userRoles.includes("admin");
+  const getStatusColor = (status: string) => {
+    const colors: Record<string, string> = {
+      checked_in: "bg-muted",
+      triage: "bg-warning",
+      waiting_for_doctor: "bg-status-pending",
+      in_consult: "bg-status-in-progress",
+      order_placed_lab: "bg-primary",
+      order_placed_imaging: "bg-primary",
+      at_lab: "bg-accent",
+      at_imaging: "bg-accent",
+      at_pharmacy: "bg-success",
+      at_billing: "bg-secondary",
+      checked_out: "bg-status-completed",
+    };
+    return colors[status] || "bg-muted";
+  };
+
+  const getPriorityBadge = (priority: number) => {
+    if (priority === 3) return <Badge variant="destructive">Emergency</Badge>;
+    if (priority === 2) return <Badge className="bg-warning">High</Badge>;
+    return <Badge variant="outline">Normal</Badge>;
+  };
+
+  const statusFlow: TicketStatus[] = [
+    "checked_in",
+    "triage",
+    "waiting_for_doctor",
+    "in_consult",
+    "at_pharmacy",
+    "at_billing",
+    "checked_out",
+  ];
 
   return (
     <div className="p-8 space-y-6">
@@ -240,11 +210,6 @@ const Queue = () => {
           <h1 className="text-3xl font-bold">Patient Queue</h1>
           <p className="text-muted-foreground mt-1">
             Real-time patient flow management
-            {!canChangeDepartment && userDepartment && (
-              <span className="ml-2 text-primary font-medium">
-                (Your Department)
-              </span>
-            )}
           </p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -328,78 +293,63 @@ const Queue = () => {
         </Dialog>
       </div>
 
-      {canChangeDepartment && (
-        <Card>
-          <CardContent className="pt-6">
-            <div className="flex items-center gap-4">
-              <Filter className="h-5 w-5 text-muted-foreground" />
-              <div className="flex-1">
-                <Label>Filter by Department</Label>
-                <Select value={selectedDepartment} onValueChange={setSelectedDepartment}>
-                  <SelectTrigger className="mt-2">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Departments</SelectItem>
-                    {departments.map((dept) => (
-                      <SelectItem key={dept.id} value={dept.id}>
-                        {dept.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      <StageFilter
-        currentStage={currentStage}
-        onStageChange={setCurrentStage}
-        stageCounts={stageCounts}
-      />
-
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <ClipboardList className="h-5 w-5" />
-            Active Tickets ({filteredTickets.length})
+            Active Tickets ({tickets.length})
           </CardTitle>
-          <CardDescription>
-            {currentStage === "all"
-              ? "All active tickets"
-              : `Tickets in ${currentStage.replace(/_/g, " ")}`}
-          </CardDescription>
+          <CardDescription>Real-time patient queue status</CardDescription>
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="flex justify-center items-center py-8">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            </div>
-          ) : filteredTickets.length === 0 ? (
-            <p className="text-center py-8 text-muted-foreground">
-              No patients in this stage
-            </p>
+            <p className="text-center py-8 text-muted-foreground">Loading queue...</p>
+          ) : tickets.length === 0 ? (
+            <p className="text-center py-8 text-muted-foreground">No patients in queue</p>
           ) : (
             <div className="space-y-3">
-              {filteredTickets.map((ticket) => (
-                <div key={ticket.id} className="space-y-2">
-                  <TicketWorkflowCard
-                    ticket={ticket}
-                    onUpdate={fetchTickets}
-                    userRoles={userRoles}
-                  />
-                  {ticket.status === "triage" &&
-                    userRoles.some((r) => ["nurse", "admin", "super_admin"].includes(r)) && (
-                      <div className="flex justify-end">
-                        <VitalsEntry
-                          ticketId={ticket.id}
-                          patientId={ticket.patient_id}
-                          onComplete={fetchTickets}
-                        />
+              {tickets.map((ticket) => (
+                <div
+                  key={ticket.id}
+                  className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xl font-bold">{ticket.ticket_number}</span>
+                        {getPriorityBadge(ticket.priority)}
                       </div>
-                    )}
+                      <p className="font-medium">
+                        {ticket.patient?.profile?.full_name}
+                      </p>
+                      <p className="text-sm text-muted-foreground">
+                        {ticket.patient?.patient_id} • {ticket.department?.name}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Checked in: {new Date(ticket.checked_in_at).toLocaleString()}
+                      </p>
+                    </div>
+                    <Badge className={getStatusColor(ticket.status)}>
+                      {ticket.status.replace(/_/g, " ")}
+                    </Badge>
+                  </div>
+
+                  <div className="flex gap-2 flex-wrap">
+                    {statusFlow.map((status, idx) => (
+                      <Button
+                        key={status}
+                        size="sm"
+                        variant={ticket.status === status ? "default" : "outline"}
+                        onClick={() => updateTicketStatus(ticket.id, status)}
+                        disabled={ticket.status === status}
+                      >
+                        {status.replace(/_/g, " ")}
+                        {idx < statusFlow.length - 1 && (
+                          <ArrowRight className="ml-1 h-3 w-3" />
+                        )}
+                      </Button>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>

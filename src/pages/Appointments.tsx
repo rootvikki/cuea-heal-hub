@@ -53,77 +53,55 @@ const Appointments = () => {
 
   const fetchAppointments = async () => {
     setLoading(true);
-    if (!selectedDate) {
-      setLoading(false);
-      return;
-    }
+    const dateStr = selectedDate?.toISOString().split('T')[0];
     
-    const dateStr = selectedDate.toISOString().split('T')[0];
-    
-    const { data: appointmentsData, error } = await supabase
+    const { data, error } = await supabase
       .from("appointments")
-      .select("id, appointment_date, status, reason, patient_id, department_id")
-      .gte("appointment_date", `${dateStr}T00:00:00`)
+      .select("id, appointment_date, status, reason, department_id")
+      .gte("appointment_date", dateStr)
       .lt("appointment_date", `${dateStr}T23:59:59`)
       .order("appointment_date");
 
     if (error) {
       console.error("Error fetching appointments:", error);
-      toast({
-        title: "Error loading appointments",
-        description: error.message,
-        variant: "destructive",
-      });
-      setLoading(false);
-      return;
-    }
-
-    if (!appointmentsData || appointmentsData.length === 0) {
-      setAppointments([]);
-      setLoading(false);
-      return;
-    }
-
-    // Fetch patient and department details for each appointment
-    const appointmentsWithDetails = await Promise.all(
-      appointmentsData.map(async (apt) => {
-        // Fetch patient details
+    } else {
+      // Fetch patient and department info separately
+      const appointmentIds = data?.map(a => a.id) || [];
+      const patientPromises = data?.map(async (apt: any) => {
         const { data: patientData } = await supabase
           .from("patients")
           .select("patient_id, user_id")
           .eq("id", apt.patient_id)
-          .maybeSingle();
-
-        let patientInfo = null;
+          .single();
+        
         if (patientData) {
           const { data: profileData } = await supabase
             .from("profiles")
             .select("full_name")
             .eq("user_id", patientData.user_id)
-            .maybeSingle();
+            .single();
           
-          patientInfo = {
-            patient_id: patientData.patient_id,
-            profiles: profileData
-          };
+          return { ...apt, patients: { patient_id: patientData.patient_id, profiles: profileData } };
         }
+        return apt;
+      }) || [];
 
-        // Fetch department details
+      const appointmentsWithData = await Promise.all(patientPromises);
+      
+      // Fetch departments
+      const deptPromises = appointmentsWithData.map(async (apt: any) => {
         const { data: deptData } = await supabase
           .from("departments")
           .select("name")
           .eq("id", apt.department_id)
-          .maybeSingle();
+          .single();
+        
+        return { ...apt, departments: deptData };
+      });
 
-        return {
-          ...apt,
-          patients: patientInfo,
-          departments: deptData
-        };
-      })
-    );
-
-    setAppointments(appointmentsWithDetails as any);
+      const finalAppointments = await Promise.all(deptPromises);
+      setAppointments(finalAppointments as any);
+    }
     setLoading(false);
   };
 
@@ -133,42 +111,20 @@ const Appointments = () => {
   };
 
   const fetchPatients = async () => {
-    const { data: patientsData, error } = await supabase
-      .from("patients")
-      .select("id, patient_id, user_id");
-    
-    if (error) {
-      console.error("Error fetching patients:", error);
-      toast({
-        title: "Error loading patients",
-        description: error.message,
-        variant: "destructive",
-      });
-      return;
+    const { data } = await supabase.from("patients").select("id, patient_id, user_id");
+    if (data) {
+      const patientsWithProfiles = await Promise.all(
+        data.map(async (patient) => {
+          const { data: profile } = await supabase
+            .from("profiles")
+            .select("full_name")
+            .eq("user_id", patient.user_id)
+            .single();
+          return { ...patient, profile };
+        })
+      );
+      setPatients(patientsWithProfiles);
     }
-
-    if (!patientsData) {
-      setPatients([]);
-      return;
-    }
-
-    // Fetch profiles for each patient
-    const patientsWithProfiles = await Promise.all(
-      patientsData.map(async (patient) => {
-        const { data: profileData } = await supabase
-          .from("profiles")
-          .select("full_name")
-          .eq("user_id", patient.user_id)
-          .maybeSingle();
-        
-        return {
-          ...patient,
-          profiles: profileData
-        };
-      })
-    );
-    
-    setPatients(patientsWithProfiles);
   };
 
   const handleCreateAppointment = async (e: React.FormEvent) => {
@@ -239,9 +195,9 @@ const Appointments = () => {
                     <SelectValue placeholder="Select patient" />
                   </SelectTrigger>
                   <SelectContent>
-                    {patients.map((patient: any) => (
+                    {patients.map((patient) => (
                       <SelectItem key={patient.id} value={patient.id}>
-                        {patient.patient_id} - {patient.profiles?.full_name || 'Unknown'}
+                        {patient.patient_id} - {patient.profile?.full_name}
                       </SelectItem>
                     ))}
                   </SelectContent>

@@ -3,7 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { BarChart3, TrendingUp, Users, DollarSign, Activity } from "lucide-react";
-import { AdvancedReports } from "@/components/reports/AdvancedReports";
 
 const Settings = () => {
   const [stats, setStats] = useState({
@@ -65,17 +64,12 @@ const Settings = () => {
         </p>
       </div>
 
-      <Tabs defaultValue="advanced" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="advanced">Advanced Reports</TabsTrigger>
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="clinical">Clinical</TabsTrigger>
           <TabsTrigger value="financial">Financial</TabsTrigger>
         </TabsList>
-
-        <TabsContent value="advanced" className="space-y-6 mt-6">
-          <AdvancedReports />
-        </TabsContent>
 
         <TabsContent value="overview" className="space-y-6 mt-6">
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">

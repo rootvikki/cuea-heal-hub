@@ -14,41 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      appointment_reminders: {
-        Row: {
-          appointment_id: string
-          created_at: string
-          id: string
-          reminder_time: string
-          sent: boolean | null
-          sent_at: string | null
-        }
-        Insert: {
-          appointment_id: string
-          created_at?: string
-          id?: string
-          reminder_time: string
-          sent?: boolean | null
-          sent_at?: string | null
-        }
-        Update: {
-          appointment_id?: string
-          created_at?: string
-          id?: string
-          reminder_time?: string
-          sent?: boolean | null
-          sent_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "appointment_reminders_appointment_id_fkey"
-            columns: ["appointment_id"]
-            isOneToOne: false
-            referencedRelation: "appointments"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       appointments: {
         Row: {
           appointment_date: string
@@ -106,86 +71,6 @@ export type Database = {
           },
           {
             foreignKeyName: "appointments_patient_id_fkey"
-            columns: ["patient_id"]
-            isOneToOne: false
-            referencedRelation: "patients"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      audit_logs: {
-        Row: {
-          action: string
-          created_at: string | null
-          details: Json | null
-          id: string
-          ip_address: string | null
-          module: string
-          user_id: string | null
-        }
-        Insert: {
-          action: string
-          created_at?: string | null
-          details?: Json | null
-          id?: string
-          ip_address?: string | null
-          module: string
-          user_id?: string | null
-        }
-        Update: {
-          action?: string
-          created_at?: string | null
-          details?: Json | null
-          id?: string
-          ip_address?: string | null
-          module?: string
-          user_id?: string | null
-        }
-        Relationships: []
-      }
-      critical_alerts: {
-        Row: {
-          acknowledged: boolean | null
-          acknowledged_at: string | null
-          acknowledged_by: string | null
-          alert_type: string
-          created_at: string
-          id: string
-          message: string
-          patient_id: string | null
-          reference_id: string | null
-          severity: string
-          title: string
-        }
-        Insert: {
-          acknowledged?: boolean | null
-          acknowledged_at?: string | null
-          acknowledged_by?: string | null
-          alert_type: string
-          created_at?: string
-          id?: string
-          message: string
-          patient_id?: string | null
-          reference_id?: string | null
-          severity: string
-          title: string
-        }
-        Update: {
-          acknowledged?: boolean | null
-          acknowledged_at?: string | null
-          acknowledged_by?: string | null
-          alert_type?: string
-          created_at?: string
-          id?: string
-          message?: string
-          patient_id?: string | null
-          reference_id?: string | null
-          severity?: string
-          title?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "critical_alerts_patient_id_fkey"
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
@@ -512,62 +397,6 @@ export type Database = {
         }
         Relationships: []
       }
-      mpesa_transactions: {
-        Row: {
-          amount: number
-          checkout_request_id: string | null
-          created_at: string
-          id: string
-          invoice_id: string | null
-          merchant_request_id: string | null
-          mpesa_receipt_number: string | null
-          phone_number: string
-          result_code: string | null
-          result_desc: string | null
-          status: string
-          transaction_date: string | null
-          updated_at: string
-        }
-        Insert: {
-          amount: number
-          checkout_request_id?: string | null
-          created_at?: string
-          id?: string
-          invoice_id?: string | null
-          merchant_request_id?: string | null
-          mpesa_receipt_number?: string | null
-          phone_number: string
-          result_code?: string | null
-          result_desc?: string | null
-          status?: string
-          transaction_date?: string | null
-          updated_at?: string
-        }
-        Update: {
-          amount?: number
-          checkout_request_id?: string | null
-          created_at?: string
-          id?: string
-          invoice_id?: string | null
-          merchant_request_id?: string | null
-          mpesa_receipt_number?: string | null
-          phone_number?: string
-          result_code?: string | null
-          result_desc?: string | null
-          status?: string
-          transaction_date?: string | null
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "mpesa_transactions_invoice_id_fkey"
-            columns: ["invoice_id"]
-            isOneToOne: false
-            referencedRelation: "invoices"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       patients: {
         Row: {
           allergies: string[] | null
@@ -836,39 +665,6 @@ export type Database = {
         }
         Relationships: []
       }
-      sms_notifications: {
-        Row: {
-          created_at: string
-          id: string
-          message: string
-          notification_type: string
-          recipient_phone: string
-          reference_id: string | null
-          sent_at: string | null
-          status: string
-        }
-        Insert: {
-          created_at?: string
-          id?: string
-          message: string
-          notification_type: string
-          recipient_phone: string
-          reference_id?: string | null
-          sent_at?: string | null
-          status?: string
-        }
-        Update: {
-          created_at?: string
-          id?: string
-          message?: string
-          notification_type?: string
-          recipient_phone?: string
-          reference_id?: string | null
-          sent_at?: string | null
-          status?: string
-        }
-        Relationships: []
-      }
       staff: {
         Row: {
           created_at: string | null
@@ -910,44 +706,6 @@ export type Database = {
           },
         ]
       }
-      ticket_comments: {
-        Row: {
-          comment: string
-          created_at: string | null
-          id: string
-          stage: string
-          ticket_id: string
-          updated_at: string | null
-          user_id: string
-        }
-        Insert: {
-          comment: string
-          created_at?: string | null
-          id?: string
-          stage: string
-          ticket_id: string
-          updated_at?: string | null
-          user_id: string
-        }
-        Update: {
-          comment?: string
-          created_at?: string | null
-          id?: string
-          stage?: string
-          ticket_id?: string
-          updated_at?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ticket_comments_ticket_id_fkey"
-            columns: ["ticket_id"]
-            isOneToOne: false
-            referencedRelation: "tickets"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       tickets: {
         Row: {
           appointment_id: string | null
@@ -962,7 +720,6 @@ export type Database = {
           status: Database["public"]["Enums"]["ticket_status"] | null
           ticket_number: string
           updated_at: string | null
-          workflow_stage: string | null
         }
         Insert: {
           appointment_id?: string | null
@@ -977,7 +734,6 @@ export type Database = {
           status?: Database["public"]["Enums"]["ticket_status"] | null
           ticket_number: string
           updated_at?: string | null
-          workflow_stage?: string | null
         }
         Update: {
           appointment_id?: string | null
@@ -992,7 +748,6 @@ export type Database = {
           status?: Database["public"]["Enums"]["ticket_status"] | null
           ticket_number?: string
           updated_at?: string | null
-          workflow_stage?: string | null
         }
         Relationships: [
           {
@@ -1127,17 +882,6 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      get_all_users_with_roles: {
-        Args: never
-        Returns: {
-          created_at: string
-          email: string
-          full_name: string
-          phone: string
-          roles: string[]
-          user_id: string
-        }[]
-      }
       get_user_roles: {
         Args: { _user_id: string }
         Returns: Database["public"]["Enums"]["app_role"][]
@@ -1160,13 +904,6 @@ export type Database = {
         | "pharmacist"
         | "finance_officer"
         | "patient"
-        | "super_admin"
-        | "system_admin"
-        | "radiologist"
-        | "cashier"
-        | "accountant"
-        | "hr_admin"
-        | "auditor"
       appointment_status:
         | "scheduled"
         | "confirmed"
@@ -1324,13 +1061,6 @@ export const Constants = {
         "pharmacist",
         "finance_officer",
         "patient",
-        "super_admin",
-        "system_admin",
-        "radiologist",
-        "cashier",
-        "accountant",
-        "hr_admin",
-        "auditor",
       ],
       appointment_status: [
         "scheduled",

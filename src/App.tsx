@@ -7,7 +7,6 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
-import ResetPassword from "./pages/ResetPassword";
 import Dashboard from "./pages/Dashboard";
 import Patients from "./pages/Patients";
 import Appointments from "./pages/Appointments";
@@ -18,9 +17,6 @@ import Pharmacy from "./pages/Pharmacy";
 import Laboratory from "./pages/Laboratory";
 import Billing from "./pages/Billing";
 import Settings from "./pages/Settings";
-import StaffManagement from "./pages/StaffManagement";
-import Consultation from "./pages/Consultation";
-import SuperAdminDashboard from "./pages/SuperAdminDashboard";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 
@@ -35,7 +31,6 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
-          <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/dashboard" element={
             <ProtectedRoute>
               <SidebarProvider>
@@ -132,36 +127,6 @@ const App = () => (
                 <div className="flex min-h-screen w-full">
                   <AppSidebar />
                   <main className="flex-1"><Settings /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/staff" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><StaffManagement /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/consultation" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><Consultation /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/super-admin" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><SuperAdminDashboard /></main>
                 </div>
               </SidebarProvider>
             </ProtectedRoute>

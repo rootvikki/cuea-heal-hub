@@ -14,9 +14,6 @@ import {
   Hospital,
   ClipboardList,
   Activity,
-  Stethoscope,
-  UserCog,
-  UserCheck,
 } from "lucide-react";
 import {
   Sidebar,
@@ -45,18 +42,15 @@ export function AppSidebar() {
     const fetchUserRole = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        const { data: roles, error } = await supabase
+        const { data: roles } = await supabase
           .from("user_roles")
           .select("role")
           .eq("user_id", user.id)
           .limit(1)
           .single();
         
-        console.log("Fetched user role:", roles, "Error:", error, "User ID:", user.id);
-        
         if (roles) {
           setUserRole(roles.role);
-          console.log("User role set to:", roles.role);
         }
       }
     };
@@ -79,24 +73,20 @@ export function AppSidebar() {
 
   const menuItems = [
     { title: "Dashboard", url: "/dashboard", icon: Home, roles: ["all"] },
-    { title: "Patients", url: "/patients", icon: Users, roles: ["super_admin", "admin", "doctor", "nurse", "receptionist"] },
+    { title: "Patients", url: "/patients", icon: Users, roles: ["admin", "doctor", "nurse", "receptionist"] },
     { title: "Appointments", url: "/appointments", icon: Calendar, roles: ["all"] },
-    { title: "Patient Queue", url: "/queue", icon: ClipboardList, roles: ["super_admin", "admin", "doctor", "nurse", "receptionist"] },
-    { title: "Consultation", url: "/consultation", icon: Stethoscope, roles: ["doctor"] },
-    { title: "Medical Records", url: "/records", icon: FileText, roles: ["super_admin", "admin", "doctor", "nurse"] },
-    { title: "Vitals", url: "/vitals", icon: Activity, roles: ["super_admin", "admin", "doctor", "nurse"] },
-    { title: "Pharmacy", url: "/pharmacy", icon: Pill, roles: ["super_admin", "admin", "pharmacist", "doctor"] },
-    { title: "Laboratory", url: "/laboratory", icon: TestTube, roles: ["super_admin", "admin", "lab_technician", "radiologist", "doctor"] },
-    { title: "Billing", url: "/billing", icon: Receipt, roles: ["super_admin", "admin", "finance_officer", "cashier", "accountant"] },
-    { title: "Staff Management", url: "/staff", icon: UserCheck, roles: ["super_admin", "admin"] },
-    { title: "Super Admin", url: "/super-admin", icon: UserCog, roles: ["super_admin"] },
+    { title: "Patient Queue", url: "/queue", icon: ClipboardList, roles: ["admin", "doctor", "nurse", "receptionist"] },
+    { title: "Medical Records", url: "/records", icon: FileText, roles: ["admin", "doctor", "nurse"] },
+    { title: "Vitals", url: "/vitals", icon: Activity, roles: ["admin", "doctor", "nurse"] },
+    { title: "Pharmacy", url: "/pharmacy", icon: Pill, roles: ["admin", "pharmacist", "doctor"] },
+    { title: "Laboratory", url: "/laboratory", icon: TestTube, roles: ["admin", "lab_technician", "doctor"] },
+    { title: "Billing", url: "/billing", icon: Receipt, roles: ["admin", "finance_officer"] },
     { title: "Settings", url: "/settings", icon: Settings, roles: ["all"] },
   ];
 
-  // Super admin sees everything, others see filtered menu
-  const filteredMenuItems = userRole === "super_admin" 
-    ? menuItems 
-    : menuItems.filter(item => item.roles.includes("all") || (userRole && item.roles.includes(userRole)));
+  const filteredMenuItems = menuItems.filter(
+    item => item.roles.includes("all") || (userRole && item.roles.includes(userRole))
+  );
 
   return (
     <Sidebar>

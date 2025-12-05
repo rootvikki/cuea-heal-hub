@@ -1,13 +1,1 @@
 project_id = "nvkmadptjotclbcighbj"
-
-[functions.mpesa-stk-push]
-verify_jwt = false
-
-[functions.mpesa-callback]
-verify_jwt = false
-
-[functions.send-sms]
-verify_jwt = false
-
-[functions.send-appointment-reminders]
-verify_jwt = false

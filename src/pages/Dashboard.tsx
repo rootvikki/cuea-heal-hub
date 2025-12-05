@@ -2,11 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdminRoleAssignment } from "@/components/AdminRoleAssignment";
-import { UserManagement } from "@/components/UserManagement";
-import { RoleBasedDashboard } from "@/components/RoleBasedDashboard";
-import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
-import { Activity, Pill } from "lucide-react";
-import { CriticalAlertsPanel } from "@/components/CriticalAlertsPanel";
+import { Users, Calendar, ClipboardList, DollarSign, Activity, Pill } from "lucide-react";
 
 const Dashboard = () => {
   const [stats, setStats] = useState({
@@ -19,77 +15,80 @@ const Dashboard = () => {
   const [userId, setUserId] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [hasRole, setHasRole] = useState(false);
-  const [userRole, setUserRole] = useState<string | null>(null);
-  const [isAdmin, setIsAdmin] = useState(false);
-  const [checkingSystem, setCheckingSystem] = useState(true);
 
   useEffect(() => {
+    const fetchData = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (user) {
+        // Get user name from metadata or profile
+        const fullName = user.user_metadata?.full_name || user.email?.split("@")[0] || "User";
+        setUserName(fullName);
+        setUserId(user.id);
+        setUserEmail(user.email || "");
+
+        // Check if user has a role
+        const { data: roleData } = await supabase
+          .from("user_roles")
+          .select("role")
+          .eq("user_id", user.id)
+          .limit(1);
+        
+        setHasRole((roleData && roleData.length > 0) || false);
+
+        // Fetch statistics
+        const today = new Date().toISOString().split('T')[0];
+
+        const [patientsRes, appointmentsRes, ticketsRes, invoicesRes] = await Promise.all([
+          supabase.from("patients").select("id", { count: "exact", head: true }),
+          supabase.from("appointments").select("id", { count: "exact", head: true }).gte("appointment_date", today),
+          supabase.from("tickets").select("id", { count: "exact", head: true }).neq("status", "checked_out"),
+          supabase.from("invoices").select("id", { count: "exact", head: true }).eq("status", "pending"),
+        ]);
+
+        setStats({
+          totalPatients: patientsRes.count || 0,
+          todayAppointments: appointmentsRes.count || 0,
+          activeTickets: ticketsRes.count || 0,
+          pendingPayments: invoicesRes.count || 0,
+        });
+      }
+    };
+
     fetchData();
   }, []);
 
-  const fetchData = async () => {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (user) {
-      // Get user name from metadata or profile
-      const fullName = user.user_metadata?.full_name || user.email?.split("@")[0] || "User";
-      setUserName(fullName);
-      setUserId(user.id);
-      setUserEmail(user.email || "");
+  const statCards = [
+    {
+      title: "Total Patients",
+      value: stats.totalPatients,
+      icon: Users,
+      description: "Registered patients",
+      color: "text-primary",
+    },
+    {
+      title: "Today's Appointments",
+      value: stats.todayAppointments,
+      icon: Calendar,
+      description: "Scheduled for today",
+      color: "text-accent",
+    },
+    {
+      title: "Active Queue",
+      value: stats.activeTickets,
+      icon: ClipboardList,
+      description: "Patients in queue",
+      color: "text-warning",
+    },
+    {
+      title: "Pending Payments",
+      value: stats.pendingPayments,
+      icon: DollarSign,
+      description: "Awaiting payment",
+      color: "text-destructive",
+    },
+  ];
 
-      // Check if user has a role
-      const { data: roleData } = await supabase
-        .from("user_roles")
-        .select("role")
-        .eq("user_id", user.id);
-      
-      setHasRole((roleData && roleData.length > 0) || false);
-      
-      if (roleData && roleData.length > 0) {
-        const role = roleData[0].role;
-        setUserRole(role);
-        setIsAdmin(role === 'super_admin' || role === 'admin');
-      }
-
-      // Fetch statistics
-      const today = new Date().toISOString().split('T')[0];
-
-      const [patientsRes, appointmentsRes, ticketsRes, invoicesRes] = await Promise.all([
-        supabase.from("patients").select("id", { count: "exact", head: true }),
-        supabase.from("appointments").select("id", { count: "exact", head: true }).gte("appointment_date", today),
-        supabase.from("tickets").select("id", { count: "exact", head: true }).neq("status", "checked_out"),
-        supabase.from("invoices").select("id", { count: "exact", head: true }).eq("status", "pending"),
-      ]);
-
-      setStats({
-        totalPatients: patientsRes.count || 0,
-        todayAppointments: appointmentsRes.count || 0,
-        activeTickets: ticketsRes.count || 0,
-        pendingPayments: invoicesRes.count || 0,
-      });
-    }
-    setCheckingSystem(false);
-  };
-
-  // ... keep existing code (statCards removed)
-
-  if (checkingSystem) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
-          <p className="text-muted-foreground">Loading system...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Super Admin gets full dashboard
-  if (userRole === 'super_admin') {
-    return <SuperAdminDashboard />;
-  }
-
-  // Regular role-based dashboard for other users
   return (
     <div className="p-8 space-y-8">
       <div className="space-y-2">
@@ -97,7 +96,7 @@ const Dashboard = () => {
           <div>
             <h1 className="text-4xl font-bold">Welcome back, {userName}!</h1>
             <p className="text-muted-foreground text-lg">
-              {userRole && <span className="capitalize">{userRole.replace(/_/g, " ")} Dashboard</span>}
+              Here's what's happening in your hospital today.
             </p>
           </div>
           {!hasRole && (
@@ -106,16 +105,26 @@ const Dashboard = () => {
         </div>
       </div>
 
-      <CriticalAlertsPanel />
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
+        {statCards.map((stat) => (
+          <Card key={stat.title} className="hover:shadow-lg transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">
+                {stat.title}
+              </CardTitle>
+              <stat.icon className={`h-5 w-5 ${stat.color}`} />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold">{stat.value}</div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {stat.description}
+              </p>
+            </CardContent>
+          </Card>
+        ))}
+      </div>
 
-      <RoleBasedDashboard role={userRole || "user"} stats={stats}>
-        {isAdmin && (
-          <div className="mt-6">
-            <UserManagement />
-          </div>
-        )}
-
-        <div className="grid gap-6 md:grid-cols-2 mt-6">
+      <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -170,7 +179,6 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
-      </RoleBasedDashboard>
     </div>
   );
 };
