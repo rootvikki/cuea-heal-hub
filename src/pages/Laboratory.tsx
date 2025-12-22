@@ -16,10 +16,12 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useQueueTransition } from "@/hooks/useQueueTransition";
 import { TestTube, Plus } from "lucide-react";
 
 const Laboratory = () => {
   const { toast } = useToast();
+  const { getActiveTicket, onLabComplete } = useQueueTransition();
   const [labOrders, setLabOrders] = useState<any[]>([]);
   const [testsCatalog, setTestsCatalog] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,7 +76,7 @@ const Laboratory = () => {
     setTestsCatalog(data || []);
   };
 
-  const handleUpdateResult = async (orderId: string, resultValue: string, resultNotes: string) => {
+  const handleUpdateResult = async (orderId: string, resultValue: string, resultNotes: string, encounterId: string, patientId: string) => {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return;
 
@@ -106,6 +108,22 @@ const Laboratory = () => {
         title: "Result saved",
         description: "Lab result has been recorded successfully",
       });
+
+      // Check if all lab orders for this encounter are complete
+      const { data: pendingLabs } = await supabase
+        .from("lab_orders")
+        .select("id")
+        .eq("encounter_id", encounterId)
+        .neq("status", "completed");
+
+      if ((pendingLabs?.length || 0) === 0) {
+        // All labs complete - transition patient
+        const ticket = await getActiveTicket(patientId);
+        if (ticket && ticket.status === "at_lab") {
+          await onLabComplete({ ticketId: ticket.id, encounterId });
+        }
+      }
+
       fetchLabOrders();
     }
   };
@@ -207,7 +225,7 @@ const LabOrderCard = ({ order, onUpdateResult, getStatusColor }: any) => {
   const [dialogOpen, setDialogOpen] = useState(false);
 
   const handleSave = () => {
-    onUpdateResult(order.id, resultValue, resultNotes);
+    onUpdateResult(order.id, resultValue, resultNotes, order.encounter_id, order.patient_id);
     setDialogOpen(false);
   };
 

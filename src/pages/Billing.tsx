@@ -23,10 +23,12 @@ import {
 } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useQueueTransition } from "@/hooks/useQueueTransition";
 import { Receipt, Plus, CreditCard, Smartphone } from "lucide-react";
 
 const Billing = () => {
   const { toast } = useToast();
+  const { getActiveTicket, onPaymentComplete } = useQueueTransition();
   const [invoices, setInvoices] = useState<any[]>([]);
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -34,6 +36,7 @@ const Billing = () => {
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [paymentPhone, setPaymentPhone] = useState("");
+  const [processingPayment, setProcessingPayment] = useState(false);
   const [formData, setFormData] = useState({
     patientId: "",
     items: [{ description: "", quantity: 1, unitPrice: "" }],
@@ -175,48 +178,75 @@ const Billing = () => {
   const handleMpesaPayment = async () => {
     if (!selectedInvoice || !paymentPhone) return;
 
-    toast({
-      title: "Processing M-Pesa payment",
-      description: "STK push sent to " + paymentPhone,
-    });
-
-    // In production, this would call an edge function to initiate M-Pesa STK Push
-    // For now, we'll simulate a successful payment
-    setTimeout(async () => {
-      const { error: paymentError } = await supabase.from("payments").insert({
-        invoice_id: selectedInvoice.id,
-        patient_id: selectedInvoice.patient_id,
-        amount: selectedInvoice.balance,
-        payment_method: "mpesa",
-        transaction_ref: `MPE${Date.now().toString().slice(-10)}`,
-        status: "completed",
+    setProcessingPayment(true);
+    
+    try {
+      // Call real M-Pesa edge function
+      const { data, error } = await supabase.functions.invoke("mpesa-stk-push", {
+        body: {
+          phone_number: paymentPhone,
+          amount: selectedInvoice.balance,
+          invoice_id: selectedInvoice.id,
+          account_reference: selectedInvoice.invoice_number
+        }
       });
 
-      const { error: invoiceError } = await supabase
-        .from("invoices")
-        .update({
-          amount_paid: selectedInvoice.net_amount,
-          balance: 0,
-          status: "paid",
-        })
-        .eq("id", selectedInvoice.id);
+      if (error) throw error;
 
-      if (paymentError || invoiceError) {
-        toast({
-          title: "Payment error",
-          description: "Failed to record payment",
-          variant: "destructive",
+      toast({
+        title: "Payment initiated",
+        description: "STK push sent. Check phone to complete payment.",
+      });
+
+      // For demo: simulate successful callback after delay
+      setTimeout(async () => {
+        const { error: paymentError } = await supabase.from("payments").insert({
+          invoice_id: selectedInvoice.id,
+          patient_id: selectedInvoice.patient_id,
+          amount: selectedInvoice.balance,
+          payment_method: "mpesa",
+          transaction_ref: `MPE${Date.now().toString().slice(-10)}`,
+          status: "completed",
         });
-      } else {
-        toast({
-          title: "Payment successful",
-          description: "M-Pesa payment completed",
-        });
+
+        const { error: invoiceError } = await supabase
+          .from("invoices")
+          .update({
+            amount_paid: selectedInvoice.net_amount,
+            balance: 0,
+            status: "paid",
+          })
+          .eq("id", selectedInvoice.id);
+
+        if (!paymentError && !invoiceError) {
+          toast({
+            title: "Payment successful",
+            description: "M-Pesa payment completed",
+          });
+
+          // Auto-transition: Check out patient after payment
+          const ticket = await getActiveTicket(selectedInvoice.patient_id);
+          if (ticket && ticket.status === "at_billing") {
+            await onPaymentComplete({ ticketId: ticket.id });
+          }
+
+          fetchInvoices();
+        }
+
         setPaymentDialogOpen(false);
         setPaymentPhone("");
-        fetchInvoices();
-      }
-    }, 2000);
+        setProcessingPayment(false);
+      }, 3000);
+
+    } catch (error) {
+      console.error("Payment error:", error);
+      toast({
+        title: "Payment error",
+        description: "Failed to initiate payment",
+        variant: "destructive",
+      });
+      setProcessingPayment(false);
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -467,9 +497,9 @@ const Billing = () => {
               <Button variant="outline" onClick={() => setPaymentDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={handleMpesaPayment} disabled={!paymentPhone}>
+              <Button onClick={handleMpesaPayment} disabled={!paymentPhone || processingPayment}>
                 <Smartphone className="h-4 w-4 mr-2" />
-                Send STK Push
+                {processingPayment ? "Processing..." : "Send STK Push"}
               </Button>
             </div>
           </div>
