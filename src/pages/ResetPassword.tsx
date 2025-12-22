@@ -1,34 +1,30 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
-import { supabase } from "@/integrations/supabase/client";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Loader2, Hospital, Lock, CheckCircle } from "lucide-react";
+import { Loader2, Hospital, Lock, CheckCircle, AlertCircle } from "lucide-react";
 
 const ResetPassword = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [success, setSuccess] = useState(false);
+  const [invalidLink, setInvalidLink] = useState(false);
+
+  const token = searchParams.get("token");
+  const email = searchParams.get("email");
 
   useEffect(() => {
-    // Check if we have a valid session from the reset link
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        toast({
-          title: "Invalid or expired link",
-          description: "Please request a new password reset link.",
-          variant: "destructive",
-        });
-        navigate("/auth");
-      }
-    });
-  }, [navigate, toast]);
+    if (!token || !email) {
+      setInvalidLink(true);
+    }
+  }, [token, email]);
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -54,11 +50,20 @@ const ResetPassword = () => {
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.updateUser({
-        password: password,
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-password-reset`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email, token, newPassword: password }),
+        }
+      );
 
-      if (error) throw error;
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to reset password");
+      }
 
       setSuccess(true);
       toast({
@@ -66,9 +71,7 @@ const ResetPassword = () => {
         description: "Your password has been successfully reset.",
       });
 
-      // Sign out and redirect to login
-      setTimeout(async () => {
-        await supabase.auth.signOut();
+      setTimeout(() => {
         navigate("/auth");
       }, 2000);
     } catch (error: any) {
@@ -81,6 +84,27 @@ const ResetPassword = () => {
       setLoading(false);
     }
   };
+
+  if (invalidLink) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/10 p-4">
+        <Card className="w-full max-w-md shadow-xl">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-4">
+              <AlertCircle className="w-16 h-16 mx-auto text-destructive" />
+              <h2 className="text-2xl font-bold">Invalid Reset Link</h2>
+              <p className="text-muted-foreground">
+                This password reset link is invalid or has expired. Please request a new one.
+              </p>
+              <Button onClick={() => navigate("/auth")} className="mt-4">
+                Back to Login
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   if (success) {
     return (
@@ -110,7 +134,7 @@ const ResetPassword = () => {
           <div>
             <CardTitle className="text-2xl font-bold">Reset Password</CardTitle>
             <CardDescription className="mt-2">
-              Enter your new password below
+              Enter your new password for <strong>{email}</strong>
             </CardDescription>
           </div>
         </CardHeader>
