@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { Loader2, Hospital, Lock, CheckCircle, AlertCircle } from "lucide-react"
 
 const ResetPassword = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [password, setPassword] = useState("");
@@ -18,30 +19,16 @@ const ResetPassword = () => {
   const [canReset, setCanReset] = useState(false);
   const [checking, setChecking] = useState(true);
 
+  const token = searchParams.get("token");
+  const email = searchParams.get("email");
+
   useEffect(() => {
-    // Listen for the PASSWORD_RECOVERY event from Supabase
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "PASSWORD_RECOVERY") {
-        setCanReset(true);
-        setChecking(false);
-      } else if (event === "SIGNED_IN" && session) {
-        // User might have clicked reset link while already having a session
-        setCanReset(true);
-        setChecking(false);
-      }
-    });
-
-    // Also check current session state
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      // If there's a session and we're on the reset page, allow reset
-      if (session) {
-        setCanReset(true);
-      }
-      setChecking(false);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+    // Validate that we have token and email from the custom reset link
+    if (token && email) {
+      setCanReset(true);
+    }
+    setChecking(false);
+  }, [token, email]);
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,12 +51,37 @@ const ResetPassword = () => {
       return;
     }
 
+    if (!token || !email) {
+      toast({
+        title: "Invalid reset link",
+        description: "Please request a new password reset link.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const { error } = await supabase.auth.updateUser({ password });
+      // Call custom edge function to verify token and update password
+      const response = await fetch(
+        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-password-reset`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            email, 
+            token, 
+            newPassword: password 
+          }),
+        }
+      );
 
-      if (error) throw error;
+      const result = await response.json();
+
+      if (!result.success) {
+        throw new Error(result.error || "Failed to reset password");
+      }
 
       setSuccess(true);
       toast({
@@ -77,8 +89,7 @@ const ResetPassword = () => {
         description: "Your password has been successfully reset.",
       });
 
-      // Sign out and redirect to login
-      await supabase.auth.signOut();
+      // Redirect to login after success
       setTimeout(() => {
         navigate("/auth");
       }, 2000);
