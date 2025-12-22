@@ -15,7 +15,12 @@ import Records from "./pages/Records";
 import Vitals from "./pages/Vitals";
 import Pharmacy from "./pages/Pharmacy";
 import Laboratory from "./pages/Laboratory";
+import Imaging from "./pages/Imaging";
 import Billing from "./pages/Billing";
+import Insurance from "./pages/Insurance";
+import Inpatient from "./pages/Inpatient";
+import StaffManagement from "./pages/StaffManagement";
+import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
@@ -117,6 +122,56 @@ const App = () => (
                 <div className="flex min-h-screen w-full">
                   <AppSidebar />
                   <main className="flex-1"><Billing /></main>
+                </div>
+              </SidebarProvider>
+            </ProtectedRoute>
+          } />
+          <Route path="/imaging" element={
+            <ProtectedRoute>
+              <SidebarProvider>
+                <div className="flex min-h-screen w-full">
+                  <AppSidebar />
+                  <main className="flex-1"><Imaging /></main>
+                </div>
+              </SidebarProvider>
+            </ProtectedRoute>
+          } />
+          <Route path="/insurance" element={
+            <ProtectedRoute>
+              <SidebarProvider>
+                <div className="flex min-h-screen w-full">
+                  <AppSidebar />
+                  <main className="flex-1"><Insurance /></main>
+                </div>
+              </SidebarProvider>
+            </ProtectedRoute>
+          } />
+          <Route path="/inpatient" element={
+            <ProtectedRoute>
+              <SidebarProvider>
+                <div className="flex min-h-screen w-full">
+                  <AppSidebar />
+                  <main className="flex-1"><Inpatient /></main>
+                </div>
+              </SidebarProvider>
+            </ProtectedRoute>
+          } />
+          <Route path="/staff" element={
+            <ProtectedRoute>
+              <SidebarProvider>
+                <div className="flex min-h-screen w-full">
+                  <AppSidebar />
+                  <main className="flex-1"><StaffManagement /></main>
+                </div>
+              </SidebarProvider>
+            </ProtectedRoute>
+          } />
+          <Route path="/reports" element={
+            <ProtectedRoute>
+              <SidebarProvider>
+                <div className="flex min-h-screen w-full">
+                  <AppSidebar />
+                  <main className="flex-1"><Reports /></main>
                 </div>
               </SidebarProvider>
             </ProtectedRoute>
