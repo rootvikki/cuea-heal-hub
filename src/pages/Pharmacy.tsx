@@ -22,10 +22,12 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
+import { useQueueTransition } from "@/hooks/useQueueTransition";
 import { Pill, Plus, Package, AlertTriangle } from "lucide-react";
 
 const Pharmacy = () => {
   const { toast } = useToast();
+  const { getActiveTicket, onPrescriptionDispensed } = useQueueTransition();
   const [inventory, setInventory] = useState<any[]>([]);
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -78,7 +80,13 @@ const Pharmacy = () => {
             .eq("user_id", patient?.user_id)
             .single();
 
-          return { ...presc, patient: { ...patient, profile } };
+          const { data: encounter } = await supabase
+            .from("encounters")
+            .select("id")
+            .eq("id", presc.encounter_id)
+            .single();
+
+          return { ...presc, patient: { ...patient, profile }, encounter };
         })
       );
       setPrescriptions(prescWithDetails);
@@ -123,7 +131,9 @@ const Pharmacy = () => {
     }
   };
 
-  const handleDispense = async (prescriptionId: string, medicationName: string, quantity: number) => {
+  const handleDispense = async (prescription: any) => {
+    const { id: prescriptionId, medication_name: medicationName, quantity, patient_id: patientId, encounter_id: encounterId } = prescription;
+    
     // Find inventory item
     const inventoryItem = inventory.find(
       (item) => item.drug_name.toLowerCase() === medicationName.toLowerCase()
@@ -185,6 +195,13 @@ const Pharmacy = () => {
         title: "Dispensed successfully",
         description: "Prescription dispensed and inventory updated",
       });
+
+      // Auto-transition: Check if all prescriptions are dispensed
+      const ticket = await getActiveTicket(patientId);
+      if (ticket && ticket.status === "at_pharmacy" && encounterId) {
+        await onPrescriptionDispensed({ ticketId: ticket.id, encounterId });
+      }
+
       fetchInventory();
       fetchPrescriptions();
     }
@@ -395,7 +412,7 @@ const Pharmacy = () => {
                     <Button
                       size="sm"
                       className="w-full"
-                      onClick={() => handleDispense(presc.id, presc.medication_name, presc.quantity)}
+                      onClick={() => handleDispense(presc)}
                     >
                       Dispense
                     </Button>

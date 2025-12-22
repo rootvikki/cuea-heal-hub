@@ -14,10 +14,12 @@ import {
 } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
+import { useQueueTransition } from "@/hooks/useQueueTransition";
 import { Activity, Plus } from "lucide-react";
 
 const Vitals = () => {
   const { toast } = useToast();
+  const { getActiveTicket, onVitalsRecorded } = useQueueTransition();
   const [vitals, setVitals] = useState<any[]>([]);
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -134,6 +136,13 @@ const Vitals = () => {
         title: "Vitals recorded",
         description: "Patient vitals saved successfully",
       });
+
+      // Auto-transition: Move patient to waiting for doctor
+      const ticket = await getActiveTicket(formData.patientId);
+      if (ticket && (ticket.status === "checked_in" || ticket.status === "triage")) {
+        await onVitalsRecorded({ ticketId: ticket.id });
+      }
+
       setDialogOpen(false);
       setFormData({
         patientId: "",
