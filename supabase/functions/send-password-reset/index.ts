@@ -1,6 +1,6 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -21,6 +21,26 @@ function generateResetToken(): string {
   return token;
 }
 
+// Retry logic for sending emails
+async function sendWithRetry(
+  client: SMTPClient,
+  emailConfig: any,
+  maxRetries = 3
+): Promise<void> {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
+    try {
+      console.log(`Attempt ${attempt} to send email...`);
+      await client.send(emailConfig);
+      console.log(`Email sent successfully on attempt ${attempt}`);
+      return;
+    } catch (error: any) {
+      console.error(`Attempt ${attempt} failed:`, error?.message || error);
+      if (attempt === maxRetries) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+    }
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -33,15 +53,20 @@ serve(async (req) => {
       throw new Error("Email is required");
     }
 
+    // Get SMTP configuration from environment
     const smtpHost = Deno.env.get("SMTP_HOST");
-    // Use port 465 for implicit TLS (SMTPS) - port 587 STARTTLS times out in edge functions
-    const smtpPort = 465;
+    const smtpPort = 465; // Use port 465 for implicit TLS (SMTPS)
     const smtpUser = Deno.env.get("SMTP_USER");
     const smtpPassword = Deno.env.get("SMTP_PASSWORD");
+    const fromEmail = Deno.env.get("SMTP_FROM_EMAIL") || smtpUser;
+    const fromName = Deno.env.get("SMTP_FROM_NAME") || "CUEA Infirmary";
+    const siteUrl = Deno.env.get("SITE_URL") || redirectUrl?.split('/reset-password')[0];
 
     if (!smtpHost || !smtpUser || !smtpPassword) {
-      throw new Error("SMTP configuration is missing");
+      throw new Error("SMTP configuration is incomplete. Please check SMTP_HOST, SMTP_USER, and SMTP_PASSWORD secrets.");
     }
+
+    console.log(`SMTP Config: host=${smtpHost}, port=${smtpPort}, user=${smtpUser}, from=${fromEmail}`);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -51,6 +76,7 @@ serve(async (req) => {
     const { data: users, error: userError } = await supabase.auth.admin.listUsers();
     
     if (userError) {
+      console.error("Error fetching users:", userError);
       throw new Error("Failed to lookup user");
     }
 
@@ -69,13 +95,14 @@ serve(async (req) => {
     const resetToken = generateResetToken();
     const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
 
-    // Store token in email_otp_tokens table (repurposing for password reset)
+    // Invalidate previous tokens for this user
     await supabase
       .from("email_otp_tokens")
       .update({ verified: true })
       .eq("user_id", user.id)
       .eq("verified", false);
 
+    // Store new token
     const { error: insertError } = await supabase
       .from("email_otp_tokens")
       .insert({
@@ -86,6 +113,7 @@ serve(async (req) => {
       });
 
     if (insertError) {
+      console.error("Error storing reset token:", insertError);
       throw new Error("Failed to store reset token");
     }
 
@@ -94,7 +122,7 @@ serve(async (req) => {
 
     console.log(`Connecting to SMTP server: ${smtpHost}:${smtpPort}`);
 
-    // Send email via SMTP using port 465 (implicit TLS/SMTPS)
+    // Initialize SMTP client with port 465 (implicit TLS)
     const client = new SMTPClient({
       connection: {
         hostname: smtpHost,
@@ -111,13 +139,15 @@ serve(async (req) => {
       <!DOCTYPE html>
       <html>
       <head>
+        <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f4f4f4; }
           .container { max-width: 600px; margin: 0 auto; padding: 20px; }
           .header { background: linear-gradient(135deg, #0066cc, #0099cc); padding: 30px; text-align: center; color: white; border-radius: 8px 8px 0 0; }
           .header h1 { margin: 0; font-size: 24px; }
-          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
-          .button { display: inline-block; background: #0066cc; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 20px 0; }
+          .content { background: #ffffff; padding: 30px; border-radius: 0 0 8px 8px; }
+          .button { display: inline-block; background: #0066cc; color: white !important; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 20px 0; }
           .button:hover { background: #0055aa; }
           .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; }
           .warning { background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 8px; margin: 20px 0; font-size: 14px; }
@@ -126,7 +156,7 @@ serve(async (req) => {
       <body>
         <div class="container">
           <div class="header">
-            <h1>🏥 CUEA Infirmary</h1>
+            <h1>🏥 ${fromName}</h1>
             <p style="margin: 5px 0 0 0; opacity: 0.9;">Hospital Management System</p>
           </div>
           <div class="content">
@@ -148,8 +178,8 @@ serve(async (req) => {
             </p>
             
             <div class="footer">
-              <p>CUEA Infirmary - Hospital Management System</p>
-              <p>This is an automated message from ${smtpUser}</p>
+              <p>${fromName} - Hospital Management System</p>
+              <p>This is an automated message from ${fromEmail}</p>
             </div>
           </div>
         </div>
@@ -157,10 +187,11 @@ serve(async (req) => {
       </html>
     `;
 
-    await client.send({
-      from: smtpUser,
+    // Send email with retry logic
+    await sendWithRetry(client, {
+      from: `${fromName} <${fromEmail}>`,
       to: email,
-      subject: "CUEA Infirmary - Reset Your Password",
+      subject: `${fromName} - Reset Your Password`,
       content: `Reset your password by visiting: ${resetUrl}. This link expires in 1 hour.`,
       html: htmlContent,
     });
@@ -177,7 +208,7 @@ serve(async (req) => {
       reference_id: user.id,
     });
 
-    console.log(`Password reset email sent to ${email}`);
+    console.log(`Password reset email sent successfully to ${email}`);
 
     return new Response(
       JSON.stringify({ success: true, message: "Password reset email sent" }),
