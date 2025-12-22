@@ -13,9 +13,10 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
+import { toast as sonnerToast } from "sonner";
 import { 
   Stethoscope, User, AlertTriangle, Activity, Pill, TestTube, 
-  Camera, FileText, Clock, Plus, X, Calendar, Phone, Heart
+  Camera, FileText, Clock, Plus, X, Calendar, Phone, Heart, Radio
 } from "lucide-react";
 
 interface Patient {
@@ -92,6 +93,7 @@ const Consultation = () => {
   const [imagingItems, setImagingItems] = useState<ImagingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [savingEncounter, setSavingEncounter] = useState(false);
+  const [isLive, setIsLive] = useState(false);
 
   // Encounter form state
   const [encounter, setEncounter] = useState({
@@ -125,6 +127,37 @@ const Consultation = () => {
     fetchQueue();
     fetchLabTests();
     fetchImagingCatalog();
+
+    // Subscribe to realtime queue updates
+    const channel = supabase
+      .channel("consultation-queue")
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "tickets",
+        },
+        (payload) => {
+          console.log("Consultation queue update:", payload);
+          
+          if (payload.eventType === "UPDATE" && payload.new) {
+            const newTicket = payload.new as any;
+            if (newTicket.workflow_stage === "waiting_for_doctor") {
+              sonnerToast.info("New patient ready for consultation");
+            }
+          }
+          
+          fetchQueue();
+        }
+      )
+      .subscribe((status) => {
+        setIsLive(status === "SUBSCRIBED");
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   useEffect(() => {
@@ -440,10 +473,18 @@ const Consultation = () => {
       {/* Left Panel - Patient Queue */}
       <div className="w-80 border-r bg-muted/30 flex flex-col">
         <div className="p-4 border-b">
-          <h2 className="font-semibold flex items-center gap-2">
-            <Stethoscope className="h-5 w-5" />
-            My Queue
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold flex items-center gap-2">
+              <Stethoscope className="h-5 w-5" />
+              My Queue
+            </h2>
+            {isLive && (
+              <Badge variant="outline" className="gap-1 text-green-600 border-green-600 text-xs">
+                <Radio className="h-2 w-2 animate-pulse" />
+                Live
+              </Badge>
+            )}
+          </div>
           <p className="text-sm text-muted-foreground">{queue.length} patients waiting</p>
         </div>
         <ScrollArea className="flex-1">
