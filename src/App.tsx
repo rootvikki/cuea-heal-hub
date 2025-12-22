@@ -12,6 +12,7 @@ import Patients from "./pages/Patients";
 import Appointments from "./pages/Appointments";
 import Queue from "./pages/Queue";
 import Records from "./pages/Records";
+import Consultation from "./pages/Consultation";
 import Vitals from "./pages/Vitals";
 import Pharmacy from "./pages/Pharmacy";
 import Laboratory from "./pages/Laboratory";
@@ -82,6 +83,16 @@ const App = () => (
                 <div className="flex min-h-screen w-full">
                   <AppSidebar />
                   <main className="flex-1"><Records /></main>
+                </div>
+              </SidebarProvider>
+            </ProtectedRoute>
+          } />
+          <Route path="/consultation" element={
+            <ProtectedRoute>
+              <SidebarProvider>
+                <div className="flex min-h-screen w-full">
+                  <AppSidebar />
+                  <main className="flex-1"><Consultation /></main>
                 </div>
               </SidebarProvider>
             </ProtectedRoute>

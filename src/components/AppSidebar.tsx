@@ -19,6 +19,7 @@ import {
   Shield,
   UserCog,
   BarChart3,
+  Stethoscope,
 } from "lucide-react";
 import {
   Sidebar,
@@ -80,6 +81,7 @@ export function AppSidebar() {
     { title: "Patients", url: "/patients", icon: Users, roles: ["admin", "super_admin", "doctor", "nurse", "receptionist"] },
     { title: "Appointments", url: "/appointments", icon: Calendar, roles: ["all"] },
     { title: "Patient Queue", url: "/queue", icon: ClipboardList, roles: ["admin", "super_admin", "doctor", "nurse", "receptionist"] },
+    { title: "Consultation", url: "/consultation", icon: Stethoscope, roles: ["admin", "super_admin", "doctor"] },
     { title: "Medical Records", url: "/records", icon: FileText, roles: ["admin", "super_admin", "doctor", "nurse"] },
     { title: "Vitals", url: "/vitals", icon: Activity, roles: ["admin", "super_admin", "doctor", "nurse"] },
     { title: "Inpatient", url: "/inpatient", icon: Bed, roles: ["admin", "super_admin", "doctor", "nurse"] },
