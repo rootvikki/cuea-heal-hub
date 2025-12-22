@@ -335,6 +335,72 @@ export type Database = {
         }
         Relationships: []
       }
+      email_logs: {
+        Row: {
+          created_at: string | null
+          email_type: string
+          error_message: string | null
+          id: string
+          recipient_email: string
+          reference_id: string | null
+          sent_at: string | null
+          status: string | null
+          subject: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          email_type: string
+          error_message?: string | null
+          id?: string
+          recipient_email: string
+          reference_id?: string | null
+          sent_at?: string | null
+          status?: string | null
+          subject?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          email_type?: string
+          error_message?: string | null
+          id?: string
+          recipient_email?: string
+          reference_id?: string | null
+          sent_at?: string | null
+          status?: string | null
+          subject?: string | null
+        }
+        Relationships: []
+      }
+      email_otp_tokens: {
+        Row: {
+          created_at: string | null
+          email: string
+          expires_at: string
+          id: string
+          otp_code: string
+          user_id: string
+          verified: boolean | null
+        }
+        Insert: {
+          created_at?: string | null
+          email: string
+          expires_at: string
+          id?: string
+          otp_code: string
+          user_id: string
+          verified?: boolean | null
+        }
+        Update: {
+          created_at?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          otp_code?: string
+          user_id?: string
+          verified?: boolean | null
+        }
+        Relationships: []
+      }
       encounters: {
         Row: {
           assessment: string | null
@@ -1276,12 +1342,15 @@ export type Database = {
           country: string | null
           created_at: string | null
           date_of_birth: string | null
+          email: string | null
           emergency_contact_name: string | null
           emergency_contact_phone: string | null
           full_name: string
           gender: string | null
           id: string
+          last_login_at: string | null
           phone: string | null
+          status: string | null
           updated_at: string | null
           user_id: string
         }
@@ -1292,12 +1361,15 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           date_of_birth?: string | null
+          email?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           full_name: string
           gender?: string | null
           id?: string
+          last_login_at?: string | null
           phone?: string | null
+          status?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -1308,12 +1380,15 @@ export type Database = {
           country?: string | null
           created_at?: string | null
           date_of_birth?: string | null
+          email?: string | null
           emergency_contact_name?: string | null
           emergency_contact_phone?: string | null
           full_name?: string
           gender?: string | null
           id?: string
+          last_login_at?: string | null
           phone?: string | null
+          status?: string | null
           updated_at?: string | null
           user_id?: string
         }
@@ -1697,6 +1772,9 @@ export type Database = {
         | "accountant"
         | "hr_admin"
         | "auditor"
+        | "clinical_officer"
+        | "records_officer"
+        | "ward_manager"
       appointment_status:
         | "scheduled"
         | "confirmed"
@@ -1861,6 +1939,9 @@ export const Constants = {
         "accountant",
         "hr_admin",
         "auditor",
+        "clinical_officer",
+        "records_officer",
+        "ward_manager",
       ],
       appointment_status: [
         "scheduled",
