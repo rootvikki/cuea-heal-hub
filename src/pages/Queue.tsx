@@ -14,7 +14,8 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ClipboardList, Plus, ArrowRight } from "lucide-react";
+import { ClipboardList, Plus, ArrowRight, Radio } from "lucide-react";
+import { toast as sonnerToast } from "sonner";
 
 const Queue = () => {
   const { toast } = useToast();
@@ -23,6 +24,7 @@ const Queue = () => {
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [isLive, setIsLive] = useState(false);
   const [formData, setFormData] = useState({
     patientId: "",
     departmentId: "",
@@ -36,7 +38,7 @@ const Queue = () => {
 
     // Subscribe to realtime updates
     const channel = supabase
-      .channel("tickets-changes")
+      .channel("tickets-realtime")
       .on(
         "postgres_changes",
         {
@@ -44,11 +46,26 @@ const Queue = () => {
           schema: "public",
           table: "tickets",
         },
-        () => {
+        (payload) => {
+          console.log("Realtime update:", payload);
+          
+          // Show toast notification for status changes
+          if (payload.eventType === "UPDATE" && payload.new && payload.old) {
+            const newStatus = (payload.new as any).status;
+            const oldStatus = (payload.old as any).status;
+            if (newStatus !== oldStatus) {
+              sonnerToast.info(`Queue updated: Patient moved to ${newStatus.replace(/_/g, " ")}`);
+            }
+          } else if (payload.eventType === "INSERT") {
+            sonnerToast.success("New patient checked in");
+          }
+          
           fetchTickets();
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        setIsLive(status === "SUBSCRIBED");
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -207,7 +224,15 @@ const Queue = () => {
     <div className="p-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Patient Queue</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-3xl font-bold">Patient Queue</h1>
+            {isLive && (
+              <Badge variant="outline" className="gap-1 text-green-600 border-green-600">
+                <Radio className="h-3 w-3 animate-pulse" />
+                Live
+              </Badge>
+            )}
+          </div>
           <p className="text-muted-foreground mt-1">
             Real-time patient flow management
           </p>
