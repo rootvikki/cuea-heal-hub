@@ -23,6 +23,8 @@ import Billing from "./pages/Billing";
 import Insurance from "./pages/Insurance";
 import Inpatient from "./pages/Inpatient";
 import StaffManagement from "./pages/StaffManagement";
+import StaffOnboarding from "./pages/StaffOnboarding";
+import RoleManagement from "./pages/RoleManagement";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import PatientPortal from "./pages/PatientPortal";
@@ -187,6 +189,26 @@ const App = () => (
                 <div className="flex min-h-screen w-full">
                   <AppSidebar />
                   <main className="flex-1"><StaffManagement /></main>
+                </div>
+              </SidebarProvider>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/onboard-staff" element={
+            <ProtectedRoute>
+              <SidebarProvider>
+                <div className="flex min-h-screen w-full">
+                  <AppSidebar />
+                  <main className="flex-1"><StaffOnboarding /></main>
+                </div>
+              </SidebarProvider>
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/roles" element={
+            <ProtectedRoute>
+              <SidebarProvider>
+                <div className="flex min-h-screen w-full">
+                  <AppSidebar />
+                  <main className="flex-1"><RoleManagement /></main>
                 </div>
               </SidebarProvider>
             </ProtectedRoute>

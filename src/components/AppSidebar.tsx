@@ -21,6 +21,8 @@ import {
   BarChart3,
   Stethoscope,
   UserCircle,
+  UserPlus,
+  ShieldCheck,
 } from "lucide-react";
 import {
   Sidebar,
@@ -100,6 +102,8 @@ export function AppSidebar() {
 
   const adminItems = [
     { title: "User Management", url: "/admin/users", icon: Users, roles: ["admin", "super_admin"] },
+    { title: "Staff Onboarding", url: "/admin/onboard-staff", icon: UserPlus, roles: ["admin", "super_admin", "hr_admin"] },
+    { title: "Role Management", url: "/admin/roles", icon: ShieldCheck, roles: ["super_admin"] },
     { title: "Staff", url: "/staff", icon: UserCog, roles: ["admin", "super_admin"] },
     { title: "Reports", url: "/reports", icon: BarChart3, roles: ["admin", "super_admin", "finance_officer"] },
     { title: "Settings", url: "/settings", icon: Settings, roles: ["all"] },
