@@ -83,40 +83,38 @@ serve(async (req) => {
       },
     });
 
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: linear-gradient(135deg, #0066cc, #0099cc); padding: 20px; text-align: center; color: white; border-radius: 8px 8px 0 0; }
-          .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
-          .otp-code { font-size: 32px; font-weight: bold; color: #0066cc; text-align: center; padding: 20px; background: white; border-radius: 8px; margin: 20px 0; letter-spacing: 8px; }
-          .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>🏥 ${fromName}</h1>
-            <p>Login Verification Code</p>
-          </div>
-          <div class="content">
-            <p>Hello,</p>
-            <p>Your one-time verification code is:</p>
-            <div class="otp-code">${otpCode}</div>
-            <p>This code will expire in <strong>15 minutes</strong>.</p>
-            <p>If you did not request this code, please ignore this email or contact the IT department.</p>
-            <div class="footer">
-              <p>${fromName} - Hospital Management System</p>
-              <p>This is an automated message from ${fromEmail}</p>
-            </div>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+    const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+<style>
+body{font-family:Arial,sans-serif;line-height:1.6;color:#333;margin:0;padding:0;background-color:#f4f4f4;}
+.container{max-width:600px;margin:0 auto;padding:20px;}
+.header{background:linear-gradient(135deg,#0066cc,#0099cc);padding:20px;text-align:center;color:white;border-radius:8px 8px 0 0;}
+.content{background:#f9f9f9;padding:30px;border-radius:0 0 8px 8px;}
+.otp-code{font-size:32px;font-weight:bold;color:#0066cc;text-align:center;padding:20px;background:white;border-radius:8px;margin:20px 0;letter-spacing:8px;}
+.footer{text-align:center;color:#666;font-size:12px;margin-top:20px;}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+<h1>🏥 ${fromName}</h1>
+<p>Login Verification Code</p>
+</div>
+<div class="content">
+<p>Hello,</p>
+<p>Your one-time verification code is:</p>
+<div class="otp-code">${otpCode}</div>
+<p>This code will expire in <strong>15 minutes</strong>.</p>
+<p>If you did not request this code, please ignore this email or contact the IT department.</p>
+<div class="footer">
+<p>${fromName} - Hospital Management System</p>
+<p>This is an automated message from ${fromEmail}</p>
+</div>
+</div>
+</div>
+</body>
+</html>`;
 
     await client.send({
       from: `${fromName} <${fromEmail}>`,
