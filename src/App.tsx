@@ -23,6 +23,7 @@ import Inpatient from "./pages/Inpatient";
 import StaffManagement from "./pages/StaffManagement";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
+import PatientPortal from "./pages/PatientPortal";
 import ProtectedRoute from "./components/ProtectedRoute";
 import NotFound from "./pages/NotFound";
 
@@ -195,6 +196,11 @@ const App = () => (
                   <main className="flex-1"><Settings /></main>
                 </div>
               </SidebarProvider>
+            </ProtectedRoute>
+          } />
+          <Route path="/portal" element={
+            <ProtectedRoute>
+              <PatientPortal />
             </ProtectedRoute>
           } />
           <Route path="*" element={<NotFound />} />

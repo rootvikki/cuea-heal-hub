@@ -20,6 +20,7 @@ import {
   UserCog,
   BarChart3,
   Stethoscope,
+  UserCircle,
 } from "lucide-react";
 import {
   Sidebar,
@@ -78,6 +79,7 @@ export function AppSidebar() {
 
   const clinicalItems = [
     { title: "Dashboard", url: "/dashboard", icon: Home, roles: ["all"] },
+    { title: "My Portal", url: "/portal", icon: UserCircle, roles: ["patient"] },
     { title: "Patients", url: "/patients", icon: Users, roles: ["admin", "super_admin", "doctor", "nurse", "receptionist"] },
     { title: "Appointments", url: "/appointments", icon: Calendar, roles: ["all"] },
     { title: "Patient Queue", url: "/queue", icon: ClipboardList, roles: ["admin", "super_admin", "doctor", "nurse", "receptionist"] },
