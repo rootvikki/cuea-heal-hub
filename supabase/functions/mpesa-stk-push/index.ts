@@ -1,0 +1,157 @@
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+interface STKPushRequest {
+  phoneNumber: string;
+  amount: number;
+  invoiceId: string;
+  accountReference: string;
+}
+
+serve(async (req) => {
+  // Handle CORS preflight requests
+  if (req.method === "OPTIONS") {
+    return new Response(null, { headers: corsHeaders });
+  }
+
+  try {
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseKey);
+
+    const consumerKey = Deno.env.get("MPESA_CONSUMER_KEY");
+    const consumerSecret = Deno.env.get("MPESA_CONSUMER_SECRET");
+    const shortCode = Deno.env.get("MPESA_SHORTCODE");
+    const passkey = Deno.env.get("MPESA_PASSKEY");
+
+    if (!consumerKey || !consumerSecret || !shortCode || !passkey) {
+      throw new Error("M-Pesa credentials not configured");
+    }
+
+    const { phoneNumber, amount, invoiceId, accountReference }: STKPushRequest = await req.json();
+
+    // Validate inputs
+    if (!phoneNumber || !amount || !invoiceId) {
+      throw new Error("Missing required fields: phoneNumber, amount, invoiceId");
+    }
+
+    // Format phone number (ensure it starts with 254)
+    let formattedPhone = phoneNumber.replace(/\s/g, "").replace(/^0/, "254").replace(/^\+/, "");
+    if (!formattedPhone.startsWith("254")) {
+      formattedPhone = "254" + formattedPhone;
+    }
+
+    console.log(`Initiating STK Push for ${formattedPhone}, amount: ${amount}`);
+
+    // Get OAuth token
+    const auth = btoa(`${consumerKey}:${consumerSecret}`);
+    const tokenResponse = await fetch(
+      "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials",
+      {
+        method: "GET",
+        headers: {
+          Authorization: `Basic ${auth}`,
+        },
+      }
+    );
+
+    if (!tokenResponse.ok) {
+      const errorText = await tokenResponse.text();
+      console.error("Token generation failed:", errorText);
+      throw new Error("Failed to get M-Pesa access token");
+    }
+
+    const tokenData = await tokenResponse.json();
+    const accessToken = tokenData.access_token;
+
+    // Generate timestamp
+    const timestamp = new Date()
+      .toISOString()
+      .replace(/[^0-9]/g, "")
+      .slice(0, 14);
+
+    // Generate password
+    const password = btoa(`${shortCode}${passkey}${timestamp}`);
+
+    // Callback URL - using the Supabase function URL
+    const callbackUrl = `${supabaseUrl}/functions/v1/mpesa-callback`;
+
+    // Initiate STK Push
+    const stkPushResponse = await fetch(
+      "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          BusinessShortCode: shortCode,
+          Password: password,
+          Timestamp: timestamp,
+          TransactionType: "CustomerPayBillOnline",
+          Amount: Math.round(amount),
+          PartyA: formattedPhone,
+          PartyB: shortCode,
+          PhoneNumber: formattedPhone,
+          CallBackURL: callbackUrl,
+          AccountReference: accountReference || invoiceId,
+          TransactionDesc: `Payment for Invoice ${invoiceId}`,
+        }),
+      }
+    );
+
+    const stkPushData = await stkPushResponse.json();
+
+    console.log("STK Push Response:", JSON.stringify(stkPushData));
+
+    if (stkPushData.ResponseCode === "0") {
+      // Store the transaction record
+      const { error: insertError } = await supabase.from("mpesa_transactions").insert({
+        phone_number: formattedPhone,
+        amount: amount,
+        invoice_id: invoiceId,
+        merchant_request_id: stkPushData.MerchantRequestID,
+        checkout_request_id: stkPushData.CheckoutRequestID,
+        status: "pending",
+      });
+
+      if (insertError) {
+        console.error("Error storing transaction:", insertError);
+      }
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          message: "STK Push initiated successfully",
+          checkoutRequestId: stkPushData.CheckoutRequestID,
+          merchantRequestId: stkPushData.MerchantRequestID,
+        }),
+        {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        }
+      );
+    } else {
+      throw new Error(stkPushData.errorMessage || "STK Push failed");
+    }
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    console.error("M-Pesa STK Push Error:", error);
+    return new Response(
+      JSON.stringify({
+        success: false,
+        error: errorMessage,
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+      }
+    );
+  }
+});
