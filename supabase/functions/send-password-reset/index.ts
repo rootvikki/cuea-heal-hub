@@ -135,57 +135,50 @@ serve(async (req) => {
       },
     });
 
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-      <head>
-        <meta charset="UTF-8">
-        <meta name="viewport" content="width=device-width, initial-scale=1.0">
-        <style>
-          body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; background-color: #f4f4f4; }
-          .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-          .header { background: linear-gradient(135deg, #0066cc, #0099cc); padding: 30px; text-align: center; color: white; border-radius: 8px 8px 0 0; }
-          .header h1 { margin: 0; font-size: 24px; }
-          .content { background: #ffffff; padding: 30px; border-radius: 0 0 8px 8px; }
-          .button { display: inline-block; background: #0066cc; color: white !important; padding: 14px 28px; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 20px 0; }
-          .button:hover { background: #0055aa; }
-          .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; padding-top: 20px; border-top: 1px solid #ddd; }
-          .warning { background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 8px; margin: 20px 0; font-size: 14px; }
-        </style>
-      </head>
-      <body>
-        <div class="container">
-          <div class="header">
-            <h1>🏥 ${fromName}</h1>
-            <p style="margin: 5px 0 0 0; opacity: 0.9;">Hospital Management System</p>
-          </div>
-          <div class="content">
-            <h2>Reset Your Password</h2>
-            <p>You recently requested to reset your password. Click the button below to choose a new one:</p>
-            
-            <div style="text-align: center;">
-              <a href="${resetUrl}" class="button">Reset Password</a>
-            </div>
-            
-            <div class="warning">
-              <strong>⏰ This link expires in 1 hour.</strong><br>
-              If you didn't request this, you can safely ignore this email.
-            </div>
-            
-            <p style="font-size: 12px; color: #666;">
-              If the button doesn't work, copy and paste this link into your browser:<br>
-              <a href="${resetUrl}" style="word-break: break-all;">${resetUrl}</a>
-            </p>
-            
-            <div class="footer">
-              <p>${fromName} - Hospital Management System</p>
-              <p>This is an automated message from ${fromEmail}</p>
-            </div>
-          </div>
-        </div>
-      </body>
-      </html>
-    `;
+    const htmlContent = `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body{font-family:Arial,sans-serif;line-height:1.6;color:#333;margin:0;padding:0;background-color:#f4f4f4;}
+.container{max-width:600px;margin:0 auto;padding:20px;}
+.header{background:linear-gradient(135deg,#0066cc,#0099cc);padding:30px;text-align:center;color:white;border-radius:8px 8px 0 0;}
+.header h1{margin:0;font-size:24px;}
+.content{background:#ffffff;padding:30px;border-radius:0 0 8px 8px;}
+.button{display:inline-block;background:#0066cc;color:white!important;padding:14px 28px;text-decoration:none;border-radius:6px;font-weight:bold;margin:20px 0;}
+.footer{text-align:center;color:#666;font-size:12px;margin-top:20px;padding-top:20px;border-top:1px solid #ddd;}
+.warning{background:#fff3cd;border:1px solid #ffc107;padding:15px;border-radius:8px;margin:20px 0;font-size:14px;}
+</style>
+</head>
+<body>
+<div class="container">
+<div class="header">
+<h1>🏥 ${fromName}</h1>
+<p style="margin:5px 0 0 0;opacity:0.9;">Hospital Management System</p>
+</div>
+<div class="content">
+<h2>Reset Your Password</h2>
+<p>You recently requested to reset your password. Click the button below to choose a new one:</p>
+<div style="text-align:center;">
+<a href="${resetUrl}" class="button">Reset Password</a>
+</div>
+<div class="warning">
+<strong>⏰ This link expires in 1 hour.</strong><br>
+If you didn't request this, you can safely ignore this email.
+</div>
+<p style="font-size:12px;color:#666;">
+If the button doesn't work, copy and paste this link into your browser:<br>
+<a href="${resetUrl}" style="word-break:break-all;">${resetUrl}</a>
+</p>
+<div class="footer">
+<p>${fromName} - Hospital Management System</p>
+<p>This is an automated message from ${fromEmail}</p>
+</div>
+</div>
+</div>
+</body>
+</html>`;
 
     // Send email with retry logic
     await sendWithRetry(client, {
