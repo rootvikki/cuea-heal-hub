@@ -34,7 +34,8 @@ serve(async (req) => {
     }
 
     const smtpHost = Deno.env.get("SMTP_HOST");
-    const smtpPort = parseInt(Deno.env.get("SMTP_PORT") || "587");
+    // Use port 465 for implicit TLS (SMTPS) - port 587 STARTTLS times out in edge functions
+    const smtpPort = 465;
     const smtpUser = Deno.env.get("SMTP_USER");
     const smtpPassword = Deno.env.get("SMTP_PASSWORD");
 
@@ -91,7 +92,9 @@ serve(async (req) => {
     // Build reset URL
     const resetUrl = `${redirectUrl}?token=${resetToken}&email=${encodeURIComponent(email)}`;
 
-    // Send email via SMTP
+    console.log(`Connecting to SMTP server: ${smtpHost}:${smtpPort}`);
+
+    // Send email via SMTP using port 465 (implicit TLS/SMTPS)
     const client = new SMTPClient({
       connection: {
         hostname: smtpHost,
