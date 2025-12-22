@@ -29,9 +29,11 @@ serve(async (req) => {
     }
 
     const smtpHost = Deno.env.get("SMTP_HOST");
-    const smtpPort = parseInt(Deno.env.get("SMTP_PORT") || "587");
+    const smtpPort = 465; // Use port 465 for implicit TLS (SMTPS)
     const smtpUser = Deno.env.get("SMTP_USER");
     const smtpPassword = Deno.env.get("SMTP_PASSWORD");
+    const fromEmail = Deno.env.get("SMTP_FROM_EMAIL") || smtpUser;
+    const fromName = Deno.env.get("SMTP_FROM_NAME") || "CUEA Infirmary";
 
     if (!smtpHost || !smtpUser || !smtpPassword) {
       throw new Error("SMTP configuration is missing");
@@ -66,7 +68,9 @@ serve(async (req) => {
       throw new Error("Failed to store OTP");
     }
 
-    // Send OTP via email
+    console.log(`Connecting to SMTP server: ${smtpHost}:${smtpPort}`);
+
+    // Send OTP via email using port 465 (implicit TLS)
     const client = new SMTPClient({
       connection: {
         hostname: smtpHost,
@@ -95,7 +99,7 @@ serve(async (req) => {
       <body>
         <div class="container">
           <div class="header">
-            <h1>🏥 CUEA Infirmary</h1>
+            <h1>🏥 ${fromName}</h1>
             <p>Login Verification Code</p>
           </div>
           <div class="content">
@@ -105,8 +109,8 @@ serve(async (req) => {
             <p>This code will expire in <strong>15 minutes</strong>.</p>
             <p>If you did not request this code, please ignore this email or contact the IT department.</p>
             <div class="footer">
-              <p>CUEA Infirmary - Hospital Management System</p>
-              <p>This is an automated message, please do not reply.</p>
+              <p>${fromName} - Hospital Management System</p>
+              <p>This is an automated message from ${fromEmail}</p>
             </div>
           </div>
         </div>
@@ -115,9 +119,9 @@ serve(async (req) => {
     `;
 
     await client.send({
-      from: smtpUser,
+      from: `${fromName} <${fromEmail}>`,
       to: email,
-      subject: "CUEA Infirmary - Login Verification Code",
+      subject: `${fromName} - Login Verification Code`,
       content: `Your verification code is: ${otpCode}. This code expires in 15 minutes.`,
       html: htmlContent,
     });
