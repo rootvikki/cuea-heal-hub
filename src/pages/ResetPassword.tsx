@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,22 +10,38 @@ import { Loader2, Hospital, Lock, CheckCircle, AlertCircle } from "lucide-react"
 
 const ResetPassword = () => {
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [success, setSuccess] = useState(false);
-  const [invalidLink, setInvalidLink] = useState(false);
-
-  const token = searchParams.get("token");
-  const email = searchParams.get("email");
+  const [canReset, setCanReset] = useState(false);
+  const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    if (!token || !email) {
-      setInvalidLink(true);
-    }
-  }, [token, email]);
+    // Listen for the PASSWORD_RECOVERY event from Supabase
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "PASSWORD_RECOVERY") {
+        setCanReset(true);
+        setChecking(false);
+      } else if (event === "SIGNED_IN" && session) {
+        // User might have clicked reset link while already having a session
+        setCanReset(true);
+        setChecking(false);
+      }
+    });
+
+    // Also check current session state
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      // If there's a session and we're on the reset page, allow reset
+      if (session) {
+        setCanReset(true);
+      }
+      setChecking(false);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
 
   const handleResetPassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -50,20 +67,9 @@ const ResetPassword = () => {
     setLoading(true);
 
     try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-password-reset`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, token, newPassword: password }),
-        }
-      );
+      const { error } = await supabase.auth.updateUser({ password });
 
-      const result = await response.json();
-
-      if (!result.success) {
-        throw new Error(result.error || "Failed to reset password");
-      }
+      if (error) throw error;
 
       setSuccess(true);
       toast({
@@ -71,6 +77,8 @@ const ResetPassword = () => {
         description: "Your password has been successfully reset.",
       });
 
+      // Sign out and redirect to login
+      await supabase.auth.signOut();
       setTimeout(() => {
         navigate("/auth");
       }, 2000);
@@ -85,7 +93,22 @@ const ResetPassword = () => {
     }
   };
 
-  if (invalidLink) {
+  if (checking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/10 p-4">
+        <Card className="w-full max-w-md shadow-xl">
+          <CardContent className="pt-6">
+            <div className="text-center space-y-4">
+              <Loader2 className="w-12 h-12 mx-auto animate-spin text-primary" />
+              <p className="text-muted-foreground">Verifying reset link...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!canReset) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/10 p-4">
         <Card className="w-full max-w-md shadow-xl">
@@ -134,7 +157,7 @@ const ResetPassword = () => {
           <div>
             <CardTitle className="text-2xl font-bold">Reset Password</CardTitle>
             <CardDescription className="mt-2">
-              Enter your new password for <strong>{email}</strong>
+              Enter your new password below
             </CardDescription>
           </div>
         </CardHeader>
