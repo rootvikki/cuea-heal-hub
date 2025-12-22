@@ -8,3 +8,15 @@ verify_jwt = false
 
 [functions.send-sms]
 verify_jwt = true
+
+[functions.send-email]
+verify_jwt = true
+
+[functions.send-otp]
+verify_jwt = false
+
+[functions.verify-otp]
+verify_jwt = false
+
+[functions.admin-create-user]
+verify_jwt = true
