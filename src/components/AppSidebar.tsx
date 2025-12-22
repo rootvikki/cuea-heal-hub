@@ -101,6 +101,7 @@ export function AppSidebar() {
   ];
 
   const adminItems = [
+    { title: "User Management", url: "/admin/users", icon: Users, roles: ["admin", "super_admin"] },
     { title: "Staff", url: "/staff", icon: UserCog, roles: ["admin", "super_admin"] },
     { title: "Reports", url: "/reports", icon: BarChart3, roles: ["admin", "super_admin", "finance_officer"] },
     { title: "Settings", url: "/settings", icon: Settings, roles: ["all"] },
