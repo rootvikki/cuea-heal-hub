@@ -32,7 +32,7 @@ export const AdminRoleAssignment = ({ userId, userEmail }: AdminRoleAssignmentPr
       // Assign role - try insert with explicit type casting
       const { error: roleError } = await supabase.from("user_roles").insert({
         user_id: userId,
-        role: selectedRole as "admin" | "doctor" | "nurse" | "receptionist" | "lab_technician" | "pharmacist" | "finance_officer" | "patient",
+        role: selectedRole as "admin" | "doctor" | "nurse" | "receptionist" | "lab_technician" | "pharmacist" | "finance_officer" | "patient" | "super_admin" | "system_admin" | "radiologist" | "cashier" | "accountant" | "hr_admin" | "auditor" | "clinical_officer" | "records_officer" | "ward_manager",
       });
 
       // Ignore duplicate key errors
@@ -41,7 +41,8 @@ export const AdminRoleAssignment = ({ userId, userEmail }: AdminRoleAssignmentPr
       }
 
       // If staff role, create staff record
-      if (["doctor", "nurse", "lab_technician", "pharmacist", "receptionist", "finance_officer", "admin"].includes(selectedRole)) {
+      const staffRoles = ["doctor", "nurse", "lab_technician", "pharmacist", "receptionist", "finance_officer", "admin", "super_admin", "system_admin", "radiologist", "cashier", "accountant", "hr_admin", "auditor", "clinical_officer", "records_officer", "ward_manager"];
+      if (staffRoles.includes(selectedRole)) {
         const staffNumber = `STAFF-${Date.now().toString().slice(-6)}`;
         
         const { error: staffError } = await supabase.from("staff").upsert({
@@ -97,13 +98,23 @@ export const AdminRoleAssignment = ({ userId, userEmail }: AdminRoleAssignmentPr
                 <SelectValue placeholder="Choose a role" />
               </SelectTrigger>
               <SelectContent>
+                <SelectItem value="super_admin">Super Administrator</SelectItem>
+                <SelectItem value="system_admin">System Administrator</SelectItem>
                 <SelectItem value="admin">Administrator</SelectItem>
                 <SelectItem value="doctor">Doctor</SelectItem>
+                <SelectItem value="clinical_officer">Clinical Officer</SelectItem>
                 <SelectItem value="nurse">Nurse</SelectItem>
+                <SelectItem value="ward_manager">Ward Manager</SelectItem>
                 <SelectItem value="receptionist">Receptionist</SelectItem>
                 <SelectItem value="lab_technician">Lab Technician</SelectItem>
+                <SelectItem value="radiologist">Radiologist</SelectItem>
                 <SelectItem value="pharmacist">Pharmacist</SelectItem>
                 <SelectItem value="finance_officer">Finance Officer</SelectItem>
+                <SelectItem value="cashier">Cashier</SelectItem>
+                <SelectItem value="accountant">Accountant</SelectItem>
+                <SelectItem value="hr_admin">HR Administrator</SelectItem>
+                <SelectItem value="records_officer">Records Officer</SelectItem>
+                <SelectItem value="auditor">Auditor</SelectItem>
                 <SelectItem value="patient">Patient</SelectItem>
               </SelectContent>
             </Select>

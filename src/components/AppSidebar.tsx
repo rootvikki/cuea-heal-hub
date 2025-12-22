@@ -42,26 +42,24 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const [userRole, setUserRole] = useState<string | null>(null);
+  const [userRoles, setUserRoles] = useState<string[]>([]);
 
   useEffect(() => {
-    const fetchUserRole = async () => {
+    const fetchUserRoles = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: roles } = await supabase
           .from("user_roles")
           .select("role")
-          .eq("user_id", user.id)
-          .limit(1)
-          .single();
+          .eq("user_id", user.id);
         
-        if (roles) {
-          setUserRole(roles.role);
+        if (roles && roles.length > 0) {
+          setUserRoles(roles.map(r => r.role));
         }
       }
     };
 
-    fetchUserRole();
+    fetchUserRoles();
   }, []);
 
   const handleLogout = async () => {
@@ -107,8 +105,15 @@ export function AppSidebar() {
     { title: "Settings", url: "/settings", icon: Settings, roles: ["all"] },
   ];
 
+  // Super admin and admin see everything
+  const hasAdminAccess = userRoles.includes("super_admin") || userRoles.includes("admin");
+  
   const filterItems = (items: typeof clinicalItems) =>
-    items.filter(item => item.roles.includes("all") || (userRole && item.roles.includes(userRole)));
+    items.filter(item => 
+      item.roles.includes("all") || 
+      hasAdminAccess ||
+      userRoles.some(role => item.roles.includes(role))
+    );
 
   return (
     <Sidebar>
