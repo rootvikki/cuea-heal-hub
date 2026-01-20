@@ -13,6 +13,7 @@ import Dashboard from "./pages/Dashboard";
 import Patients from "./pages/Patients";
 import Appointments from "./pages/Appointments";
 import Queue from "./pages/Queue";
+import QueueDisplay from "./pages/QueueDisplay";
 import Records from "./pages/Records";
 import Consultation from "./pages/Consultation";
 import Vitals from "./pages/Vitals";
@@ -43,6 +44,7 @@ const App = () => (
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/reset-password" element={<ResetPassword />} />
+          <Route path="/queue-display" element={<QueueDisplay />} />
           <Route path="/admin/users" element={
             <ProtectedRoute>
               <SidebarProvider>

@@ -1,6 +1,6 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Hospital, ArrowRight } from "lucide-react";
+import { Hospital, ArrowRight, Monitor } from "lucide-react";
 
 const Index = () => {
   const navigate = useNavigate();
@@ -12,16 +12,28 @@ const Index = () => {
           <Hospital className="w-12 h-12 text-primary" />
         </div>
         <div className="space-y-4">
-          <h1 className="text-5xl font-bold text-white">CUEA Infirmary</h1>
+          <h1 className="text-5xl font-bold text-white">CUEA Health Center</h1>
           <p className="text-xl text-white/90 max-w-2xl mx-auto">
-            Comprehensive Hospital Management System for Catholic University of Eastern Africa
+            Catholic University of Eastern Africa - Infirmary Management System
           </p>
         </div>
-        <div className="flex gap-4 justify-center">
+        <div className="flex gap-4 justify-center flex-wrap">
           <Button size="lg" onClick={() => navigate("/auth")} className="gap-2 shadow-lg">
-            Get Started <ArrowRight className="h-5 w-5" />
+            Staff Login <ArrowRight className="h-5 w-5" />
+          </Button>
+          <Button 
+            size="lg" 
+            variant="secondary" 
+            onClick={() => navigate("/queue-display")} 
+            className="gap-2 shadow-lg"
+          >
+            <Monitor className="h-5 w-5" />
+            View Queue Display
           </Button>
         </div>
+        <p className="text-white/70 text-sm">
+          The Queue Display shows real-time patient queue status on waiting room screens
+        </p>
       </div>
     </div>
   );

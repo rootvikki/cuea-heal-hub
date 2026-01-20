@@ -23,6 +23,7 @@ import {
   UserCircle,
   UserPlus,
   ShieldCheck,
+  Monitor,
 } from "lucide-react";
 import {
   Sidebar,
@@ -83,6 +84,7 @@ export function AppSidebar() {
     { title: "Patients", url: "/patients", icon: Users, roles: ["admin", "super_admin", "doctor", "nurse", "receptionist"] },
     { title: "Appointments", url: "/appointments", icon: Calendar, roles: ["all"] },
     { title: "Patient Queue", url: "/queue", icon: ClipboardList, roles: ["admin", "super_admin", "doctor", "nurse", "receptionist"] },
+    { title: "Queue Display", url: "/queue-display", icon: Monitor, roles: ["admin", "super_admin", "receptionist"], isExternal: true },
     { title: "Consultation", url: "/consultation", icon: Stethoscope, roles: ["admin", "super_admin", "doctor"] },
     { title: "Medical Records", url: "/records", icon: FileText, roles: ["admin", "super_admin", "doctor", "nurse"] },
     { title: "Vitals", url: "/vitals", icon: Activity, roles: ["admin", "super_admin", "doctor", "nurse"] },
