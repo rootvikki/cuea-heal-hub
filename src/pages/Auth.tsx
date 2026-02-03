@@ -7,16 +7,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, Hospital, Mail, ArrowLeft } from "lucide-react";
-import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 
-type AuthStep = "login" | "otp" | "forgot-password";
+type AuthStep = "login" | "forgot-password";
 
 const Auth = () => {
   const navigate = useNavigate();
@@ -25,9 +17,6 @@ const Auth = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [step, setStep] = useState<AuthStep>("login");
-  const [otpValue, setOtpValue] = useState("");
-  const [pendingUserId, setPendingUserId] = useState<string | null>(null);
-  const [resendCooldown, setResendCooldown] = useState(0);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -37,89 +26,12 @@ const Auth = () => {
     });
   }, [navigate]);
 
-  useEffect(() => {
-    if (resendCooldown > 0) {
-      const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
-      return () => clearTimeout(timer);
-    }
-  }, [resendCooldown]);
-
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
       const { data, error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
-      });
-
-      if (error) throw error;
-
-      if (data.user) {
-        setPendingUserId(data.user.id);
-        
-        // Send OTP
-        const response = await fetch(
-          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-otp`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, userId: data.user.id }),
-          }
-        );
-
-        const result = await response.json();
-        
-        if (!result.success) {
-          throw new Error(result.error || "Failed to send verification code");
-        }
-
-        // Sign out temporarily until OTP is verified
-        await supabase.auth.signOut();
-
-        toast({
-          title: "Verification code sent",
-          description: "Please check your email for the 6-digit code.",
-        });
-        
-        setStep("otp");
-        setResendCooldown(60);
-      }
-    } catch (error: any) {
-      toast({
-        title: "Sign in failed",
-        description: error.message || "Invalid email or password",
-        variant: "destructive",
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleVerifyOTP = async () => {
-    if (otpValue.length !== 6 || !pendingUserId) return;
-    
-    setLoading(true);
-
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/verify-otp`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userId: pendingUserId, otpCode: otpValue }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (!result.success) {
-        throw new Error(result.error || "Invalid verification code");
-      }
-
-      // Re-authenticate after OTP verification
-      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
@@ -134,47 +46,8 @@ const Auth = () => {
       navigate("/dashboard");
     } catch (error: any) {
       toast({
-        title: "Verification failed",
-        description: error.message || "Invalid verification code",
-        variant: "destructive",
-      });
-      setOtpValue("");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleResendOTP = async () => {
-    if (resendCooldown > 0 || !pendingUserId) return;
-    
-    setLoading(true);
-
-    try {
-      const response = await fetch(
-        `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-otp`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, userId: pendingUserId }),
-        }
-      );
-
-      const result = await response.json();
-
-      if (!result.success) {
-        throw new Error(result.error || "Failed to resend code");
-      }
-
-      toast({
-        title: "Code resent",
-        description: "A new verification code has been sent to your email.",
-      });
-      
-      setResendCooldown(60);
-    } catch (error: any) {
-      toast({
-        title: "Failed to resend code",
-        description: error.message,
+        title: "Sign in failed",
+        description: error.message || "Invalid email or password",
         variant: "destructive",
       });
     } finally {
@@ -196,7 +69,6 @@ const Auth = () => {
     setLoading(true);
 
     try {
-      // Use custom edge function to send password reset email from infirmarysmtp@cuea.edu
       const response = await fetch(
         `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/send-password-reset`,
         {
@@ -345,78 +217,6 @@ const Auth = () => {
                 )}
               </Button>
             </form>
-          )}
-
-          {step === "otp" && (
-            <div className="space-y-6">
-              <Button
-                type="button"
-                variant="ghost"
-                className="mb-2 -ml-2"
-                onClick={() => {
-                  setStep("login");
-                  setOtpValue("");
-                  setPendingUserId(null);
-                }}
-              >
-                <ArrowLeft className="mr-2 h-4 w-4" />
-                Back to login
-              </Button>
-              <div className="text-center">
-                <Mail className="w-12 h-12 mx-auto text-primary mb-2" />
-                <h3 className="font-semibold text-lg">Verify Your Identity</h3>
-                <p className="text-sm text-muted-foreground">
-                  We've sent a 6-digit code to <strong>{email}</strong>
-                </p>
-              </div>
-              <div className="flex justify-center">
-                <InputOTP
-                  maxLength={6}
-                  value={otpValue}
-                  onChange={(value) => setOtpValue(value)}
-                  disabled={loading}
-                >
-                  <InputOTPGroup>
-                    <InputOTPSlot index={0} />
-                    <InputOTPSlot index={1} />
-                    <InputOTPSlot index={2} />
-                    <InputOTPSlot index={3} />
-                    <InputOTPSlot index={4} />
-                    <InputOTPSlot index={5} />
-                  </InputOTPGroup>
-                </InputOTP>
-              </div>
-              <Button
-                className="w-full"
-                onClick={handleVerifyOTP}
-                disabled={loading || otpValue.length !== 6}
-              >
-                {loading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Verifying...
-                  </>
-                ) : (
-                  "Verify & Sign In"
-                )}
-              </Button>
-              <div className="text-center">
-                <Button
-                  type="button"
-                  variant="link"
-                  onClick={handleResendOTP}
-                  disabled={resendCooldown > 0 || loading}
-                  className="text-muted-foreground"
-                >
-                  {resendCooldown > 0
-                    ? `Resend code in ${resendCooldown}s`
-                    : "Didn't receive the code? Resend"}
-                </Button>
-              </div>
-              <p className="text-xs text-muted-foreground text-center">
-                The code expires in 15 minutes
-              </p>
-            </div>
           )}
         </CardContent>
       </Card>
