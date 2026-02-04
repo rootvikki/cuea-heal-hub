@@ -108,9 +108,11 @@ const Auth = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-accent/10 p-4">
       <Card className="w-full max-w-md shadow-xl">
         <CardHeader className="space-y-4 text-center">
-          <div className="mx-auto w-16 h-16 bg-gradient-to-br from-primary to-accent rounded-full flex items-center justify-center">
-            <Hospital className="w-8 h-8 text-primary-foreground" />
-          </div>
+          <img 
+            src="/favicon.png" 
+            alt="CUEA Logo" 
+            className="mx-auto w-20 h-20"
+          />
           <div>
             <CardTitle className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
               CUEA Infirmary
