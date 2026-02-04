@@ -125,9 +125,11 @@ export function AppSidebar() {
     <Sidebar>
       <SidebarHeader className="border-b border-sidebar-border p-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-gradient-primary rounded-lg flex items-center justify-center flex-shrink-0">
-            <Hospital className="w-6 h-6 text-white" />
-          </div>
+          <img 
+            src="/favicon.png" 
+            alt="CUEA Logo" 
+            className="w-10 h-10 flex-shrink-0"
+          />
           <div className="flex flex-col">
             <span className="font-bold text-lg">CUEA Infirmary</span>
             <span className="text-xs text-muted-foreground">Hospital MS</span>
