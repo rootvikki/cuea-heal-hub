@@ -10,6 +10,7 @@ import { StationQueue } from "@/components/StationQueue";
 import { NursingProcedures, type SelectedProcedure } from "@/components/NursingProcedures";
 import { InterimPayment } from "@/components/InterimPayment";
 import { Activity, Send, Calendar } from "lucide-react";
+import { logAuditEvent } from "@/lib/auditLog";
 
 const Vitals = () => {
   const { toast } = useToast();
@@ -95,6 +96,7 @@ const Vitals = () => {
       await supabase.from("tickets").update({ workflow_stage: "waiting_for_doctor" }).eq("id", selectedTicket.id);
 
       toast({ title: "Vitals saved", description: "Patient sent to doctor queue" });
+      logAuditEvent({ action: "vitals_recorded", module: "triage", details: { patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id, procedures: procedures.length } });
       setSelectedTicket(null);
       setForm({ weight: "", height: "", bpSystolic: "", bpDiastolic: "", pulseRate: "", temperature: "", spo2: "", allergies: "", presentingComplaint: "", nursingNotes: "", nextVisit: "" });
       setProcedures([]);

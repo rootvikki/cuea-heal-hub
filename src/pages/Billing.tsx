@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueueTransition } from "@/hooks/useQueueTransition";
 import { StationQueue } from "@/components/StationQueue";
 import { Receipt, CreditCard, Smartphone, FileText, DollarSign } from "lucide-react";
+import { logAuditEvent } from "@/lib/auditLog";
 
 const Billing = () => {
   const { toast } = useToast();
@@ -98,6 +99,7 @@ const Billing = () => {
     await supabase.from("invoice_items").insert(items);
 
     toast({ title: "Invoice generated", description: `${invoiceNumber} — KES ${totalAmount.toFixed(2)}` });
+    logAuditEvent({ action: "invoice_generated", module: "billing", details: { invoice_number: invoiceNumber, patient_id: patientId, total: totalAmount } });
     fetchInvoices();
   };
 
@@ -154,6 +156,7 @@ const Billing = () => {
         }).eq("id", selectedInvoice.id);
 
         toast({ title: "Payment recorded", description: `Invoice ${selectedInvoice.invoice_number} paid` });
+        logAuditEvent({ action: "payment_recorded", module: "billing", details: { invoice: selectedInvoice.invoice_number, method: paymentMethod, amount: selectedInvoice.balance } });
 
         // Auto-checkout patient
         const ticket = await getActiveTicket(selectedInvoice.patient_id);

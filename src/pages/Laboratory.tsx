@@ -14,6 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueueTransition } from "@/hooks/useQueueTransition";
 import { StationQueue } from "@/components/StationQueue";
 import { TestTube, Search } from "lucide-react";
+import { InterimPayment } from "@/components/InterimPayment";
+import { logAuditEvent } from "@/lib/auditLog";
 
 // Structured result field definitions per test type
 const STRUCTURED_FIELDS: Record<string, { name: string; unit?: string; ref?: string; refMale?: string; refFemale?: string }[]> = {
@@ -235,6 +237,7 @@ const Laboratory = () => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
       toast({ title: "Result saved", description: "Lab result recorded successfully" });
+      logAuditEvent({ action: "lab_result_entered", module: "laboratory", details: { lab_order_id: selectedOrder.id, test: testName, patient_id: selectedOrder.patient_id } });
 
       // Check if all lab orders for this encounter are complete
       const { data: pendingLabs } = await supabase
@@ -285,9 +288,12 @@ const Laboratory = () => {
             <h1 className="text-3xl font-bold">Laboratory</h1>
             <p className="text-muted-foreground">Manage lab orders and enter structured results</p>
           </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search by patient, test..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 w-64" />
+          <div className="flex gap-2 items-center">
+            {selectedTicket && <InterimPayment ticketId={selectedTicket.id} patientId={selectedTicket.patient_id} />}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search by patient, test..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 w-64" />
+            </div>
           </div>
         </div>
 

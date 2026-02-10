@@ -14,9 +14,11 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
 import { ReferralForm } from "@/components/ReferralForm";
+import { PatientJourney } from "@/components/PatientJourney";
+import { logAuditEvent } from "@/lib/auditLog";
 import {
   Stethoscope, User, AlertTriangle, Activity, Pill, TestTube,
-  Camera, FileText, Plus, X, Phone, Heart, Radio
+  Camera, FileText, Plus, X, Phone, Heart, Radio, ClipboardList
 } from "lucide-react";
 
 interface Patient {
@@ -383,6 +385,7 @@ const Consultation = () => {
       await supabase.from("tickets").update({ workflow_stage: nextStage }).eq("id", selectedTicket.id);
 
       toast({ title: "Consultation Saved", description: `Patient moved to ${nextStage.replace(/_/g, " ")}.` });
+      logAuditEvent({ action: "consultation_saved", module: "consultation", details: { encounter_id: encounterData.id, patient_id: selectedTicket.patient!.id, next_stage: nextStage, diagnosis: encounter.diagnosis } });
       setSelectedTicket(null);
       fetchQueue();
     } catch (error) {
@@ -535,6 +538,7 @@ const Consultation = () => {
                   <TabsList>
                     <TabsTrigger value="encounter">Clinical Notes</TabsTrigger>
                     <TabsTrigger value="orders">Orders ({prescriptions.length + selectedLabTests.length + selectedImaging.length})</TabsTrigger>
+                    <TabsTrigger value="journey"><ClipboardList className="h-3.5 w-3.5 mr-1" />Patient Journey</TabsTrigger>
                     <TabsTrigger value="history">History</TabsTrigger>
                   </TabsList>
 
@@ -706,6 +710,10 @@ const Consultation = () => {
                         </div>
                       </CardContent>
                     </Card>
+                  </TabsContent>
+
+                  <TabsContent value="journey">
+                    <PatientJourney patientId={selectedTicket.patient!.id} ticketId={selectedTicket.id} />
                   </TabsContent>
 
                   <TabsContent value="history">
