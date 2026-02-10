@@ -12,6 +12,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueueTransition } from "@/hooks/useQueueTransition";
 import { StationQueue } from "@/components/StationQueue";
 import { Pill, Plus, Package, AlertTriangle, Search, ClipboardList } from "lucide-react";
+import { InterimPayment } from "@/components/InterimPayment";
+import { logAuditEvent } from "@/lib/auditLog";
 
 const Pharmacy = () => {
   const { toast } = useToast();
@@ -134,6 +136,7 @@ const Pharmacy = () => {
     });
 
     toast({ title: "Dispensed", description: "Prescription dispensed, stock updated, charge recorded" });
+    logAuditEvent({ action: "prescription_dispensed", module: "pharmacy", details: { prescription_id: prescriptionId, medication: medicationName, quantity, patient_id: patientId } });
 
     // Auto-transition
     const ticket = await getActiveTicket(patientId);
@@ -172,7 +175,8 @@ const Pharmacy = () => {
             <h1 className="text-3xl font-bold">Pharmacy</h1>
             <p className="text-muted-foreground">Manage inventory, dispense & stock cards</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 items-center">
+            {selectedTicket && <InterimPayment ticketId={selectedTicket.id} patientId={selectedTicket.patient_id} />}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input placeholder="Search drugs..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 w-64" />

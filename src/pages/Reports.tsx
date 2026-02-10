@@ -7,8 +7,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
 import { FileText, Download, Filter, Users, DollarSign, Activity } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 const AGE_GROUPS = [
   { label: "0-5 years", min: 0, max: 5 },
@@ -22,8 +24,11 @@ const AGE_GROUPS = [
 ];
 const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#82CA9D", "#FF6B6B", "#4ECDC4"];
 
+const DEPARTMENTS = ["All", "Laboratory", "Pharmacy", "Imaging", "Nursing", "Dental", "Financial"];
+
 const Reports = () => {
   const [loading, setLoading] = useState(false);
+  const [department, setDepartment] = useState("All");
   const [filters, setFilters] = useState({
     ageGroup: "", gender: "", diagnosis: "", labTest: "", procedure: "", dateFrom: "", dateTo: "",
   });
@@ -31,6 +36,7 @@ const Reports = () => {
   const [summaryData, setSummaryData] = useState<any>({ totalVisits: 0, totalRevenue: 0, genderBreakdown: [], ageBreakdown: [] });
   const [diagnoses, setDiagnoses] = useState<string[]>([]);
   const [labTests, setLabTests] = useState<any[]>([]);
+  const [deptData, setDeptData] = useState<any[]>([]);
 
   useEffect(() => {
     fetchDropdownData();
@@ -40,7 +46,6 @@ const Reports = () => {
   const fetchDropdownData = async () => {
     const { data: labs } = await supabase.from("lab_tests_catalog").select("id, test_name").order("test_name");
     setLabTests(labs || []);
-
     const { data: encounters } = await supabase.from("encounters").select("diagnosis").not("diagnosis", "is", null);
     const diagSet = new Set<string>();
     encounters?.forEach((e) => e.diagnosis?.forEach((d: string) => diagSet.add(d)));
@@ -50,57 +55,13 @@ const Reports = () => {
   const runReport = async () => {
     setLoading(true);
     try {
-      // Build query for encounters with patient profiles
-      let query = supabase.from("encounters").select("*, patients!encounters_patient_id_fkey(patient_id, user_id)").order("encounter_date", { ascending: false });
-
-      if (filters.dateFrom) query = query.gte("encounter_date", filters.dateFrom);
-      if (filters.dateTo) query = query.lte("encounter_date", filters.dateTo + "T23:59:59");
-
-      const { data: encounters } = await query;
-
-      // Enrich with profile data
-      const enriched = await Promise.all(
-        (encounters || []).map(async (enc) => {
-          const patient = enc.patients as any;
-          const { data: profile } = await supabase.from("profiles").select("full_name, gender, date_of_birth").eq("user_id", patient?.user_id).single();
-          const age = profile?.date_of_birth ? Math.floor((Date.now() - new Date(profile.date_of_birth).getTime()) / 31557600000) : null;
-          return { ...enc, profile, age };
-        })
-      );
-
-      // Apply client-side filters
-      let filtered = enriched;
-      if (filters.gender) filtered = filtered.filter((r) => r.profile?.gender === filters.gender);
-      if (filters.ageGroup) {
-        const ag = AGE_GROUPS.find((a) => a.label === filters.ageGroup);
-        if (ag) filtered = filtered.filter((r) => r.age !== null && r.age >= ag.min && r.age <= ag.max);
+      if (department === "All" || department === "Financial") {
+        await runClinicalReport();
       }
-      if (filters.diagnosis) filtered = filtered.filter((r) => r.diagnosis?.includes(filters.diagnosis));
-
-      setResults(filtered);
-
-      // Summary calculations
-      const genderMap: Record<string, number> = {};
-      const ageMap: Record<string, number> = {};
-      filtered.forEach((r) => {
-        const g = r.profile?.gender || "Unknown";
-        genderMap[g] = (genderMap[g] || 0) + 1;
-        const ag = AGE_GROUPS.find((a) => r.age !== null && r.age >= a.min && r.age <= a.max);
-        if (ag) ageMap[ag.label] = (ageMap[ag.label] || 0) + 1;
-      });
-
-      const { data: invoices } = await supabase.from("invoices").select("amount_paid, created_at")
-        .gte("created_at", filters.dateFrom || "2000-01-01")
-        .lte("created_at", (filters.dateTo || "2099-12-31") + "T23:59:59");
-
-      const totalRevenue = invoices?.reduce((s, i) => s + (i.amount_paid || 0), 0) || 0;
-
-      setSummaryData({
-        totalVisits: filtered.length,
-        totalRevenue,
-        genderBreakdown: Object.entries(genderMap).map(([name, value]) => ({ name, value })),
-        ageBreakdown: AGE_GROUPS.map((ag) => ({ name: ag.label, count: ageMap[ag.label] || 0 })),
-      });
+      if (department === "Laboratory") await runLabReport();
+      if (department === "Pharmacy") await runPharmacyReport();
+      if (department === "Imaging") await runImagingReport();
+      if (department === "Nursing" || department === "Dental") await runProcedureReport(department.toLowerCase());
     } catch (err) {
       console.error("Report error:", err);
     } finally {
@@ -108,23 +69,209 @@ const Reports = () => {
     }
   };
 
-  const exportCSV = () => {
-    const headers = ["Date", "Patient", "Gender", "Age", "Diagnosis", "Chief Complaint"];
-    const rows = results.map((r) => [
+  const runClinicalReport = async () => {
+    let query = supabase.from("encounters").select("*, patients!encounters_patient_id_fkey(patient_id, user_id)").order("encounter_date", { ascending: false });
+    if (filters.dateFrom) query = query.gte("encounter_date", filters.dateFrom);
+    if (filters.dateTo) query = query.lte("encounter_date", filters.dateTo + "T23:59:59");
+    const { data: encounters } = await query;
+
+    const enriched = await Promise.all(
+      (encounters || []).map(async (enc) => {
+        const patient = enc.patients as any;
+        const { data: profile } = await supabase.from("profiles").select("full_name, gender, date_of_birth").eq("user_id", patient?.user_id).single();
+        const age = profile?.date_of_birth ? Math.floor((Date.now() - new Date(profile.date_of_birth).getTime()) / 31557600000) : null;
+        return { ...enc, profile, age };
+      })
+    );
+
+    let filtered = enriched;
+    if (filters.gender && filters.gender !== "all") filtered = filtered.filter((r) => r.profile?.gender === filters.gender);
+    if (filters.ageGroup && filters.ageGroup !== "all") {
+      const ag = AGE_GROUPS.find((a) => a.label === filters.ageGroup);
+      if (ag) filtered = filtered.filter((r) => r.age !== null && r.age >= ag.min && r.age <= ag.max);
+    }
+    if (filters.diagnosis && filters.diagnosis !== "all") filtered = filtered.filter((r) => r.diagnosis?.includes(filters.diagnosis));
+
+    setResults(filtered);
+
+    const genderMap: Record<string, number> = {};
+    const ageMap: Record<string, number> = {};
+    filtered.forEach((r) => {
+      const g = r.profile?.gender || "Unknown";
+      genderMap[g] = (genderMap[g] || 0) + 1;
+      const ag = AGE_GROUPS.find((a) => r.age !== null && r.age >= a.min && r.age <= a.max);
+      if (ag) ageMap[ag.label] = (ageMap[ag.label] || 0) + 1;
+    });
+
+    const { data: invoices } = await supabase.from("invoices").select("amount_paid, created_at")
+      .gte("created_at", filters.dateFrom || "2000-01-01")
+      .lte("created_at", (filters.dateTo || "2099-12-31") + "T23:59:59");
+    const totalRevenue = invoices?.reduce((s, i) => s + (i.amount_paid || 0), 0) || 0;
+
+    setSummaryData({
+      totalVisits: filtered.length, totalRevenue,
+      genderBreakdown: Object.entries(genderMap).map(([name, value]) => ({ name, value })),
+      ageBreakdown: AGE_GROUPS.map((ag) => ({ name: ag.label, count: ageMap[ag.label] || 0 })),
+    });
+  };
+
+  const runLabReport = async () => {
+    let query = supabase.from("lab_orders").select("*, lab_tests_catalog(test_name, category, price)").order("created_at", { ascending: false });
+    if (filters.dateFrom) query = query.gte("created_at", filters.dateFrom);
+    if (filters.dateTo) query = query.lte("created_at", filters.dateTo + "T23:59:59");
+    const { data } = await query;
+    setDeptData(data || []);
+    setResults((data || []).map(d => ({
+      id: d.id, encounter_date: d.created_at, profile: { full_name: "-" },
+      chief_complaint: d.lab_tests_catalog?.test_name, diagnosis: [d.status],
+      age: null, test: d.lab_tests_catalog?.test_name, status: d.status
+    })));
+  };
+
+  const runPharmacyReport = async () => {
+    let query = supabase.from("prescriptions").select("*").order("created_at", { ascending: false });
+    if (filters.dateFrom) query = query.gte("created_at", filters.dateFrom);
+    if (filters.dateTo) query = query.lte("created_at", filters.dateTo + "T23:59:59");
+    const { data } = await query;
+    setDeptData(data || []);
+    setResults((data || []).map(d => ({
+      id: d.id, encounter_date: d.created_at, profile: { full_name: "-" },
+      chief_complaint: d.medication_name, diagnosis: [d.dispensed ? "Dispensed" : "Pending"],
+      age: null
+    })));
+  };
+
+  const runImagingReport = async () => {
+    let query = supabase.from("imaging_orders").select("*, imaging_catalog(name, modality, price)").order("created_at", { ascending: false });
+    if (filters.dateFrom) query = query.gte("created_at", filters.dateFrom);
+    if (filters.dateTo) query = query.lte("created_at", filters.dateTo + "T23:59:59");
+    const { data } = await query;
+    setDeptData(data || []);
+    setResults((data || []).map(d => ({
+      id: d.id, encounter_date: d.created_at, profile: { full_name: "-" },
+      chief_complaint: d.imaging_catalog?.name, diagnosis: [d.status],
+      age: null
+    })));
+  };
+
+  const runProcedureReport = async (type: string) => {
+    const table = type === "dental" ? "dental_procedures" : "nursing_procedures";
+    let query = supabase.from(table).select("*").order("created_at", { ascending: false });
+    if (filters.dateFrom) query = query.gte("created_at", filters.dateFrom);
+    if (filters.dateTo) query = query.lte("created_at", filters.dateTo + "T23:59:59");
+    const { data } = await query;
+    setDeptData(data || []);
+    setResults((data || []).map((d: any) => ({
+      id: d.id, encounter_date: d.created_at, profile: { full_name: "-" },
+      chief_complaint: d.procedure_type || d.procedure_name, diagnosis: [],
+      age: null
+    })));
+  };
+
+  const getTableHeaders = () => {
+    if (department === "Laboratory") return ["Date", "Test Name", "Status", "Flag"];
+    if (department === "Pharmacy") return ["Date", "Medication", "Dosage", "Qty", "Status"];
+    if (department === "Imaging") return ["Date", "Study", "Modality", "Status"];
+    if (department === "Nursing" || department === "Dental") return ["Date", "Procedure", "Price", "Notes"];
+    return ["Date", "Patient", "Gender", "Age", "Diagnosis", "Chief Complaint"];
+  };
+
+  const getTableRow = (r: any, idx: number) => {
+    if (department === "Laboratory") {
+      const d = deptData[idx];
+      return [new Date(d?.created_at).toLocaleDateString(), d?.lab_tests_catalog?.test_name || "-", d?.status, d?.flag || "Normal"];
+    }
+    if (department === "Pharmacy") {
+      const d = deptData[idx];
+      return [new Date(d?.created_at).toLocaleDateString(), d?.medication_name, d?.dosage, String(d?.quantity), d?.dispensed ? "Dispensed" : "Pending"];
+    }
+    if (department === "Imaging") {
+      const d = deptData[idx];
+      return [new Date(d?.created_at).toLocaleDateString(), d?.imaging_catalog?.name || "-", d?.imaging_catalog?.modality || "-", d?.status];
+    }
+    if (department === "Nursing" || department === "Dental") {
+      const d = deptData[idx];
+      return [new Date(d?.created_at).toLocaleDateString(), d?.procedure_type || d?.procedure_name, d?.price ? `KES ${d.price}` : "-", d?.notes || "-"];
+    }
+    return [
       new Date(r.encounter_date).toLocaleDateString(),
       r.profile?.full_name || "",
-      r.profile?.gender || "",
-      r.age || "",
+      r.profile?.gender || "-",
+      r.age ?? "-",
       (r.diagnosis || []).join("; "),
-      r.chief_complaint || "",
-    ]);
+      r.chief_complaint || "-",
+    ];
+  };
+
+  const exportCSV = () => {
+    const headers = getTableHeaders();
+    const rows = results.map((r, i) => getTableRow(r, i));
     const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
     const blob = new Blob([csv], { type: "text/csv" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `report-${new Date().toISOString().split("T")[0]}.csv`;
+    a.download = `${department}-report-${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
+  };
+
+  const exportPDF = () => {
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    // Header
+    doc.setFontSize(16);
+    doc.setFont("helvetica", "bold");
+    doc.text("CUEA Infirmary", pageWidth / 2, 20, { align: "center" });
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text("The Catholic University of Eastern Africa", pageWidth / 2, 27, { align: "center" });
+
+    doc.setFontSize(13);
+    doc.setFont("helvetica", "bold");
+    doc.text(`${department} Report`, pageWidth / 2, 38, { align: "center" });
+
+    // Filters applied
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    const filterText = [
+      filters.dateFrom && `From: ${filters.dateFrom}`,
+      filters.dateTo && `To: ${filters.dateTo}`,
+      filters.gender && filters.gender !== "all" && `Gender: ${filters.gender}`,
+      filters.ageGroup && filters.ageGroup !== "all" && `Age: ${filters.ageGroup}`,
+      filters.diagnosis && filters.diagnosis !== "all" && `Diagnosis: ${filters.diagnosis}`,
+    ].filter(Boolean).join(" | ");
+    if (filterText) doc.text(filterText, 14, 45);
+
+    // Summary
+    doc.setFontSize(10);
+    doc.text(`Total Records: ${results.length}`, 14, 52);
+    if (department === "All" || department === "Financial") {
+      doc.text(`Total Revenue: KES ${summaryData.totalRevenue.toLocaleString()}`, 14, 58);
+    }
+
+    // Table
+    const headers = getTableHeaders();
+    const rows = results.slice(0, 500).map((r, i) => getTableRow(r, i));
+
+    autoTable(doc, {
+      head: [headers],
+      body: rows,
+      startY: department === "All" || department === "Financial" ? 64 : 58,
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [41, 128, 185] },
+      alternateRowStyles: { fillColor: [245, 245, 245] },
+    });
+
+    // Footer
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.text(`Generated: ${new Date().toLocaleString()} | Page ${i} of ${pageCount}`, pageWidth / 2, doc.internal.pageSize.getHeight() - 10, { align: "center" });
+    }
+
+    doc.save(`${department}-report-${new Date().toISOString().split("T")[0]}.pdf`);
   };
 
   const u = (field: string, value: string) => setFilters((prev) => ({ ...prev, [field]: value }));
@@ -134,16 +281,28 @@ const Reports = () => {
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Reports & Analytics</h1>
-          <p className="text-muted-foreground">Multi-filter clinical and financial reporting</p>
+          <p className="text-muted-foreground">Department-level reporting with PDF & CSV export</p>
         </div>
-        <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-2" /> Export CSV</Button>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-2" /> CSV</Button>
+          <Button variant="outline" onClick={exportPDF}><FileText className="h-4 w-4 mr-2" /> PDF</Button>
+        </div>
       </div>
 
       {/* Filter Panel */}
       <Card>
         <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Filter className="h-4 w-4" /> Filters</CardTitle></CardHeader>
         <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+            <div className="space-y-1">
+              <Label className="text-xs">Department</Label>
+              <Select value={department} onValueChange={setDepartment}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {DEPARTMENTS.map(d => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
             <div className="space-y-1">
               <Label className="text-xs">Age Group</Label>
               <Select value={filters.ageGroup} onValueChange={(v) => u("ageGroup", v)}>
@@ -206,16 +365,16 @@ const Reports = () => {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
-            <Users className="h-8 w-8 text-blue-600" />
+            <Users className="h-8 w-8 text-primary" />
             <div>
-              <p className="text-sm text-muted-foreground">Total Visits</p>
-              <p className="text-2xl font-bold">{summaryData.totalVisits}</p>
+              <p className="text-sm text-muted-foreground">Total Records</p>
+              <p className="text-2xl font-bold">{results.length}</p>
             </div>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
-            <DollarSign className="h-8 w-8 text-green-600" />
+            <DollarSign className="h-8 w-8 text-primary" />
             <div>
               <p className="text-sm text-muted-foreground">Total Revenue</p>
               <p className="text-2xl font-bold">KES {summaryData.totalRevenue.toLocaleString()}</p>
@@ -224,14 +383,10 @@ const Reports = () => {
         </Card>
         <Card>
           <CardContent className="p-4 flex items-center gap-3">
-            <Activity className="h-8 w-8 text-purple-600" />
+            <Activity className="h-8 w-8 text-primary" />
             <div>
-              <p className="text-sm text-muted-foreground">Avg per Day</p>
-              <p className="text-2xl font-bold">
-                {filters.dateFrom && filters.dateTo
-                  ? Math.round(summaryData.totalVisits / Math.max(1, Math.ceil((new Date(filters.dateTo).getTime() - new Date(filters.dateFrom).getTime()) / 86400000)))
-                  : summaryData.totalVisits}
-              </p>
+              <p className="text-sm text-muted-foreground">Department</p>
+              <p className="text-2xl font-bold">{department}</p>
             </div>
           </CardContent>
         </Card>
@@ -249,26 +404,18 @@ const Reports = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Patient</TableHead>
-                    <TableHead>Gender</TableHead>
-                    <TableHead>Age</TableHead>
-                    <TableHead>Diagnosis</TableHead>
-                    <TableHead>Chief Complaint</TableHead>
+                    {getTableHeaders().map(h => <TableHead key={h}>{h}</TableHead>)}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {results.length === 0 ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No results</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={getTableHeaders().length} className="text-center py-8 text-muted-foreground">No results — adjust filters and generate</TableCell></TableRow>
                   ) : (
-                    results.slice(0, 100).map((r) => (
-                      <TableRow key={r.id}>
-                        <TableCell>{new Date(r.encounter_date).toLocaleDateString()}</TableCell>
-                        <TableCell>{r.profile?.full_name}</TableCell>
-                        <TableCell>{r.profile?.gender || "-"}</TableCell>
-                        <TableCell>{r.age ?? "-"}</TableCell>
-                        <TableCell>{(r.diagnosis || []).join(", ") || "-"}</TableCell>
-                        <TableCell className="max-w-xs truncate">{r.chief_complaint || "-"}</TableCell>
+                    results.slice(0, 200).map((r, i) => (
+                      <TableRow key={r.id || i}>
+                        {getTableRow(r, i).map((cell, ci) => (
+                          <TableCell key={ci} className={ci >= 4 ? "max-w-xs truncate" : ""}>{cell}</TableCell>
+                        ))}
                       </TableRow>
                     ))
                   )}
@@ -285,7 +432,7 @@ const Reports = () => {
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
-                    <Pie data={summaryData.genderBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                    <Pie data={summaryData.genderBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}>
                       {summaryData.genderBreakdown.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                     </Pie>
                     <Tooltip />

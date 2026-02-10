@@ -13,6 +13,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useQueueTransition } from "@/hooks/useQueueTransition";
 import { StationQueue } from "@/components/StationQueue";
 import { Camera, Search, Clock, CheckCircle, AlertCircle, FileImage } from "lucide-react";
+import { InterimPayment } from "@/components/InterimPayment";
+import { logAuditEvent } from "@/lib/auditLog";
 
 const Imaging = () => {
   const { toast } = useToast();
@@ -90,6 +92,7 @@ const Imaging = () => {
       toast({ title: "Error", description: "Failed to submit results", variant: "destructive" });
     } else {
       toast({ title: "Results submitted", description: "Imaging results recorded" });
+      logAuditEvent({ action: "imaging_result_submitted", module: "imaging", details: { order_id: selectedOrder.id, patient_id: selectedOrder.patient_id } });
 
       // Auto-advance: check if all imaging for this encounter complete
       const { data: pendingImaging } = await supabase
@@ -151,9 +154,12 @@ const Imaging = () => {
             <h1 className="text-3xl font-bold">Imaging & Radiology</h1>
             <p className="text-muted-foreground">CUEA Radiology — manage orders and results</p>
           </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 w-64" />
+          <div className="flex gap-2 items-center">
+            {selectedTicket && <InterimPayment ticketId={selectedTicket.id} patientId={selectedTicket.patient_id} />}
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 w-64" />
+            </div>
           </div>
         </div>
 
