@@ -207,9 +207,8 @@ const Consultation = () => {
     setImagingItems(data || []);
   };
 
-  const startConsultation = async (ticket: Ticket) => {
+  const selectPatient = (ticket: Ticket) => {
     setSelectedTicket(ticket);
-    await supabase.from("tickets").update({ workflow_stage: "in_consult" as const }).eq("id", ticket.id);
     setEncounter({
       chiefComplaint: "", historyOfPresentIllness: "", pastMedicalHistory: "", pastSurgicalHistory: "",
       medicineHistory: "", socialHistory: "", subjective: "", objective: "",
@@ -219,6 +218,10 @@ const Consultation = () => {
     setPrescriptions([]);
     setSelectedLabTests([]);
     setSelectedImaging([]);
+  };
+
+  const startConsultation = async (ticket: Ticket) => {
+    await supabase.from("tickets").update({ workflow_stage: "in_consult", status: "in_consult" }).eq("id", ticket.id);
     fetchQueue();
   };
 
@@ -382,7 +385,7 @@ const Consultation = () => {
       else if (selectedImaging.length > 0) nextStage = "at_imaging";
       else if (prescriptions.length > 0) nextStage = "at_pharmacy";
 
-      await supabase.from("tickets").update({ workflow_stage: nextStage }).eq("id", selectedTicket.id);
+      await supabase.from("tickets").update({ workflow_stage: nextStage, status: nextStage }).eq("id", selectedTicket.id);
 
       toast({ title: "Consultation Saved", description: `Patient moved to ${nextStage.replace(/_/g, " ")}.` });
       logAuditEvent({ action: "consultation_saved", module: "consultation", details: { encounter_id: encounterData.id, patient_id: selectedTicket.patient!.id, next_stage: nextStage, diagnosis: encounter.diagnosis } });
@@ -445,7 +448,7 @@ const Consultation = () => {
                   className={`p-3 rounded-lg border cursor-pointer transition-colors ${
                     selectedTicket?.id === ticket.id ? "bg-primary/10 border-primary" : "bg-background hover:bg-muted"
                   }`}
-                  onClick={() => startConsultation(ticket)}
+                  onClick={() => selectPatient(ticket)}
                 >
                   <div className="flex items-start justify-between">
                     <div>
@@ -457,11 +460,16 @@ const Consultation = () => {
                     </Badge>
                   </div>
                   <div className="flex items-center gap-2 mt-2">
-                    <Badge variant="outline" className="text-xs">{ticket.workflow_stage.replace(/_/g, " ")}</Badge>
+                    <Badge variant="outline" className="text-xs">{ticket.workflow_stage?.replace(/_/g, " ") || "unknown"}</Badge>
                     {ticket.patient?.allergies && ticket.patient.allergies.length > 0 && (
                       <AlertTriangle className="h-3 w-3 text-orange-500" />
                     )}
                   </div>
+                  {selectedTicket?.id === ticket.id && ticket.workflow_stage !== "in_consult" && (
+                    <Button size="sm" className="w-full mt-2 h-7 text-xs" onClick={(e) => { e.stopPropagation(); startConsultation(ticket); }}>
+                      <Stethoscope className="h-3 w-3 mr-1" /> Start Consultation
+                    </Button>
+                  )}
                 </div>
               ))
             )}

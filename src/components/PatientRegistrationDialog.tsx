@@ -1,5 +1,6 @@
 import { useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { logAuditEvent } from "@/lib/auditLog";
 import {
   Dialog,
   DialogContent,
@@ -59,52 +60,38 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: () => voi
     setLoading(true);
 
     try {
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: formData.email,
-        password: formData.password,
-        options: { data: { full_name: formData.fullName } },
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("You must be logged in to register patients");
+
+      const response = await supabase.functions.invoke("register-patient", {
+        body: {
+          fullName: formData.fullName,
+          phone: formData.phone,
+          email: formData.email,
+          password: formData.password,
+          dateOfBirth: formData.dateOfBirth || null,
+          gender: formData.gender || null,
+          nationalId: formData.nationalId || null,
+          nationality: formData.nationality || null,
+          postalAddress: formData.postalAddress || null,
+          address: formData.address || null,
+          patientType: formData.patientType || "outsider",
+          payrollNumber: formData.payrollNumber || null,
+          admissionNumber: formData.admissionNumber || null,
+          visitReason: formData.visitReason || "outpatient",
+          insuranceProvider: formData.insuranceProvider || null,
+          insuranceNumber: formData.insuranceNumber || null,
+          nextOfKinName: formData.nextOfKinName || null,
+          nextOfKinRelationship: formData.nextOfKinRelationship || null,
+          nextOfKinPhone: formData.nextOfKinPhone || null,
+        },
       });
-      if (authError) throw authError;
-      if (!authData.user) throw new Error("User creation failed");
 
-      const { error: profileError } = await supabase.from("profiles").insert({
-        user_id: authData.user.id,
-        full_name: formData.fullName,
-        phone: formData.phone,
-        email: formData.email,
-        date_of_birth: formData.dateOfBirth || null,
-        gender: formData.gender || null,
-        address: formData.address || null,
-      });
-      if (profileError) throw profileError;
+      if (response.error) throw new Error(response.error.message || "Registration failed");
+      const result = response.data;
+      if (result.error) throw new Error(result.error);
 
-      const patientId = `OPD-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 10000)).padStart(4, "0")}`;
-
-      const { error: patientError } = await supabase.from("patients").insert({
-        user_id: authData.user.id,
-        patient_id: patientId,
-        patient_type: formData.patientType || "outsider",
-        national_id: formData.nationalId || null,
-        nationality: formData.nationality || null,
-        postal_address: formData.postalAddress || null,
-        email: formData.email || null,
-        payroll_number: formData.payrollNumber || null,
-        admission_number: formData.admissionNumber || null,
-        visit_reason: formData.visitReason || "outpatient",
-        insurance_provider: formData.insuranceProvider || null,
-        insurance_number: formData.insuranceNumber || null,
-        next_of_kin_name: formData.nextOfKinName || null,
-        next_of_kin_relationship: formData.nextOfKinRelationship || null,
-        next_of_kin_phone: formData.nextOfKinPhone || null,
-      });
-      if (patientError) throw patientError;
-
-      const { error: roleError } = await supabase
-        .from("user_roles")
-        .insert({ user_id: authData.user.id, role: "patient" });
-      if (roleError) throw roleError;
-
-      toast({ title: "Patient registered", description: `OPD No: ${patientId}` });
+      toast({ title: "Patient registered", description: `OPD No: ${result.patientId}` });
       setOpen(false);
       setFormData({
         fullName: "", phone: "", email: "", password: "", dateOfBirth: "", gender: "",

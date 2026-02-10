@@ -57,7 +57,7 @@ export function StationQueue({ stationStages, nextStage, title, onSelectPatient,
   const completeAndAdvance = async (ticketId: string) => {
     const { error } = await supabase
       .from("tickets")
-      .update({ workflow_stage: nextStage })
+      .update({ workflow_stage: nextStage as any, status: nextStage as any })
       .eq("id", ticketId);
 
     if (error) {
