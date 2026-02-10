@@ -30,6 +30,7 @@ import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import PatientPortal from "./pages/PatientPortal";
 import ProtectedRoute from "./components/ProtectedRoute";
+import Dental from "./pages/Dental";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -211,6 +212,16 @@ const App = () => (
                 <div className="flex min-h-screen w-full">
                   <AppSidebar />
                   <main className="flex-1"><RoleManagement /></main>
+                </div>
+              </SidebarProvider>
+            </ProtectedRoute>
+          } />
+          <Route path="/dental" element={
+            <ProtectedRoute>
+              <SidebarProvider>
+                <div className="flex min-h-screen w-full">
+                  <AppSidebar />
+                  <main className="flex-1"><Dental /></main>
                 </div>
               </SidebarProvider>
             </ProtectedRoute>

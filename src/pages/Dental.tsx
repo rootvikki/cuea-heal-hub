@@ -1,0 +1,190 @@
+import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
+import { useToast } from "@/hooks/use-toast";
+import { StationQueue } from "@/components/StationQueue";
+import { Plus, X, Send } from "lucide-react";
+
+const DENTAL_PROCEDURES = [
+  { name: "Dental Examination", price: 500 },
+  { name: "Dental X-Ray", price: 1000 },
+  { name: "Tooth Extraction - Simple", price: 1500 },
+  { name: "Tooth Extraction - Surgical", price: 5000 },
+  { name: "Dental Filling - Temporary", price: 1000 },
+  { name: "Dental Filling - Permanent", price: 3000 },
+  { name: "Root Canal Treatment", price: 8000 },
+  { name: "Scaling & Polishing", price: 3000 },
+  { name: "Dental Abscess Drainage", price: 2000 },
+  { name: "Crown Placement", price: 15000 },
+  { name: "Bridge Work", price: 20000 },
+  { name: "Denture - Partial", price: 15000 },
+  { name: "Denture - Full", price: 25000 },
+  { name: "Orthodontic Consultation", price: 2000 },
+  { name: "Teeth Whitening", price: 5000 },
+  { name: "Fluoride Application", price: 1000 },
+  { name: "Gum Treatment", price: 3000 },
+];
+
+interface DentalEntry {
+  procedure: string;
+  toothNumber: string;
+  notes: string;
+  price: number;
+}
+
+const Dental = () => {
+  const { toast } = useToast();
+  const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [entries, setEntries] = useState<DentalEntry[]>([]);
+  const [selectedProc, setSelectedProc] = useState("");
+  const [toothNum, setToothNum] = useState("");
+  const [procNotes, setProcNotes] = useState("");
+  const [nextVisit, setNextVisit] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  const addEntry = () => {
+    const proc = DENTAL_PROCEDURES.find((p) => p.name === selectedProc);
+    if (!proc) return;
+    setEntries([...entries, { procedure: proc.name, toothNumber: toothNum, notes: procNotes, price: proc.price }]);
+    setSelectedProc("");
+    setToothNum("");
+    setProcNotes("");
+  };
+
+  const removeEntry = (i: number) => setEntries(entries.filter((_, idx) => idx !== i));
+  const total = entries.reduce((s, e) => s + e.price, 0);
+
+  const handleSave = async () => {
+    if (!selectedTicket || entries.length === 0) return;
+    setSaving(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      for (const entry of entries) {
+        await supabase.from("dental_procedures").insert({
+          patient_id: selectedTicket.patient_id,
+          ticket_id: selectedTicket.id,
+          dentist_id: user?.id || "",
+          procedure_name: entry.procedure,
+          tooth_number: entry.toothNumber || null,
+          notes: entry.notes || null,
+          price: entry.price,
+          next_visit: nextVisit || null,
+        });
+        await supabase.from("service_charges").insert({
+          patient_id: selectedTicket.patient_id,
+          ticket_id: selectedTicket.id,
+          service_type: "dental",
+          description: entry.procedure,
+          amount: entry.price,
+          billing_stage: "dental",
+        });
+      }
+      // Advance to billing (or pharmacy if prescriptions needed)
+      await supabase.from("tickets").update({ workflow_stage: "at_billing" }).eq("id", selectedTicket.id);
+
+      toast({ title: "Dental procedures saved", description: "Patient sent to billing" });
+      setSelectedTicket(null);
+      setEntries([]);
+      setNextVisit("");
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="flex h-screen overflow-hidden">
+      <StationQueue
+        stationStages={["checked_in", "triage"]}
+        nextStage="at_billing"
+        title="Dental Queue"
+        onSelectPatient={setSelectedTicket}
+        selectedTicketId={selectedTicket?.id}
+      />
+      <div className="flex-1 overflow-y-auto p-6 space-y-6">
+        <h1 className="text-3xl font-bold">🦷 Dental Department</h1>
+        {!selectedTicket ? (
+          <Card><CardContent className="py-16 text-center text-muted-foreground">Select a patient from the queue</CardContent></Card>
+        ) : (
+          <>
+            <Card>
+              <CardContent className="py-3 flex gap-6 text-sm">
+                <div><span className="text-muted-foreground">Patient:</span> <strong>{selectedTicket.patient?.profile?.full_name}</strong></div>
+                <div><span className="text-muted-foreground">OPD:</span> <strong>{selectedTicket.patient?.patient_id}</strong></div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader><CardTitle>Add Procedures</CardTitle></CardHeader>
+              <CardContent className="space-y-4">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1">
+                    <Label>Procedure</Label>
+                    <Select value={selectedProc} onValueChange={setSelectedProc}>
+                      <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                      <SelectContent>
+                        {DENTAL_PROCEDURES.map((p) => (
+                          <SelectItem key={p.name} value={p.name}>{p.name} — KES {p.price}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Tooth #</Label>
+                    <Input value={toothNum} onChange={(e) => setToothNum(e.target.value)} placeholder="e.g. 14" />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Notes</Label>
+                    <div className="flex gap-2">
+                      <Input value={procNotes} onChange={(e) => setProcNotes(e.target.value)} />
+                      <Button onClick={addEntry} disabled={!selectedProc}><Plus className="h-4 w-4" /></Button>
+                    </div>
+                  </div>
+                </div>
+
+                {entries.length > 0 && (
+                  <div className="space-y-2">
+                    {entries.map((e, i) => (
+                      <div key={i} className="flex items-center justify-between p-2 border rounded text-sm">
+                        <div>
+                          <strong>{e.procedure}</strong>
+                          {e.toothNumber && <span className="ml-2 text-muted-foreground">Tooth #{e.toothNumber}</span>}
+                          {e.notes && <span className="ml-2 text-muted-foreground">— {e.notes}</span>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline">KES {e.price}</Badge>
+                          <Button variant="ghost" size="sm" onClick={() => removeEntry(i)}><X className="h-3 w-3" /></Button>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="text-right font-semibold">Total: KES {total}</div>
+                  </div>
+                )}
+
+                <div className="max-w-xs space-y-1">
+                  <Label>Next Visit</Label>
+                  <Input type="date" value={nextVisit} onChange={(e) => setNextVisit(e.target.value)} />
+                </div>
+              </CardContent>
+            </Card>
+
+            <div className="flex justify-end">
+              <Button size="lg" onClick={handleSave} disabled={saving || entries.length === 0} className="gap-2">
+                <Send className="h-4 w-4" /> {saving ? "Saving..." : "Complete & Send to Billing"}
+              </Button>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default Dental;

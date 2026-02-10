@@ -85,10 +85,11 @@ export function AppSidebar() {
     { title: "Appointments", url: "/appointments", icon: Calendar, roles: ["all"] },
     { title: "Patient Queue", url: "/queue", icon: ClipboardList, roles: ["admin", "super_admin", "doctor", "nurse", "receptionist"] },
     { title: "Queue Display", url: "/queue-display", icon: Monitor, roles: ["admin", "super_admin", "receptionist"], isExternal: true },
-    { title: "Consultation", url: "/consultation", icon: Stethoscope, roles: ["admin", "super_admin", "doctor"] },
-    { title: "Medical Records", url: "/records", icon: FileText, roles: ["admin", "super_admin", "doctor", "nurse"] },
-    { title: "Vitals", url: "/vitals", icon: Activity, roles: ["admin", "super_admin", "doctor", "nurse"] },
-    { title: "Inpatient", url: "/inpatient", icon: Bed, roles: ["admin", "super_admin", "doctor", "nurse"] },
+    { title: "Consultation", url: "/consultation", icon: Stethoscope, roles: ["admin", "super_admin", "doctor", "clinical_officer"] },
+    { title: "Nursing/Triage", url: "/vitals", icon: Activity, roles: ["admin", "super_admin", "doctor", "nurse"] },
+    { title: "Dental", url: "/dental", icon: Stethoscope, roles: ["admin", "super_admin", "doctor", "clinical_officer"] },
+    { title: "Medical Records", url: "/records", icon: FileText, roles: ["admin", "super_admin", "doctor", "nurse", "records_officer"] },
+    { title: "Inpatient", url: "/inpatient", icon: Bed, roles: ["admin", "super_admin", "doctor", "nurse", "ward_manager"] },
   ];
 
   const diagnosticsItems = [

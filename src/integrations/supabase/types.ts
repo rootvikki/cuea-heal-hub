@@ -314,6 +314,70 @@ export type Database = {
           },
         ]
       }
+      dental_procedures: {
+        Row: {
+          created_at: string
+          dentist_id: string
+          encounter_id: string | null
+          id: string
+          next_visit: string | null
+          notes: string | null
+          patient_id: string
+          price: number | null
+          procedure_name: string
+          ticket_id: string | null
+          tooth_number: string | null
+        }
+        Insert: {
+          created_at?: string
+          dentist_id: string
+          encounter_id?: string | null
+          id?: string
+          next_visit?: string | null
+          notes?: string | null
+          patient_id: string
+          price?: number | null
+          procedure_name: string
+          ticket_id?: string | null
+          tooth_number?: string | null
+        }
+        Update: {
+          created_at?: string
+          dentist_id?: string
+          encounter_id?: string | null
+          id?: string
+          next_visit?: string | null
+          notes?: string | null
+          patient_id?: string
+          price?: number | null
+          procedure_name?: string
+          ticket_id?: string | null
+          tooth_number?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dental_procedures_encounter_id_fkey"
+            columns: ["encounter_id"]
+            isOneToOne: false
+            referencedRelation: "encounters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dental_procedures_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dental_procedures_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       departments: {
         Row: {
           created_at: string | null
@@ -837,6 +901,7 @@ export type Database = {
           created_at: string | null
           doctor_id: string
           encounter_id: string
+          flag: string | null
           id: string
           patient_id: string
           result_entered_at: string | null
@@ -851,6 +916,7 @@ export type Database = {
           created_at?: string | null
           doctor_id: string
           encounter_id: string
+          flag?: string | null
           id?: string
           patient_id: string
           result_entered_at?: string | null
@@ -865,6 +931,7 @@ export type Database = {
           created_at?: string | null
           doctor_id?: string
           encounter_id?: string
+          flag?: string | null
           id?: string
           patient_id?: string
           result_entered_at?: string | null
@@ -913,33 +980,86 @@ export type Database = {
           },
         ]
       }
+      lab_result_fields: {
+        Row: {
+          created_at: string
+          field_name: string
+          field_value: string | null
+          flag: string | null
+          id: string
+          lab_order_id: string
+          reference_range: string | null
+          sort_order: number | null
+          unit: string | null
+        }
+        Insert: {
+          created_at?: string
+          field_name: string
+          field_value?: string | null
+          flag?: string | null
+          id?: string
+          lab_order_id: string
+          reference_range?: string | null
+          sort_order?: number | null
+          unit?: string | null
+        }
+        Update: {
+          created_at?: string
+          field_name?: string
+          field_value?: string | null
+          flag?: string | null
+          id?: string
+          lab_order_id?: string
+          reference_range?: string | null
+          sort_order?: number | null
+          unit?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "lab_result_fields_lab_order_id_fkey"
+            columns: ["lab_order_id"]
+            isOneToOne: false
+            referencedRelation: "lab_orders"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       lab_tests_catalog: {
         Row: {
+          category: string | null
           created_at: string | null
           description: string | null
+          gender_specific_ranges: Json | null
           id: string
           normal_range: string | null
           price: number
+          result_fields: Json | null
           test_code: string | null
           test_name: string
           unit: string | null
         }
         Insert: {
+          category?: string | null
           created_at?: string | null
           description?: string | null
+          gender_specific_ranges?: Json | null
           id?: string
           normal_range?: string | null
           price: number
+          result_fields?: Json | null
           test_code?: string | null
           test_name: string
           unit?: string | null
         }
         Update: {
+          category?: string | null
           created_at?: string | null
           description?: string | null
+          gender_specific_ranges?: Json | null
           id?: string
           normal_range?: string | null
           price?: number
+          result_fields?: Json | null
           test_code?: string | null
           test_name?: string
           unit?: string | null
@@ -1046,48 +1166,136 @@ export type Database = {
           },
         ]
       }
+      nursing_procedures: {
+        Row: {
+          created_at: string
+          encounter_id: string | null
+          id: string
+          notes: string | null
+          nurse_id: string
+          patient_id: string
+          price: number | null
+          procedure_type: string
+          ticket_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          encounter_id?: string | null
+          id?: string
+          notes?: string | null
+          nurse_id: string
+          patient_id: string
+          price?: number | null
+          procedure_type: string
+          ticket_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          encounter_id?: string | null
+          id?: string
+          notes?: string | null
+          nurse_id?: string
+          patient_id?: string
+          price?: number | null
+          procedure_type?: string
+          ticket_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "nursing_procedures_encounter_id_fkey"
+            columns: ["encounter_id"]
+            isOneToOne: false
+            referencedRelation: "encounters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nursing_procedures_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "nursing_procedures_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patients: {
         Row: {
+          admission_number: string | null
           allergies: string[] | null
           blood_type: string | null
           chronic_conditions: string[] | null
           created_at: string | null
+          email: string | null
           id: string
           insurance_number: string | null
           insurance_provider: string | null
           national_id: string | null
+          nationality: string | null
+          next_of_kin_name: string | null
+          next_of_kin_phone: string | null
+          next_of_kin_relationship: string | null
           patient_id: string
+          patient_type: Database["public"]["Enums"]["patient_type"] | null
+          payroll_number: string | null
           photo_url: string | null
+          postal_address: string | null
           updated_at: string | null
           user_id: string
+          visit_reason: Database["public"]["Enums"]["visit_reason"] | null
         }
         Insert: {
+          admission_number?: string | null
           allergies?: string[] | null
           blood_type?: string | null
           chronic_conditions?: string[] | null
           created_at?: string | null
+          email?: string | null
           id?: string
           insurance_number?: string | null
           insurance_provider?: string | null
           national_id?: string | null
+          nationality?: string | null
+          next_of_kin_name?: string | null
+          next_of_kin_phone?: string | null
+          next_of_kin_relationship?: string | null
           patient_id: string
+          patient_type?: Database["public"]["Enums"]["patient_type"] | null
+          payroll_number?: string | null
           photo_url?: string | null
+          postal_address?: string | null
           updated_at?: string | null
           user_id: string
+          visit_reason?: Database["public"]["Enums"]["visit_reason"] | null
         }
         Update: {
+          admission_number?: string | null
           allergies?: string[] | null
           blood_type?: string | null
           chronic_conditions?: string[] | null
           created_at?: string | null
+          email?: string | null
           id?: string
           insurance_number?: string | null
           insurance_provider?: string | null
           national_id?: string | null
+          nationality?: string | null
+          next_of_kin_name?: string | null
+          next_of_kin_phone?: string | null
+          next_of_kin_relationship?: string | null
           patient_id?: string
+          patient_type?: Database["public"]["Enums"]["patient_type"] | null
+          payroll_number?: string | null
           photo_url?: string | null
+          postal_address?: string | null
           updated_at?: string | null
           user_id?: string
+          visit_reason?: Database["public"]["Enums"]["visit_reason"] | null
         }
         Relationships: [
           {
@@ -1152,42 +1360,113 @@ export type Database = {
       }
       pharmacy_inventory: {
         Row: {
+          average_monthly_consumption: number | null
           batch_number: string | null
           created_at: string | null
           drug_name: string
           expiry_date: string | null
           generic_name: string | null
           id: string
+          maximum_stock: number | null
+          minimum_stock: number | null
+          package: string | null
           quantity: number
           reorder_level: number | null
+          strength_size: string | null
           unit_price: number
           updated_at: string | null
         }
         Insert: {
+          average_monthly_consumption?: number | null
           batch_number?: string | null
           created_at?: string | null
           drug_name: string
           expiry_date?: string | null
           generic_name?: string | null
           id?: string
+          maximum_stock?: number | null
+          minimum_stock?: number | null
+          package?: string | null
           quantity?: number
           reorder_level?: number | null
+          strength_size?: string | null
           unit_price: number
           updated_at?: string | null
         }
         Update: {
+          average_monthly_consumption?: number | null
           batch_number?: string | null
           created_at?: string | null
           drug_name?: string
           expiry_date?: string | null
           generic_name?: string | null
           id?: string
+          maximum_stock?: number | null
+          minimum_stock?: number | null
+          package?: string | null
           quantity?: number
           reorder_level?: number | null
+          strength_size?: string | null
           unit_price?: number
           updated_at?: string | null
         }
         Relationships: []
+      }
+      pharmacy_stock_transactions: {
+        Row: {
+          balance: number | null
+          created_at: string
+          expiry_date: string | null
+          id: string
+          inventory_id: string
+          invoice_ref: string | null
+          issued_to: string | null
+          qty_issued: number | null
+          qty_received: number | null
+          received_from: string | null
+          recorded_by: string | null
+          transaction_date: string
+          unit_price: number | null
+        }
+        Insert: {
+          balance?: number | null
+          created_at?: string
+          expiry_date?: string | null
+          id?: string
+          inventory_id: string
+          invoice_ref?: string | null
+          issued_to?: string | null
+          qty_issued?: number | null
+          qty_received?: number | null
+          received_from?: string | null
+          recorded_by?: string | null
+          transaction_date?: string
+          unit_price?: number | null
+        }
+        Update: {
+          balance?: number | null
+          created_at?: string
+          expiry_date?: string | null
+          id?: string
+          inventory_id?: string
+          invoice_ref?: string | null
+          issued_to?: string | null
+          qty_issued?: number | null
+          qty_received?: number | null
+          received_from?: string | null
+          recorded_by?: string | null
+          transaction_date?: string
+          unit_price?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pharmacy_stock_transactions_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "pharmacy_inventory"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pre_authorizations: {
         Row: {
@@ -1393,6 +1672,115 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      referrals: {
+        Row: {
+          created_at: string
+          doctor_name: string
+          encounter_id: string | null
+          id: string
+          patient_id: string
+          reasons_for_referral: string
+          referral_date: string
+          referred_by: string
+          treatment_given: string | null
+        }
+        Insert: {
+          created_at?: string
+          doctor_name: string
+          encounter_id?: string | null
+          id?: string
+          patient_id: string
+          reasons_for_referral: string
+          referral_date?: string
+          referred_by: string
+          treatment_given?: string | null
+        }
+        Update: {
+          created_at?: string
+          doctor_name?: string
+          encounter_id?: string | null
+          id?: string
+          patient_id?: string
+          reasons_for_referral?: string
+          referral_date?: string
+          referred_by?: string
+          treatment_given?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referrals_encounter_id_fkey"
+            columns: ["encounter_id"]
+            isOneToOne: false
+            referencedRelation: "encounters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_charges: {
+        Row: {
+          amount: number
+          billing_stage: string | null
+          created_at: string
+          description: string
+          encounter_id: string | null
+          id: string
+          patient_id: string
+          service_type: string
+          ticket_id: string | null
+        }
+        Insert: {
+          amount?: number
+          billing_stage?: string | null
+          created_at?: string
+          description: string
+          encounter_id?: string | null
+          id?: string
+          patient_id: string
+          service_type: string
+          ticket_id?: string | null
+        }
+        Update: {
+          amount?: number
+          billing_stage?: string | null
+          created_at?: string
+          description?: string
+          encounter_id?: string | null
+          id?: string
+          patient_id?: string
+          service_type?: string
+          ticket_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_charges_encounter_id_fkey"
+            columns: ["encounter_id"]
+            isOneToOne: false
+            referencedRelation: "encounters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_charges_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_charges_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sms_notifications: {
         Row: {
@@ -1606,6 +1994,7 @@ export type Database = {
       }
       vitals: {
         Row: {
+          allergies_noted: string | null
           blood_pressure_diastolic: number | null
           blood_pressure_systolic: number | null
           bmi: number | null
@@ -1615,6 +2004,7 @@ export type Database = {
           id: string
           oxygen_saturation: number | null
           patient_id: string
+          presenting_complaint: string | null
           pulse_rate: number | null
           recorded_at: string | null
           recorded_by: string | null
@@ -1623,6 +2013,7 @@ export type Database = {
           weight: number | null
         }
         Insert: {
+          allergies_noted?: string | null
           blood_pressure_diastolic?: number | null
           blood_pressure_systolic?: number | null
           bmi?: number | null
@@ -1632,6 +2023,7 @@ export type Database = {
           id?: string
           oxygen_saturation?: number | null
           patient_id: string
+          presenting_complaint?: string | null
           pulse_rate?: number | null
           recorded_at?: string | null
           recorded_by?: string | null
@@ -1640,6 +2032,7 @@ export type Database = {
           weight?: number | null
         }
         Update: {
+          allergies_noted?: string | null
           blood_pressure_diastolic?: number | null
           blood_pressure_systolic?: number | null
           bmi?: number | null
@@ -1649,6 +2042,7 @@ export type Database = {
           id?: string
           oxygen_saturation?: number | null
           patient_id?: string
+          presenting_complaint?: string | null
           pulse_rate?: number | null
           recorded_at?: string | null
           recorded_by?: string | null
@@ -1782,6 +2176,7 @@ export type Database = {
         | "completed"
         | "cancelled"
         | "no_show"
+      patient_type: "cuea_staff" | "cuea_student" | "outsider"
       payment_method: "mpesa" | "card" | "cash" | "insurance" | "bank_transfer"
       payment_status: "pending" | "partial" | "paid" | "refunded" | "cancelled"
       ticket_status:
@@ -1796,6 +2191,7 @@ export type Database = {
         | "at_pharmacy"
         | "at_billing"
         | "checked_out"
+      visit_reason: "outpatient" | "dental"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1951,6 +2347,7 @@ export const Constants = {
         "cancelled",
         "no_show",
       ],
+      patient_type: ["cuea_staff", "cuea_student", "outsider"],
       payment_method: ["mpesa", "card", "cash", "insurance", "bank_transfer"],
       payment_status: ["pending", "partial", "paid", "refunded", "cancelled"],
       ticket_status: [
@@ -1966,6 +2363,7 @@ export const Constants = {
         "at_billing",
         "checked_out",
       ],
+      visit_reason: ["outpatient", "dental"],
     },
   },
 } as const

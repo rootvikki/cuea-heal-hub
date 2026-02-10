@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   Dialog,
@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { UserPlus, Loader2 } from "lucide-react";
 
@@ -19,97 +20,104 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: () => voi
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    email: "",
-    password: "",
     fullName: "",
     phone: "",
+    email: "",
+    password: "",
     dateOfBirth: "",
     gender: "",
+    nationalId: "",
+    nationality: "Kenyan",
+    postalAddress: "",
     address: "",
+    patientType: "" as "" | "cuea_staff" | "cuea_student" | "outsider",
+    payrollNumber: "",
+    admissionNumber: "",
+    visitReason: "outpatient" as "outpatient" | "dental",
     bloodType: "",
     insuranceProvider: "",
     insuranceNumber: "",
+    nextOfKinName: "",
+    nextOfKinRelationship: "",
+    nextOfKinPhone: "",
   });
+
+  const age = useMemo(() => {
+    if (!formData.dateOfBirth) return null;
+    const birth = new Date(formData.dateOfBirth);
+    const today = new Date();
+    let y = today.getFullYear() - birth.getFullYear();
+    const m = today.getMonth() - birth.getMonth();
+    if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) y--;
+    return y;
+  }, [formData.dateOfBirth]);
+
+  const update = (field: string, value: string) =>
+    setFormData((prev) => ({ ...prev, [field]: value }));
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // Create auth user
       const { data: authData, error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
-        options: {
-          data: {
-            full_name: formData.fullName,
-          },
-        },
+        options: { data: { full_name: formData.fullName } },
       });
-
       if (authError) throw authError;
       if (!authData.user) throw new Error("User creation failed");
 
-      // Create profile
       const { error: profileError } = await supabase.from("profiles").insert({
         user_id: authData.user.id,
         full_name: formData.fullName,
         phone: formData.phone,
+        email: formData.email,
         date_of_birth: formData.dateOfBirth || null,
         gender: formData.gender || null,
         address: formData.address || null,
       });
-
       if (profileError) throw profileError;
 
-      // Generate patient ID
-      const patientId = `PAT-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 10000)).padStart(4, '0')}`;
+      const patientId = `OPD-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 10000)).padStart(4, "0")}`;
 
-      // Create patient record
       const { error: patientError } = await supabase.from("patients").insert({
         user_id: authData.user.id,
         patient_id: patientId,
+        patient_type: formData.patientType || "outsider",
+        national_id: formData.nationalId || null,
+        nationality: formData.nationality || null,
+        postal_address: formData.postalAddress || null,
+        email: formData.email || null,
+        payroll_number: formData.payrollNumber || null,
+        admission_number: formData.admissionNumber || null,
+        visit_reason: formData.visitReason || "outpatient",
         blood_type: formData.bloodType || null,
         insurance_provider: formData.insuranceProvider || null,
         insurance_number: formData.insuranceNumber || null,
+        next_of_kin_name: formData.nextOfKinName || null,
+        next_of_kin_relationship: formData.nextOfKinRelationship || null,
+        next_of_kin_phone: formData.nextOfKinPhone || null,
       });
-
       if (patientError) throw patientError;
 
-      // Assign patient role
-      const { error: roleError } = await supabase.from("user_roles").insert({
-        user_id: authData.user.id,
-        role: "patient",
-      });
-
+      const { error: roleError } = await supabase
+        .from("user_roles")
+        .insert({ user_id: authData.user.id, role: "patient" });
       if (roleError) throw roleError;
 
-      toast({
-        title: "Patient registered successfully",
-        description: `Patient ID: ${patientId}`,
-      });
-
+      toast({ title: "Patient registered", description: `OPD No: ${patientId}` });
       setOpen(false);
       setFormData({
-        email: "",
-        password: "",
-        fullName: "",
-        phone: "",
-        dateOfBirth: "",
-        gender: "",
-        address: "",
-        bloodType: "",
-        insuranceProvider: "",
-        insuranceNumber: "",
+        fullName: "", phone: "", email: "", password: "", dateOfBirth: "", gender: "",
+        nationalId: "", nationality: "Kenyan", postalAddress: "", address: "",
+        patientType: "", payrollNumber: "", admissionNumber: "", visitReason: "outpatient",
+        bloodType: "", insuranceProvider: "", insuranceNumber: "",
+        nextOfKinName: "", nextOfKinRelationship: "", nextOfKinPhone: "",
       });
-
-      if (onSuccess) onSuccess();
+      onSuccess?.();
     } catch (error: any) {
-      toast({
-        title: "Registration failed",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Registration failed", description: error.message, variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -123,130 +131,169 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: () => voi
           Register New Patient
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Register New Patient</DialogTitle>
-          <DialogDescription>
-            Enter patient information to create a new record
-          </DialogDescription>
+          <DialogDescription>Enter patient details — fields marked * are required</DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {/* Patient Type & Visit */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="fullName">Full Name *</Label>
-              <Input
-                id="fullName"
-                required
-                value={formData.fullName}
-                onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-              />
+              <Label>Patient Type *</Label>
+              <Select value={formData.patientType} onValueChange={(v) => update("patientType", v)} required>
+                <SelectTrigger><SelectValue placeholder="Select type" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="cuea_staff">CUEA Staff</SelectItem>
+                  <SelectItem value="cuea_student">CUEA Student</SelectItem>
+                  <SelectItem value="outsider">Outsider</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="phone">Phone Number</Label>
-              <Input
-                id="phone"
-                type="tel"
-                value={formData.phone}
-                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-              />
+              <Label>Visit Reason *</Label>
+              <Select value={formData.visitReason} onValueChange={(v) => update("visitReason", v)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="outpatient">Outpatient</SelectItem>
+                  <SelectItem value="dental">Dental</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          {/* Conditional: Staff payroll / Student reg */}
+          {formData.patientType === "cuea_staff" && (
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>Payroll Number *</Label>
+                <Input value={formData.payrollNumber} onChange={(e) => update("payrollNumber", e.target.value)} required />
+              </div>
+              <div className="space-y-2">
+                <Label>Insurance Provider</Label>
+                <Select value={formData.insuranceProvider} onValueChange={(v) => update("insuranceProvider", v)}>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Pacis">Pacis</SelectItem>
+                    <SelectItem value="Madison">Madison</SelectItem>
+                    <SelectItem value="CIC">CIC</SelectItem>
+                    <SelectItem value="NHIF">NHIF</SelectItem>
+                    <SelectItem value="AAR">AAR</SelectItem>
+                    <SelectItem value="Jubilee">Jubilee</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          {formData.patientType === "cuea_student" && (
+            <div className="space-y-2">
+              <Label>Student Registration / Admission Number *</Label>
+              <Input value={formData.admissionNumber} onChange={(e) => update("admissionNumber", e.target.value)} required />
+            </div>
+          )}
+
+          {/* Bio */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Full Name *</Label>
+              <Input required value={formData.fullName} onChange={(e) => update("fullName", e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>National ID / Passport *</Label>
+              <Input required value={formData.nationalId} onChange={(e) => update("nationalId", e.target.value)} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>Date of Birth *</Label>
+              <Input type="date" required value={formData.dateOfBirth} onChange={(e) => update("dateOfBirth", e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Age</Label>
+              <Input readOnly value={age !== null ? `${age} years` : ""} className="bg-muted" />
+            </div>
+            <div className="space-y-2">
+              <Label>Gender *</Label>
+              <Select value={formData.gender} onValueChange={(v) => update("gender", v)} required>
+                <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Male">Male</SelectItem>
+                  <SelectItem value="Female">Female</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email *</Label>
-              <Input
-                id="email"
-                type="email"
-                required
-                value={formData.email}
-                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              />
+              <Label>Phone Number *</Label>
+              <Input type="tel" required value={formData.phone} onChange={(e) => update("phone", e.target.value)} placeholder="0712345678" />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="password">Password *</Label>
-              <Input
-                id="password"
-                type="password"
-                required
-                minLength={6}
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, password: e.target.value })}
-              />
+              <Label>Email *</Label>
+              <Input type="email" required value={formData.email} onChange={(e) => update("email", e.target.value)} />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="dateOfBirth">Date of Birth</Label>
-              <Input
-                id="dateOfBirth"
-                type="date"
-                value={formData.dateOfBirth}
-                onChange={(e) => setFormData({ ...formData, dateOfBirth: e.target.value })}
-              />
+              <Label>Password *</Label>
+              <Input type="password" required minLength={6} value={formData.password} onChange={(e) => update("password", e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="gender">Gender</Label>
-              <Input
-                id="gender"
-                value={formData.gender}
-                onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
-              />
+              <Label>Nationality</Label>
+              <Input value={formData.nationality} onChange={(e) => update("nationality", e.target.value)} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Postal Address</Label>
+              <Input value={formData.postalAddress} onChange={(e) => update("postalAddress", e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Physical Address</Label>
+              <Input value={formData.address} onChange={(e) => update("address", e.target.value)} />
             </div>
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="address">Address</Label>
-            <Input
-              id="address"
-              value={formData.address}
-              onChange={(e) => setFormData({ ...formData, address: e.target.value })}
-            />
+            <Label>Blood Type</Label>
+            <Select value={formData.bloodType} onValueChange={(v) => update("bloodType", v)}>
+              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
+              <SelectContent>
+                {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((bt) => (
+                  <SelectItem key={bt} value={bt}>{bt}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="bloodType">Blood Type</Label>
-              <Input
-                id="bloodType"
-                placeholder="e.g., O+, A-, B+"
-                value={formData.bloodType}
-                onChange={(e) => setFormData({ ...formData, bloodType: e.target.value })}
-              />
+          {/* Next of Kin */}
+          <div className="border-t pt-4">
+            <h3 className="font-semibold mb-3">Next of Kin</h3>
+            <div className="grid grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Name *</Label>
+                <Input required value={formData.nextOfKinName} onChange={(e) => update("nextOfKinName", e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Relationship *</Label>
+                <Input required value={formData.nextOfKinRelationship} onChange={(e) => update("nextOfKinRelationship", e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Phone *</Label>
+                <Input required type="tel" value={formData.nextOfKinPhone} onChange={(e) => update("nextOfKinPhone", e.target.value)} />
+              </div>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="insuranceProvider">Insurance Provider</Label>
-              <Input
-                id="insuranceProvider"
-                value={formData.insuranceProvider}
-                onChange={(e) => setFormData({ ...formData, insuranceProvider: e.target.value })}
-              />
-            </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="insuranceNumber">Insurance Number</Label>
-            <Input
-              id="insuranceNumber"
-              value={formData.insuranceNumber}
-              onChange={(e) => setFormData({ ...formData, insuranceNumber: e.target.value })}
-            />
-          </div>
-
-          <div className="flex justify-end gap-2">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)}>
-              Cancel
-            </Button>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
             <Button type="submit" disabled={loading}>
-              {loading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Registering...
-                </>
-              ) : (
-                "Register Patient"
-              )}
+              {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Registering...</> : "Register Patient"}
             </Button>
           </div>
         </form>

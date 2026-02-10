@@ -2,416 +2,312 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from "recharts";
-import { FileText, TrendingUp, Users, DollarSign, Activity, Download, Calendar } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell, LineChart, Line } from "recharts";
+import { FileText, Download, Filter, Users, DollarSign, Activity } from "lucide-react";
 
-const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#82CA9D"];
-
-interface DailyStats {
-  date: string;
-  patients: number;
-  appointments: number;
-  revenue: number;
-}
-
-interface DepartmentStats {
-  name: string;
-  patients: number;
-  revenue: number;
-}
+const AGE_GROUPS = [
+  { label: "0-5 years", min: 0, max: 5 },
+  { label: "6-14 years", min: 6, max: 14 },
+  { label: "15-24 years", min: 15, max: 24 },
+  { label: "25-34 years", min: 25, max: 34 },
+  { label: "35-44 years", min: 35, max: 44 },
+  { label: "45-54 years", min: 45, max: 54 },
+  { label: "55-64 years", min: 55, max: 64 },
+  { label: "65+ years", min: 65, max: 200 },
+];
+const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#82CA9D", "#FF6B6B", "#4ECDC4"];
 
 const Reports = () => {
-  const [loading, setLoading] = useState(true);
-  const [period, setPeriod] = useState("7days");
-  const [dailyStats, setDailyStats] = useState<DailyStats[]>([]);
-  const [departmentStats, setDepartmentStats] = useState<DepartmentStats[]>([]);
-  const [summaryStats, setSummaryStats] = useState({
-    totalPatients: 0,
-    totalAppointments: 0,
-    totalRevenue: 0,
-    totalPending: 0,
-    avgWaitTime: 0,
-    bedOccupancy: 0,
+  const [loading, setLoading] = useState(false);
+  const [filters, setFilters] = useState({
+    ageGroup: "", gender: "", diagnosis: "", labTest: "", procedure: "", dateFrom: "", dateTo: "",
   });
-  const [topDiagnoses, setTopDiagnoses] = useState<{ diagnosis: string; count: number }[]>([]);
-  const [topMedications, setTopMedications] = useState<{ medication: string; count: number }[]>([]);
+  const [results, setResults] = useState<any[]>([]);
+  const [summaryData, setSummaryData] = useState<any>({ totalVisits: 0, totalRevenue: 0, genderBreakdown: [], ageBreakdown: [] });
+  const [diagnoses, setDiagnoses] = useState<string[]>([]);
+  const [labTests, setLabTests] = useState<any[]>([]);
 
   useEffect(() => {
-    fetchReportData();
-  }, [period]);
+    fetchDropdownData();
+    runReport();
+  }, []);
 
-  const fetchReportData = async () => {
+  const fetchDropdownData = async () => {
+    const { data: labs } = await supabase.from("lab_tests_catalog").select("id, test_name").order("test_name");
+    setLabTests(labs || []);
+
+    const { data: encounters } = await supabase.from("encounters").select("diagnosis").not("diagnosis", "is", null);
+    const diagSet = new Set<string>();
+    encounters?.forEach((e) => e.diagnosis?.forEach((d: string) => diagSet.add(d)));
+    setDiagnoses(Array.from(diagSet).sort());
+  };
+
+  const runReport = async () => {
     setLoading(true);
     try {
-      const days = period === "7days" ? 7 : period === "30days" ? 30 : 90;
-      const startDate = new Date();
-      startDate.setDate(startDate.getDate() - days);
+      // Build query for encounters with patient profiles
+      let query = supabase.from("encounters").select("*, patients!encounters_patient_id_fkey(patient_id, user_id)").order("encounter_date", { ascending: false });
 
-      // Fetch patients
-      const { data: patients, error: patientsError } = await supabase
-        .from("patients")
-        .select("created_at")
-        .gte("created_at", startDate.toISOString());
+      if (filters.dateFrom) query = query.gte("encounter_date", filters.dateFrom);
+      if (filters.dateTo) query = query.lte("encounter_date", filters.dateTo + "T23:59:59");
 
-      if (patientsError) throw patientsError;
+      const { data: encounters } = await query;
 
-      // Fetch appointments
-      const { data: appointments, error: appointmentsError } = await supabase
-        .from("appointments")
-        .select("appointment_date, status, department_id")
-        .gte("appointment_date", startDate.toISOString());
+      // Enrich with profile data
+      const enriched = await Promise.all(
+        (encounters || []).map(async (enc) => {
+          const patient = enc.patients as any;
+          const { data: profile } = await supabase.from("profiles").select("full_name, gender, date_of_birth").eq("user_id", patient?.user_id).single();
+          const age = profile?.date_of_birth ? Math.floor((Date.now() - new Date(profile.date_of_birth).getTime()) / 31557600000) : null;
+          return { ...enc, profile, age };
+        })
+      );
 
-      if (appointmentsError) throw appointmentsError;
-
-      // Fetch invoices for revenue
-      const { data: invoices, error: invoicesError } = await supabase
-        .from("invoices")
-        .select("net_amount, amount_paid, balance, status, created_at")
-        .gte("created_at", startDate.toISOString());
-
-      if (invoicesError) throw invoicesError;
-
-      // Fetch departments
-      const { data: departments, error: deptError } = await supabase
-        .from("departments")
-        .select("id, name");
-
-      if (deptError) throw deptError;
-
-      // Fetch prescriptions
-      const { data: prescriptions, error: prescError } = await supabase
-        .from("prescriptions")
-        .select("medication_name")
-        .gte("created_at", startDate.toISOString());
-
-      if (prescError) throw prescError;
-
-      // Fetch encounters for diagnoses
-      const { data: encounters, error: encError } = await supabase
-        .from("encounters")
-        .select("diagnosis")
-        .gte("created_at", startDate.toISOString());
-
-      if (encError) throw encError;
-
-      // Fetch bed stats
-      const { data: beds, error: bedsError } = await supabase
-        .from("beds")
-        .select("status");
-
-      if (bedsError) throw bedsError;
-
-      // Calculate summary stats
-      const totalRevenue = invoices?.reduce((sum, inv) => sum + (inv.amount_paid || 0), 0) || 0;
-      const totalPending = invoices?.reduce((sum, inv) => sum + (inv.balance || 0), 0) || 0;
-      const totalBeds = beds?.length || 0;
-      const occupiedBeds = beds?.filter((b) => b.status === "occupied").length || 0;
-
-      setSummaryStats({
-        totalPatients: patients?.length || 0,
-        totalAppointments: appointments?.length || 0,
-        totalRevenue,
-        totalPending,
-        avgWaitTime: 25, // Placeholder
-        bedOccupancy: totalBeds > 0 ? Math.round((occupiedBeds / totalBeds) * 100) : 0,
-      });
-
-      // Calculate daily stats
-      const dailyMap: Record<string, DailyStats> = {};
-      for (let i = 0; i < days; i++) {
-        const date = new Date();
-        date.setDate(date.getDate() - i);
-        const dateStr = date.toISOString().split("T")[0];
-        dailyMap[dateStr] = { date: dateStr, patients: 0, appointments: 0, revenue: 0 };
+      // Apply client-side filters
+      let filtered = enriched;
+      if (filters.gender) filtered = filtered.filter((r) => r.profile?.gender === filters.gender);
+      if (filters.ageGroup) {
+        const ag = AGE_GROUPS.find((a) => a.label === filters.ageGroup);
+        if (ag) filtered = filtered.filter((r) => r.age !== null && r.age >= ag.min && r.age <= ag.max);
       }
+      if (filters.diagnosis) filtered = filtered.filter((r) => r.diagnosis?.includes(filters.diagnosis));
 
-      patients?.forEach((p) => {
-        const dateStr = new Date(p.created_at).toISOString().split("T")[0];
-        if (dailyMap[dateStr]) dailyMap[dateStr].patients++;
+      setResults(filtered);
+
+      // Summary calculations
+      const genderMap: Record<string, number> = {};
+      const ageMap: Record<string, number> = {};
+      filtered.forEach((r) => {
+        const g = r.profile?.gender || "Unknown";
+        genderMap[g] = (genderMap[g] || 0) + 1;
+        const ag = AGE_GROUPS.find((a) => r.age !== null && r.age >= a.min && r.age <= a.max);
+        if (ag) ageMap[ag.label] = (ageMap[ag.label] || 0) + 1;
       });
 
-      appointments?.forEach((a) => {
-        const dateStr = new Date(a.appointment_date).toISOString().split("T")[0];
-        if (dailyMap[dateStr]) dailyMap[dateStr].appointments++;
+      const { data: invoices } = await supabase.from("invoices").select("amount_paid, created_at")
+        .gte("created_at", filters.dateFrom || "2000-01-01")
+        .lte("created_at", (filters.dateTo || "2099-12-31") + "T23:59:59");
+
+      const totalRevenue = invoices?.reduce((s, i) => s + (i.amount_paid || 0), 0) || 0;
+
+      setSummaryData({
+        totalVisits: filtered.length,
+        totalRevenue,
+        genderBreakdown: Object.entries(genderMap).map(([name, value]) => ({ name, value })),
+        ageBreakdown: AGE_GROUPS.map((ag) => ({ name: ag.label, count: ageMap[ag.label] || 0 })),
       });
-
-      invoices?.forEach((inv) => {
-        const dateStr = new Date(inv.created_at).toISOString().split("T")[0];
-        if (dailyMap[dateStr]) dailyMap[dateStr].revenue += inv.amount_paid || 0;
-      });
-
-      setDailyStats(Object.values(dailyMap).sort((a, b) => a.date.localeCompare(b.date)));
-
-      // Calculate department stats
-      const deptMap: Record<string, DepartmentStats> = {};
-      departments?.forEach((d) => {
-        deptMap[d.id] = { name: d.name, patients: 0, revenue: 0 };
-      });
-
-      appointments?.forEach((a) => {
-        if (a.department_id && deptMap[a.department_id]) {
-          deptMap[a.department_id].patients++;
-        }
-      });
-
-      setDepartmentStats(Object.values(deptMap).filter((d) => d.patients > 0));
-
-      // Calculate top medications
-      const medCounts: Record<string, number> = {};
-      prescriptions?.forEach((p) => {
-        medCounts[p.medication_name] = (medCounts[p.medication_name] || 0) + 1;
-      });
-      setTopMedications(
-        Object.entries(medCounts)
-          .map(([medication, count]) => ({ medication, count }))
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 10)
-      );
-
-      // Calculate top diagnoses
-      const diagCounts: Record<string, number> = {};
-      encounters?.forEach((e) => {
-        if (e.diagnosis) {
-          e.diagnosis.forEach((d: string) => {
-            diagCounts[d] = (diagCounts[d] || 0) + 1;
-          });
-        }
-      });
-      setTopDiagnoses(
-        Object.entries(diagCounts)
-          .map(([diagnosis, count]) => ({ diagnosis, count }))
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 10)
-      );
-    } catch (error) {
-      console.error("Error fetching report data:", error);
+    } catch (err) {
+      console.error("Report error:", err);
     } finally {
       setLoading(false);
     }
   };
 
-  if (loading) {
-    return (
-      <div className="p-6 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-      </div>
-    );
-  }
+  const exportCSV = () => {
+    const headers = ["Date", "Patient", "Gender", "Age", "Diagnosis", "Chief Complaint"];
+    const rows = results.map((r) => [
+      new Date(r.encounter_date).toLocaleDateString(),
+      r.profile?.full_name || "",
+      r.profile?.gender || "",
+      r.age || "",
+      (r.diagnosis || []).join("; "),
+      r.chief_complaint || "",
+    ]);
+    const csv = [headers, ...rows].map((r) => r.join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `report-${new Date().toISOString().split("T")[0]}.csv`;
+    a.click();
+  };
+
+  const u = (field: string, value: string) => setFilters((prev) => ({ ...prev, [field]: value }));
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-3xl font-bold">Reports & Analytics</h1>
-          <p className="text-muted-foreground">Comprehensive hospital performance metrics</p>
+          <p className="text-muted-foreground">Multi-filter clinical and financial reporting</p>
         </div>
-        <div className="flex gap-4">
-          <Select value={period} onValueChange={setPeriod}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="7days">Last 7 Days</SelectItem>
-              <SelectItem value="30days">Last 30 Days</SelectItem>
-              <SelectItem value="90days">Last 90 Days</SelectItem>
-            </SelectContent>
-          </Select>
-          <Button variant="outline">
-            <Download className="h-4 w-4 mr-2" />
-            Export
-          </Button>
-        </div>
+        <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-2" /> Export CSV</Button>
       </div>
+
+      {/* Filter Panel */}
+      <Card>
+        <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Filter className="h-4 w-4" /> Filters</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="space-y-1">
+              <Label className="text-xs">Age Group</Label>
+              <Select value={filters.ageGroup} onValueChange={(v) => u("ageGroup", v)}>
+                <SelectTrigger><SelectValue placeholder="All ages" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Ages</SelectItem>
+                  {AGE_GROUPS.map((ag) => <SelectItem key={ag.label} value={ag.label}>{ag.label}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Gender</Label>
+              <Select value={filters.gender} onValueChange={(v) => u("gender", v)}>
+                <SelectTrigger><SelectValue placeholder="All" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  <SelectItem value="Male">Male</SelectItem>
+                  <SelectItem value="Female">Female</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Diagnosis</Label>
+              <Select value={filters.diagnosis} onValueChange={(v) => u("diagnosis", v)}>
+                <SelectTrigger><SelectValue placeholder="All" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {diagnoses.map((d) => <SelectItem key={d} value={d}>{d}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Lab Test</Label>
+              <Select value={filters.labTest} onValueChange={(v) => u("labTest", v)}>
+                <SelectTrigger><SelectValue placeholder="All" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All</SelectItem>
+                  {labTests.map((t) => <SelectItem key={t.id} value={t.id}>{t.test_name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-3">
+            <div className="space-y-1">
+              <Label className="text-xs">Date From</Label>
+              <Input type="date" value={filters.dateFrom} onChange={(e) => u("dateFrom", e.target.value)} />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs">Date To</Label>
+              <Input type="date" value={filters.dateTo} onChange={(e) => u("dateTo", e.target.value)} />
+            </div>
+            <div className="col-span-2 flex items-end">
+              <Button onClick={runReport} disabled={loading} className="w-full">{loading ? "Loading..." : "Generate Report"}</Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Users className="h-4 w-4 text-blue-600" />
-              <span className="text-sm text-muted-foreground">New Patients</span>
+          <CardContent className="p-4 flex items-center gap-3">
+            <Users className="h-8 w-8 text-blue-600" />
+            <div>
+              <p className="text-sm text-muted-foreground">Total Visits</p>
+              <p className="text-2xl font-bold">{summaryData.totalVisits}</p>
             </div>
-            <p className="text-2xl font-bold">{summaryStats.totalPatients}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Calendar className="h-4 w-4 text-green-600" />
-              <span className="text-sm text-muted-foreground">Appointments</span>
+          <CardContent className="p-4 flex items-center gap-3">
+            <DollarSign className="h-8 w-8 text-green-600" />
+            <div>
+              <p className="text-sm text-muted-foreground">Total Revenue</p>
+              <p className="text-2xl font-bold">KES {summaryData.totalRevenue.toLocaleString()}</p>
             </div>
-            <p className="text-2xl font-bold">{summaryStats.totalAppointments}</p>
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <DollarSign className="h-4 w-4 text-emerald-600" />
-              <span className="text-sm text-muted-foreground">Revenue</span>
+          <CardContent className="p-4 flex items-center gap-3">
+            <Activity className="h-8 w-8 text-purple-600" />
+            <div>
+              <p className="text-sm text-muted-foreground">Avg per Day</p>
+              <p className="text-2xl font-bold">
+                {filters.dateFrom && filters.dateTo
+                  ? Math.round(summaryData.totalVisits / Math.max(1, Math.ceil((new Date(filters.dateTo).getTime() - new Date(filters.dateFrom).getTime()) / 86400000)))
+                  : summaryData.totalVisits}
+              </p>
             </div>
-            <p className="text-2xl font-bold">KES {summaryStats.totalRevenue.toLocaleString()}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <DollarSign className="h-4 w-4 text-yellow-600" />
-              <span className="text-sm text-muted-foreground">Pending</span>
-            </div>
-            <p className="text-2xl font-bold">KES {summaryStats.totalPending.toLocaleString()}</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <Activity className="h-4 w-4 text-purple-600" />
-              <span className="text-sm text-muted-foreground">Avg Wait Time</span>
-            </div>
-            <p className="text-2xl font-bold">{summaryStats.avgWaitTime} min</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardContent className="p-4">
-            <div className="flex items-center gap-2 mb-2">
-              <TrendingUp className="h-4 w-4 text-red-600" />
-              <span className="text-sm text-muted-foreground">Bed Occupancy</span>
-            </div>
-            <p className="text-2xl font-bold">{summaryStats.bedOccupancy}%</p>
           </CardContent>
         </Card>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs defaultValue="table">
         <TabsList>
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="revenue">Revenue</TabsTrigger>
-          <TabsTrigger value="clinical">Clinical</TabsTrigger>
-          <TabsTrigger value="pharmacy">Pharmacy</TabsTrigger>
+          <TabsTrigger value="table">Data Table</TabsTrigger>
+          <TabsTrigger value="charts">Charts</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="overview" className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Daily Patient Flow</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={dailyStats}>
-                    <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis dataKey="date" tickFormatter={(val) => new Date(val).toLocaleDateString("en", { month: "short", day: "numeric" })} />
-                    <YAxis />
-                    <Tooltip />
-                    <Line type="monotone" dataKey="patients" stroke="#8884d8" name="New Patients" />
-                    <Line type="monotone" dataKey="appointments" stroke="#82ca9d" name="Appointments" />
-                  </LineChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
+        <TabsContent value="table">
+          <Card>
+            <CardContent className="pt-6">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Patient</TableHead>
+                    <TableHead>Gender</TableHead>
+                    <TableHead>Age</TableHead>
+                    <TableHead>Diagnosis</TableHead>
+                    <TableHead>Chief Complaint</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {results.length === 0 ? (
+                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No results</TableCell></TableRow>
+                  ) : (
+                    results.slice(0, 100).map((r) => (
+                      <TableRow key={r.id}>
+                        <TableCell>{new Date(r.encounter_date).toLocaleDateString()}</TableCell>
+                        <TableCell>{r.profile?.full_name}</TableCell>
+                        <TableCell>{r.profile?.gender || "-"}</TableCell>
+                        <TableCell>{r.age ?? "-"}</TableCell>
+                        <TableCell>{(r.diagnosis || []).join(", ") || "-"}</TableCell>
+                        <TableCell className="max-w-xs truncate">{r.chief_complaint || "-"}</TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
+        <TabsContent value="charts">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
-              <CardHeader>
-                <CardTitle>Department Distribution</CardTitle>
-              </CardHeader>
+              <CardHeader><CardTitle>Gender Distribution</CardTitle></CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={300}>
                   <PieChart>
-                    <Pie
-                      data={departmentStats}
-                      dataKey="patients"
-                      nameKey="name"
-                      cx="50%"
-                      cy="50%"
-                      outerRadius={100}
-                      label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                    >
-                      {departmentStats.map((_, index) => (
-                        <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                      ))}
+                    <Pie data={summaryData.genderBreakdown} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={100} label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                      {summaryData.genderBreakdown.map((_: any, i: number) => <Cell key={i} fill={COLORS[i % COLORS.length]} />)}
                     </Pie>
                     <Tooltip />
                   </PieChart>
                 </ResponsiveContainer>
               </CardContent>
             </Card>
-          </div>
-        </TabsContent>
-
-        <TabsContent value="revenue" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Daily Revenue Trend</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ResponsiveContainer width="100%" height={400}>
-                <BarChart data={dailyStats}>
-                  <CartesianGrid strokeDasharray="3 3" />
-                  <XAxis dataKey="date" tickFormatter={(val) => new Date(val).toLocaleDateString("en", { month: "short", day: "numeric" })} />
-                  <YAxis tickFormatter={(val) => `KES ${(val / 1000).toFixed(0)}k`} />
-                  <Tooltip formatter={(value) => [`KES ${Number(value).toLocaleString()}`, "Revenue"]} />
-                  <Bar dataKey="revenue" fill="#10b981" name="Revenue" />
-                </BarChart>
-              </ResponsiveContainer>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="clinical" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Top Diagnoses</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {topDiagnoses.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">No diagnosis data available</p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Rank</TableHead>
-                      <TableHead>Diagnosis</TableHead>
-                      <TableHead className="text-right">Count</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {topDiagnoses.map((d, index) => (
-                      <TableRow key={d.diagnosis}>
-                        <TableCell className="font-medium">{index + 1}</TableCell>
-                        <TableCell>{d.diagnosis}</TableCell>
-                        <TableCell className="text-right">{d.count}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="pharmacy" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Top Prescribed Medications</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {topMedications.length === 0 ? (
-                <p className="text-muted-foreground text-center py-8">No prescription data available</p>
-              ) : (
-                <ResponsiveContainer width="100%" height={400}>
-                  <BarChart data={topMedications} layout="vertical">
+            <Card>
+              <CardHeader><CardTitle>Age Group Distribution</CardTitle></CardHeader>
+              <CardContent>
+                <ResponsiveContainer width="100%" height={300}>
+                  <BarChart data={summaryData.ageBreakdown}>
                     <CartesianGrid strokeDasharray="3 3" />
-                    <XAxis type="number" />
-                    <YAxis type="category" dataKey="medication" width={150} />
+                    <XAxis dataKey="name" angle={-30} textAnchor="end" height={80} tick={{ fontSize: 11 }} />
+                    <YAxis />
                     <Tooltip />
-                    <Bar dataKey="count" fill="#8884d8" name="Prescriptions" />
+                    <Bar dataKey="count" fill="hsl(var(--primary))" />
                   </BarChart>
                 </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
