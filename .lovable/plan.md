@@ -1,316 +1,224 @@
 
 
-# CUEA Infirmary System - Complete Overhaul Plan
+# CUEA Infirmary System - Comprehensive Fix & Enhancement Plan
 
-This plan covers all the changes needed to make the CUEA Health Center system fully functional based on the uploaded department templates, workflow requirements, and reporting needs.
-
----
-
-## Phase 1: Database Schema Updates
-
-New tables and columns needed to support all departments:
-
-### 1.1 Patients table enhancements
-- Add `patient_type` column (enum: 'cuea_staff', 'cuea_student', 'outsider')
-- Add `payroll_number` (for CUEA staff)
-- Add `admission_number` (for CUEA students - registration number)
-- Add `nationality` column
-- Add `postal_address` column
-- Add `email` column
-- Add `next_of_kin_name`, `next_of_kin_relationship`, `next_of_kin_phone` columns
-- Add `visit_reason` column (enum: 'outpatient', 'dental')
-
-### 1.2 Profiles table enhancements
-- Ensure `date_of_birth` is mandatory for age auto-calculation
-
-### 1.3 Vitals table enhancements
-- Add `spo2` (already exists as oxygen_saturation)
-- Add `allergies_noted` text column
-- Add `presenting_complaint` text column
-
-### 1.4 New: `nursing_procedures` table
-- id, encounter_id, patient_id, nurse_id
-- procedure_type (dropdown from the list: cleaning_dressing_minor, cleaning_dressing_normal, cleaning_dressing_major, debridement, ear_syringing, suturing, removal_of_sutures, cannulation, injection_im, injection_iv, injection_subcutaneous, injection_dermal, infusion_normal_saline, infusion_dns, infusion_hartmans, infusion_d5, infusion_d10, infusion_d50, infusion_metronidazole, infusion_paracetamol, observation, nebulization, incision_drainage, removal_foreign_bodies)
-- notes text
-- created_at, price
-
-### 1.5 New: `dental_procedures` table
-- id, encounter_id, patient_id, dentist_id
-- procedure_name (from the dental catalog dropdown)
-- tooth_number, notes, price
-- next_visit date
-- created_at
-
-### 1.6 New: `referrals` table
-- id, patient_id, encounter_id, referred_by (doctor_id)
-- reasons_for_referral, treatment_given
-- doctor_name, referral_date
-- created_at
-
-### 1.7 Lab results structured tables
-- New: `lab_result_fields` table for structured results (macroscopy, microscopy fields per test type)
-- Add `flag` column to lab_orders for H/L flags
-- Add `gender_specific_ranges` to lab_tests_catalog
-
-### 1.8 Pharmacy inventory enhancements
-- Add `strength_size`, `package`, `minimum_stock`, `maximum_stock`, `average_monthly_consumption` columns to pharmacy_inventory
-- New: `pharmacy_stock_transactions` table for stock card tracking (date, received_from/issued_to, invoice_ref, expiry_date, unit_price, qty_received, qty_issued, balance, signature)
-
-### 1.9 New: `service_charges` table
-- id, patient_id, encounter_id, ticket_id
-- service_type (consultation, dental, nursing_procedure, laboratory, pharmacy, imaging)
-- description, amount
-- billing_stage (which workflow step generated the charge)
-- created_at
+This plan addresses all the issues you've raised: fixing broken features, streamlining workflows, adding audit logging, enhancing reports, and ensuring a fully functional system.
 
 ---
 
-## Phase 2: Patient Registration Overhaul
+## 1. Fix Staff Creation Error (Critical)
 
-### 2.1 Update PatientRegistrationDialog
-- Add patient type selector (CUEA Staff / CUEA Student / Outsider)
-- Conditional fields:
-  - CUEA Staff: Payroll Number (required), Insurance options
-  - CUEA Student: Student Registration/Admission Number (required)
-  - Outsider: M-Pesa payment info
-- Make National ID/Passport mandatory (marked with *)
-- Make Date of Birth mandatory with auto age calculation
-- Make Gender mandatory (Male/Female dropdown)
-- Make Phone Number mandatory
-- Add Nationality field
-- Add Postal Address and Email fields
-- Add Next of Kin section (Relationship, Contact - both mandatory)
-- Add Visit Reason: Outpatient / Dental (mandatory)
-- Auto-generate OPD number
-- Billing mode selection at registration:
-  - Payroll (staff)
-  - Admission Number (students)
-  - M-Pesa with till number receipting
-  - Insurance (dropdown: Pacis, Madison, CIC, etc.) + member number
+**Problem**: The `admin-create-user` edge function fails with "Missing required fields" because the Staff Onboarding page does not send `adminUserId` in the request body.
+
+**Fix**:
+- Update `StaffOnboarding.tsx` to include `adminUserId` (from the current session) when calling `admin-create-user`
+- Add a `payrollNumber` field to the onboarding Step 1 (required, alongside email)
+- Pass `payrollNumber` to the edge function
+- Update the edge function to accept and store `payrollNumber` in the staff table (requires adding a `payroll_number` column to `staff`)
 
 ---
 
-## Phase 3: Nursing Department (Vitals/Triage) Page Overhaul
+## 2. Fix User Management Page
 
-### 3.1 Rewrite Vitals page to match CUEA nursing template
-- Show Queue Number and OPD Number at top
-- Show "From (which department)" field
-- Triage section (not dropdown):
-  - Weight (kg), Height (m), BMI (auto = weight/height^2), Blood Pressure, Pulse Rate, Temperature, SPO2, Allergies, Presenting Complaint
-- Nursing Procedures section (dropdown selection from full list):
-  - Cleaning & Dressing (Minor/Normal/Major), Debridement, Ear Syringing, Suturing, Removal of Sutures, Cannulation
-  - Injections (I/M, I/V, Subcutaneous, Dermal)
-  - Infusions (Normal Saline, DNS, Hartman's, D5, D10, D50, Metronidazole, Paracetamol)
-  - Observation, Nebulization, Incision & Drainage, Removal of Foreign Bodies
-- Nursing Notes section (free text)
-- Patient previous data lookup (search by OPD/Name)
-- Next Visit (TCA) calendar picker
-- "Send to Doctor" button to advance queue
-- Generate service charge for each procedure performed
+**Problem**: The `AdminUserManagement.tsx` page calls `get_all_users_with_roles` RPC which may fail due to RLS or permission issues.
+
+**Fix**:
+- Add error handling and fallback if the RPC call fails
+- Ensure the RPC function works correctly with the current user's admin status
+- Add the "Payroll Number" column to the user table display
 
 ---
 
-## Phase 4: Consultation Page Enhancements
+## 3. Remove Blood Type from Patient Registration
 
-### 4.1 Update Consultation to match clinical template
-Already has SOAP notes structure. Enhance with:
-- Chief Complaints section
-- History of Presenting Illness
-- Past Medical & Surgical History
-- Medicine and Social History
-- Physical Examination (General + Systemic)
-- Diagnostic Tests section (Lab + Radiology order integration)
-- Diagnosis section
-- Prescription section
-- Referral form generation (matching CUEA template)
-- Follow up / Next Visit booking
-- Generate service charge for consultation
+- Remove the Blood Type field and related state from `PatientRegistrationDialog.tsx`
 
 ---
 
-## Phase 5: Laboratory Page Overhaul
+## 4. Add Payroll Number to Staff Table (Database)
 
-### 5.1 Complete lab test catalog matching CUEA lab template
-Seed the following tests into lab_tests_catalog:
-- Full Hemogram (CBC+DIFF with all parameters)
-- ESR, HB, Blood Group, HBsAg, HCV, VDRL, Brucella, RF
-- Pregnancy Test, VCT/PITC, FBS/RBS
-- UECs (gender-specific reference ranges)
-- LFTs (gender-specific reference ranges)
-- Lipid Profile
-- Urinalysis (structured: Macroscopy, Biochemistry, Microscopy)
-- HVS Wet Prep, Urethral Swab, Gram Stain
-- Malaria (BS for MPS and MRDT)
-- Stool Analysis (Macroscopy + Microscopy)
-- H.Pylori, SAT, ASOT
-
-### 5.2 Structured result entry forms
-- Each test type gets its own structured result entry form matching the lab template
-- E.g., Urinalysis: Color, Appearance, pH, SG, Leukocytes, Nitrites, Blood, Bilirubin, etc.
-- UECs: Creatinine, Urea, K+, Na+, Cl-, PHOS, tCO2, Ca, Uric Acid, Mg + eGFR
-- LFTs: Albumin, Globulin, T.Protein, Bilirubins, GGT, ALT, AST, Amylase, Lipase, ALP
-- Full Hemogram: WBC, NEU#, LYM#, MON#, EOS#, BAS#, RBC, HGB, HCT, MCV, MCH, MCHC, RDW, PLT, MPV, PDW, PCT
-- Auto-flag H/L based on reference ranges
-- Gender-specific reference ranges
-- Allow search by Patient Name, Date, and Test simultaneously
-- Flag edited results
-- "Complete & Send to Next Station" button
+**Migration**:
+- `ALTER TABLE staff ADD COLUMN payroll_number TEXT`
+- Update the `admin-create-user` edge function to accept and store `payrollNumber`
 
 ---
 
-## Phase 6: Imaging/Radiology Page
+## 5. Audit Logs - Make Fully Functional
 
-### 6.1 Update to match CUEA Radiology Form
-- Clinical History and Diagnosis/Medication field
-- Examination types: X-Ray, Ultrasound, CT Scan, MRI
-- Ordering doctor name captured
-- Results entry: Findings + Impression
-- Auto-advance patient to next station on completion
+**Current state**: The `audit_logs` table exists but has no `staff_id` or `payroll_number` columns and no automatic logging.
 
----
-
-## Phase 7: Pharmacy Page Overhaul
-
-### 7.1 Inventory matching CUEA pharmacy template
-- Seed all 275 medications from the uploaded pharmacy_inventory.xlsx
-- Add stock card functionality matching the Pharmacy Stock Card template:
-  - Serial number, Item, Strength/Size, Package
-  - Min/Max stock, Re-order level, Average Monthly Consumption
-  - Transaction log: Date, Received From/Issued To, Invoice Ref, Expiry Date, Unit Price, Qty Received, Qty Issued, Balance
-
-### 7.2 Dispensing workflow
-- Show prescriptions from consultation
-- Match against inventory
-- Auto-deduct stock on dispensing
-- Generate service charge for dispensed items
-- "Complete & Send to Billing" button
+**Changes**:
+- Add `staff_id` and `payroll_number` columns to `audit_logs`
+- Create a reusable `logAuditEvent()` utility function in `src/lib/auditLog.ts`
+- Integrate audit logging into all key actions:
+  - Patient registration
+  - Ticket creation / queue transitions
+  - Consultation save
+  - Lab result entry
+  - Prescription dispensing
+  - Payment processing
+  - Staff creation
+  - Role assignment changes
+- Create an Audit Log viewer page at `/admin/audit-logs` for super_admin to search and filter logs by module, user, date, and action
 
 ---
 
-## Phase 8: Billing System Overhaul
+## 6. Staff Onboarding Enhancements
 
-### 8.1 Service charge accumulation
-- Auto-generate invoice items from each station's charges:
-  - Consultation fee
-  - Nursing procedures
-  - Lab tests
-  - Imaging studies
-  - Pharmacy items
-  - Dental procedures
-- Invoice matches CUEA Charge Sheet format: "TO CREDIT CONTROLLER" with patient name, Reg/ID No, total bill
-
-### 8.2 Payment methods by patient type
-- CUEA Staff: Payroll deduction + insurance option
-- CUEA Students: Student account debit
-- Outsiders: M-Pesa payment (existing STK push)
-- Insurance: Pre-authorization flow
+- Make **Email** and **Payroll Number** the primary identifiers (both required in Step 1)
+- Add shift option: **"All Day (8AM - 5PM)"** to the shifts list
+- Fix Role-to-Department mapping logic so roles are assigned to logical departments:
+  - Doctor/Clinical Officer --> General Medicine
+  - Nurse/Ward Manager --> General Medicine
+  - Lab Technician --> Laboratory
+  - Radiologist --> Imaging
+  - Pharmacist --> Pharmacy
+  - Receptionist/Records Officer --> General Medicine
+  - Finance Officer/Cashier/Accountant --> (no clinical dept)
+- Auto-suggest the department based on primary role selection
 
 ---
 
-## Phase 9: Reports Page Overhaul
+## 7. Doctor Full Patient Flow View
 
-### 9.1 Multi-filter reporting
-Simultaneous filtering by:
-1. Age Group (0-5, 6-59 months, 5-14, 15-24, 25-34, 35-44, 45-54, 55-64, 65+)
-2. Gender (Male/Female)
-3. Diagnosis (searchable dropdown from encounters)
-4. Lab Test (from lab_tests_catalog)
-5. Procedure (nursing/dental procedures)
-6. Date Range (from-to picker)
-
-Reports include:
-- Patient visit summaries with all filters applied
-- Lab test statistics
-- Pharmacy usage/stock reports
-- Revenue by service type, patient type, and payment method
-- Exportable to CSV/PDF
+- On the Consultation page, when a doctor selects a patient, show a **"Patient Journey"** tab that displays:
+  - Triage vitals recorded by the nurse
+  - Nursing procedures performed
+  - Lab results (read-only)
+  - Imaging results (read-only)
+  - Pharmacy dispensing status
+  - Billing status
+- Only doctors and clinical officers get this full view
+- Other staff (nurse, lab tech, pharmacist) only see data relevant to their station
 
 ---
 
-## Phase 10: Queue Workflow - Officer Station Controls
+## 8. Optional Payment at Each Stage
 
-### 10.1 Each station page gets a "Patient Queue" panel
-Every department page (Vitals, Consultation, Lab, Imaging, Pharmacy, Billing) will have:
-- A sidebar/panel showing patients assigned to that station
-- "Start Serving" button to mark a patient as being served
-- "Complete & Send to Next" button that:
-  1. Saves the work done at that station
-  2. Generates any service charges
-  3. Automatically advances the ticket to the next workflow stage
-  4. Updates the public Queue Display in real-time
-
-### 10.2 Workflow stages with officer control
-```text
-Reception (check-in) 
-  --> Triage/Nursing (nurse marks complete)
-    --> Doctor Queue (doctor starts/completes consult)
-      --> Lab (if ordered, tech marks complete)
-      --> Imaging (if ordered, radiologist marks complete)
-      --> Pharmacy (if prescribed, pharmacist dispenses)
-        --> Billing (cashier processes payment)
-          --> Checked Out
-```
-
-### 10.3 Dental workflow
-```text
-Reception (visit_reason = dental)
-  --> Dental (dentist performs procedures)
-    --> Pharmacy (if needed)
-      --> Billing
-        --> Checked Out
-```
+- Add an "Interim Payment" button on the Vitals, Laboratory, Imaging, and Pharmacy station pages
+- This allows (but does not require) payment collection at any stage
+- The button opens a small payment dialog showing accumulated charges so far
+- Final billing at the Billing station shows the full consolidated charge sheet minus any interim payments
 
 ---
 
-## Phase 11: Referral Form
+## 9. Super Admin Dashboard - Template & Workflow Management
 
-### 11.1 Digital referral form matching CUEA template
-- Patient Name, Age, Sex, Date (auto-filled)
-- Reasons for Referral (text area)
-- Treatment Given (text area)
-- Doctor Name (auto-filled from logged-in user)
-- Printable format matching CUEA/DVC ADM/INF/01/fm01
+Add a new **System Configuration** section accessible from the Settings page (super_admin only):
+
+- **Department Management**: Add/edit/delete departments
+- **Procedure Templates**: Manage nursing procedures list, dental procedures catalog
+- **Lab Test Catalog**: Add/edit lab tests with reference ranges
+- **Imaging Catalog**: Add/edit imaging types and prices
+- **Workflow Configuration**: View the patient flow stages (read-only visual diagram)
+- **Service Pricing**: Set prices for consultation, procedures, and services
+
+---
+
+## 10. Department-Level Reports
+
+Enhance the Reports page:
+- Add a **Department** filter dropdown (Laboratory, Pharmacy, Dental, Nursing, etc.)
+- Department-specific report tabs:
+  - **Lab Reports**: Tests performed, results by test type, turnaround time
+  - **Pharmacy Reports**: Dispensed medications, stock levels, consumption trends
+  - **Nursing Reports**: Procedures performed by type
+  - **Dental Reports**: Procedures by category
+  - **Financial Reports**: Revenue by department, payment method breakdown
+- All reports filterable by the existing 6 criteria (age, gender, diagnosis, lab test, procedure, date)
+
+---
+
+## 11. PDF Report Generation
+
+- Add a branded PDF export using browser-based PDF generation (html2canvas + jsPDF or similar approach with a print-optimized layout)
+- PDF includes:
+  - CUEA Infirmary header with logo
+  - Report title and filter criteria applied
+  - Data table
+  - Summary statistics
+  - Generated date and admin name
+  - Page numbers
+
+---
+
+## 12. Queue Display - Fully Functional
+
+The current QueueDisplay page works but has issues:
+- Fix: Use `workflow_stage` instead of `status` for grouping (they should be in sync)
+- Add audio notification for ticket number changes
+- Add auto-scroll for long lists
+- Use the CUEA logo instead of the "C" placeholder
+- Ensure real-time updates work properly (already subscribed)
+
+---
+
+## 13. Ensure All Pages Exist for All Roles
+
+Verify and ensure each role can access their designated pages:
+- **Receptionist**: Patients, Queue, Appointments
+- **Nurse**: Vitals/Triage, Nursing Procedures
+- **Doctor/Clinical Officer**: Consultation, full patient view
+- **Lab Technician**: Laboratory
+- **Radiologist**: Imaging
+- **Pharmacist**: Pharmacy
+- **Cashier/Finance Officer**: Billing
+- **Records Officer**: Records
+- **Ward Manager**: Inpatient
+- **Super Admin/Admin**: All pages + Admin dashboard + Audit Logs
+- Add Cashier to billing sidebar access
 
 ---
 
 ## Technical Details
 
-### Database Migrations Required
-1. ALTER TABLE patients ADD COLUMN patient_type, payroll_number, admission_number, nationality, postal_address, next_of_kin_name, next_of_kin_relationship, next_of_kin_phone, visit_reason
-2. ALTER TABLE vitals ADD COLUMN presenting_complaint, allergies_noted
-3. CREATE TABLE nursing_procedures (with RLS)
-4. CREATE TABLE dental_procedures (with RLS)
-5. CREATE TABLE referrals (with RLS)
-6. CREATE TABLE service_charges (with RLS)
-7. CREATE TABLE pharmacy_stock_transactions (with RLS)
-8. ALTER TABLE pharmacy_inventory ADD COLUMN strength_size, package, minimum_stock, maximum_stock, average_monthly_consumption
-9. ALTER TABLE lab_orders ADD COLUMN flag
-10. Seed lab_tests_catalog with all CUEA tests
-11. Seed pharmacy_inventory with all 275 medications
+### Database Migration
+```sql
+-- Add payroll_number to staff table
+ALTER TABLE staff ADD COLUMN IF NOT EXISTS payroll_number TEXT;
 
-### Files to Create/Modify
-- **Modified**: `src/components/PatientRegistrationDialog.tsx` (complete rewrite for CUEA fields)
-- **Modified**: `src/pages/Vitals.tsx` (nursing department overhaul)
-- **Modified**: `src/pages/Consultation.tsx` (add referral, history sections)
-- **Modified**: `src/pages/Laboratory.tsx` (structured result forms)
-- **Modified**: `src/pages/Pharmacy.tsx` (stock card, CUEA inventory)
-- **Modified**: `src/pages/Billing.tsx` (service charge accumulation, patient-type billing)
-- **Modified**: `src/pages/Imaging.tsx` (radiology form matching)
-- **Modified**: `src/pages/Reports.tsx` (multi-filter reporting)
-- **Modified**: `src/pages/QueueDisplay.tsx` (enhanced display)
-- **New**: `src/pages/Dental.tsx` (dental procedures page)
-- **New**: `src/components/ReferralForm.tsx` (referral form component)
-- **New**: `src/components/NursingProcedures.tsx` (procedure selection component)
-- **New**: `src/components/StationQueue.tsx` (reusable queue panel for each station)
-- **New**: `src/components/ServiceChargeTracker.tsx` (tracks charges per visit)
-- **New**: `src/components/LabResultForms/*.tsx` (structured forms per test type)
-- **Modified**: `src/App.tsx` (add dental route)
-- **Modified**: `src/components/AppSidebar.tsx` (add dental nav item)
+-- Enhance audit_logs
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS staff_id TEXT;
+ALTER TABLE audit_logs ADD COLUMN IF NOT EXISTS payroll_number TEXT;
 
-### Important Notes
-- Due to the scale of this plan, implementation will be done in phases across multiple messages
-- The database migrations will be run first to establish the schema
-- Each page will be rebuilt to match the uploaded CUEA templates exactly
-- Real-time queue updates are already in place and will be preserved
-- All existing RLS policies will be extended to cover new tables
+-- RLS for audit_logs (admin read, authenticated write)
+```
+
+### Edge Function Update
+- `admin-create-user/index.ts`: Accept `payrollNumber`, store in `staff.payroll_number`
+
+### New Files
+- `src/lib/auditLog.ts` - Reusable audit logging utility
+- `src/pages/AuditLogs.tsx` - Audit log viewer (super_admin)
+- `src/components/InterimPayment.tsx` - Optional payment component for stations
+- `src/components/PatientJourney.tsx` - Doctor's full patient flow view
+- `src/components/AdminTemplates.tsx` - Template management for super admin
+
+### Modified Files
+- `src/components/PatientRegistrationDialog.tsx` - Remove blood type
+- `src/pages/StaffOnboarding.tsx` - Add payroll number, fix adminUserId, add "All Day" shift, auto-suggest department
+- `src/pages/AdminUserManagement.tsx` - Fix data loading, add payroll display
+- `src/pages/Reports.tsx` - Department filter, per-department reports, PDF export
+- `src/pages/Consultation.tsx` - Add Patient Journey tab (doctor-only)
+- `src/pages/Vitals.tsx` - Add interim payment button
+- `src/pages/Laboratory.tsx` - Add interim payment button
+- `src/pages/Pharmacy.tsx` - Add interim payment button
+- `src/pages/QueueDisplay.tsx` - Fix stage grouping, use logo
+- `src/pages/Settings.tsx` - Add system configuration for super_admin
+- `src/components/AppSidebar.tsx` - Add Audit Logs link, fix cashier access to billing
+- `src/App.tsx` - Add audit logs route
+- `supabase/functions/admin-create-user/index.ts` - Accept payrollNumber
+
+### Implementation Order
+1. Database migration (payroll_number on staff, audit_logs enhancements)
+2. Fix edge function (admin-create-user) and staff onboarding
+3. Fix user management page
+4. Remove blood type from registration
+5. Audit logging utility + integration across all modules
+6. Doctor patient journey view
+7. Interim payment at each station
+8. Department-level reports + PDF export
+9. Super admin template management
+10. Queue display fixes
+11. Sidebar access corrections
 
