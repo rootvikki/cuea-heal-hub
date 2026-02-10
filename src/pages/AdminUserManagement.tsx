@@ -472,13 +472,13 @@ const AdminUserManagement = () => {
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">
-                            {user.roles?.map((role) => (
+                            {user.roles?.filter(Boolean).map((role) => (
                               <Badge
                                 key={role}
                                 variant={getRoleBadgeVariant(role)}
                                 className="text-xs"
                               >
-                                {role.replace("_", " ")}
+                                {role?.replace("_", " ") ?? "unknown"}
                               </Badge>
                             ))}
                           </div>
