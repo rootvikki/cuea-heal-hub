@@ -9,14 +9,14 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
-import { 
-  Stethoscope, User, AlertTriangle, Activity, Pill, TestTube, 
-  Camera, FileText, Clock, Plus, X, Calendar, Phone, Heart, Radio
+import { ReferralForm } from "@/components/ReferralForm";
+import {
+  Stethoscope, User, AlertTriangle, Activity, Pill, TestTube,
+  Camera, FileText, Plus, X, Phone, Heart, Radio
 } from "lucide-react";
 
 interface Patient {
@@ -94,12 +94,20 @@ const Consultation = () => {
   const [loading, setLoading] = useState(true);
   const [savingEncounter, setSavingEncounter] = useState(false);
   const [isLive, setIsLive] = useState(false);
+  const [showReferralForm, setShowReferralForm] = useState(false);
 
-  // Encounter form state
+  // Encounter form state - enhanced with full clinical template
   const [encounter, setEncounter] = useState({
     chiefComplaint: "",
+    historyOfPresentIllness: "",
+    pastMedicalHistory: "",
+    pastSurgicalHistory: "",
+    medicineHistory: "",
+    socialHistory: "",
     subjective: "",
     objective: "",
+    physicalExamGeneral: "",
+    physicalExamSystemic: "",
     assessment: "",
     plan: "",
     diagnosis: [] as string[],
@@ -119,8 +127,6 @@ const Consultation = () => {
     quantity: 1,
     instructions: "",
   });
-
-  // Diagnosis input
   const [diagnosisInput, setDiagnosisInput] = useState("");
 
   useEffect(() => {
@@ -128,36 +134,20 @@ const Consultation = () => {
     fetchLabTests();
     fetchImagingCatalog();
 
-    // Subscribe to realtime queue updates
     const channel = supabase
       .channel("consultation-queue")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "tickets",
-        },
-        (payload) => {
-          console.log("Consultation queue update:", payload);
-          
-          if (payload.eventType === "UPDATE" && payload.new) {
-            const newTicket = payload.new as any;
-            if (newTicket.workflow_stage === "waiting_for_doctor") {
-              sonnerToast.info("New patient ready for consultation");
-            }
+      .on("postgres_changes", { event: "*", schema: "public", table: "tickets" }, (payload) => {
+        if (payload.eventType === "UPDATE" && payload.new) {
+          const newTicket = payload.new as any;
+          if (newTicket.workflow_stage === "waiting_for_doctor") {
+            sonnerToast.info("New patient ready for consultation");
           }
-          
-          fetchQueue();
         }
-      )
-      .subscribe((status) => {
-        setIsLive(status === "SUBSCRIBED");
-      });
+        fetchQueue();
+      })
+      .subscribe((status) => setIsLive(status === "SUBSCRIBED"));
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   useEffect(() => {
@@ -169,45 +159,24 @@ const Consultation = () => {
 
   const fetchQueue = async () => {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      // Get tickets that are ready for doctor consultation
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("tickets")
         .select("*")
         .in("workflow_stage", ["waiting_for_doctor", "in_consult", "triage"])
         .order("priority", { ascending: false })
         .order("created_at", { ascending: true });
 
-      if (error) throw error;
-
-      // Fetch patient details for each ticket
       const ticketsWithPatients = await Promise.all(
         (data || []).map(async (ticket) => {
-          const { data: patient } = await supabase
-            .from("patients")
-            .select("*")
-            .eq("id", ticket.patient_id)
-            .single();
-
+          const { data: patient } = await supabase.from("patients").select("*").eq("id", ticket.patient_id).single();
           let profile = null;
           if (patient) {
-            const { data: profileData } = await supabase
-              .from("profiles")
-              .select("full_name, phone, date_of_birth, gender")
-              .eq("user_id", patient.user_id)
-              .single();
+            const { data: profileData } = await supabase.from("profiles").select("full_name, phone, date_of_birth, gender").eq("user_id", patient.user_id).single();
             profile = profileData;
           }
-
-          return {
-            ...ticket,
-            patient: patient ? { ...patient, profile } : null,
-          };
+          return { ...ticket, patient: patient ? { ...patient, profile } : null };
         })
       );
-
       setQueue(ticketsWithPatients);
     } catch (error) {
       console.error("Error fetching queue:", error);
@@ -217,98 +186,55 @@ const Consultation = () => {
   };
 
   const fetchPatientVitals = async (patientId: string) => {
-    const { data } = await supabase
-      .from("vitals")
-      .select("*")
-      .eq("patient_id", patientId)
-      .order("recorded_at", { ascending: false })
-      .limit(5);
-
+    const { data } = await supabase.from("vitals").select("*").eq("patient_id", patientId).order("recorded_at", { ascending: false }).limit(5);
     setPatientVitals(data || []);
   };
 
   const fetchPatientHistory = async (patientId: string) => {
-    const { data } = await supabase
-      .from("encounters")
-      .select("*")
-      .eq("patient_id", patientId)
-      .order("encounter_date", { ascending: false })
-      .limit(10);
-
+    const { data } = await supabase.from("encounters").select("*").eq("patient_id", patientId).order("encounter_date", { ascending: false }).limit(10);
     setPatientHistory(data || []);
   };
 
   const fetchLabTests = async () => {
-    const { data } = await supabase
-      .from("lab_tests_catalog")
-      .select("*")
-      .order("test_name");
+    const { data } = await supabase.from("lab_tests_catalog").select("*").order("test_name");
     setLabTests(data || []);
   };
 
   const fetchImagingCatalog = async () => {
-    const { data } = await supabase
-      .from("imaging_catalog")
-      .select("*")
-      .eq("active", true)
-      .order("modality");
+    const { data } = await supabase.from("imaging_catalog").select("*").eq("active", true).order("modality");
     setImagingItems(data || []);
   };
 
   const startConsultation = async (ticket: Ticket) => {
     setSelectedTicket(ticket);
-    
-    // Update ticket status to in_consult
-    await supabase
-      .from("tickets")
-      .update({ workflow_stage: "in_consult" as const })
-      .eq("id", ticket.id);
-
-    // Reset forms
+    await supabase.from("tickets").update({ workflow_stage: "in_consult" as const }).eq("id", ticket.id);
     setEncounter({
-      chiefComplaint: "",
-      subjective: "",
-      objective: "",
-      assessment: "",
-      plan: "",
-      diagnosis: [],
-      followUpDate: "",
+      chiefComplaint: "", historyOfPresentIllness: "", pastMedicalHistory: "", pastSurgicalHistory: "",
+      medicineHistory: "", socialHistory: "", subjective: "", objective: "",
+      physicalExamGeneral: "", physicalExamSystemic: "", assessment: "", plan: "",
+      diagnosis: [], followUpDate: "",
     });
     setPrescriptions([]);
     setSelectedLabTests([]);
     setSelectedImaging([]);
-
     fetchQueue();
   };
 
   const addDiagnosis = () => {
     if (diagnosisInput.trim() && !encounter.diagnosis.includes(diagnosisInput.trim())) {
-      setEncounter({
-        ...encounter,
-        diagnosis: [...encounter.diagnosis, diagnosisInput.trim()],
-      });
+      setEncounter({ ...encounter, diagnosis: [...encounter.diagnosis, diagnosisInput.trim()] });
       setDiagnosisInput("");
     }
   };
 
   const removeDiagnosis = (index: number) => {
-    setEncounter({
-      ...encounter,
-      diagnosis: encounter.diagnosis.filter((_, i) => i !== index),
-    });
+    setEncounter({ ...encounter, diagnosis: encounter.diagnosis.filter((_, i) => i !== index) });
   };
 
   const addPrescription = () => {
     if (currentPrescription.medication_name && currentPrescription.dosage) {
       setPrescriptions([...prescriptions, currentPrescription]);
-      setCurrentPrescription({
-        medication_name: "",
-        dosage: "",
-        frequency: "",
-        duration: "",
-        quantity: 1,
-        instructions: "",
-      });
+      setCurrentPrescription({ medication_name: "", dosage: "", frequency: "", duration: "", quantity: 1, instructions: "" });
       setShowPrescriptionDialog(false);
     }
   };
@@ -319,30 +245,41 @@ const Consultation = () => {
 
   const saveEncounter = async () => {
     if (!selectedTicket?.patient?.id) return;
-
     setSavingEncounter(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      // Get department from ticket or use General
-      const { data: dept } = await supabase
-        .from("departments")
-        .select("id")
-        .eq("name", "General")
-        .single();
+      const { data: staff } = await supabase.from("staff").select("id").eq("user_id", user.id).single();
 
-      // Create encounter
+      const { data: dept } = await supabase.from("departments").select("id").eq("name", "General").single();
+
+      // Build full subjective from clinical fields
+      const fullSubjective = [
+        encounter.subjective,
+        encounter.historyOfPresentIllness && `HPI: ${encounter.historyOfPresentIllness}`,
+        encounter.pastMedicalHistory && `PMH: ${encounter.pastMedicalHistory}`,
+        encounter.pastSurgicalHistory && `PSH: ${encounter.pastSurgicalHistory}`,
+        encounter.medicineHistory && `Medications: ${encounter.medicineHistory}`,
+        encounter.socialHistory && `Social: ${encounter.socialHistory}`,
+      ].filter(Boolean).join("\n\n");
+
+      const fullObjective = [
+        encounter.objective,
+        encounter.physicalExamGeneral && `General Exam: ${encounter.physicalExamGeneral}`,
+        encounter.physicalExamSystemic && `Systemic Exam: ${encounter.physicalExamSystemic}`,
+      ].filter(Boolean).join("\n\n");
+
       const { data: encounterData, error: encounterError } = await supabase
         .from("encounters")
         .insert({
           patient_id: selectedTicket.patient.id,
           ticket_id: selectedTicket.id,
-          doctor_id: user.id,
+          doctor_id: staff?.id || user.id,
           department_id: dept?.id,
           chief_complaint: encounter.chiefComplaint,
-          subjective: encounter.subjective,
-          objective: encounter.objective,
+          subjective: fullSubjective,
+          objective: fullObjective,
           assessment: encounter.assessment,
           plan: encounter.plan,
           diagnosis: encounter.diagnosis,
@@ -353,12 +290,23 @@ const Consultation = () => {
 
       if (encounterError) throw encounterError;
 
+      // Generate consultation service charge
+      await supabase.from("service_charges").insert({
+        patient_id: selectedTicket.patient.id,
+        encounter_id: encounterData.id,
+        ticket_id: selectedTicket.id,
+        service_type: "consultation",
+        description: "Doctor Consultation",
+        amount: 500,
+        billing_stage: "consultation",
+      });
+
       // Create prescriptions
       if (prescriptions.length > 0) {
         const prescriptionRecords = prescriptions.map((p) => ({
           encounter_id: encounterData.id,
           patient_id: selectedTicket.patient!.id,
-          doctor_id: user.id,
+          doctor_id: staff?.id || user.id,
           medication_name: p.medication_name,
           dosage: p.dosage,
           frequency: p.frequency,
@@ -366,81 +314,80 @@ const Consultation = () => {
           quantity: p.quantity,
           instructions: p.instructions,
         }));
-
-        const { error: prescError } = await supabase
-          .from("prescriptions")
-          .insert(prescriptionRecords);
-
-        if (prescError) console.error("Error creating prescriptions:", prescError);
+        await supabase.from("prescriptions").insert(prescriptionRecords);
       }
 
-      // Create lab orders
+      // Create lab orders + service charges
       if (selectedLabTests.length > 0) {
         const labOrders = selectedLabTests.map((testId) => ({
           encounter_id: encounterData.id,
           patient_id: selectedTicket.patient!.id,
-          doctor_id: user.id,
+          doctor_id: staff?.id || user.id,
           test_id: testId,
           status: "pending",
         }));
+        await supabase.from("lab_orders").insert(labOrders);
 
-        const { error: labError } = await supabase
-          .from("lab_orders")
-          .insert(labOrders);
-
-        if (labError) console.error("Error creating lab orders:", labError);
+        // Generate service charges for each lab test
+        for (const testId of selectedLabTests) {
+          const test = labTests.find(t => t.id === testId);
+          if (test) {
+            await supabase.from("service_charges").insert({
+              patient_id: selectedTicket.patient!.id,
+              encounter_id: encounterData.id,
+              ticket_id: selectedTicket.id,
+              service_type: "laboratory",
+              description: `Lab: ${test.test_name}`,
+              amount: test.price,
+              billing_stage: "laboratory",
+            });
+          }
+        }
       }
 
-      // Create imaging orders
+      // Create imaging orders + service charges
       if (selectedImaging.length > 0) {
         const imagingOrders = selectedImaging.map((imagingId) => ({
           encounter_id: encounterData.id,
           patient_id: selectedTicket.patient!.id,
           imaging_id: imagingId,
-          ordered_by: user.id,
+          ordered_by: staff?.id || user.id,
           status: "pending",
           clinical_indication: encounter.chiefComplaint,
         }));
+        await supabase.from("imaging_orders").insert(imagingOrders);
 
-        const { error: imagingError } = await supabase
-          .from("imaging_orders")
-          .insert(imagingOrders);
-
-        if (imagingError) console.error("Error creating imaging orders:", imagingError);
+        for (const imagingId of selectedImaging) {
+          const item = imagingItems.find(i => i.id === imagingId);
+          if (item) {
+            await supabase.from("service_charges").insert({
+              patient_id: selectedTicket.patient!.id,
+              encounter_id: encounterData.id,
+              ticket_id: selectedTicket.id,
+              service_type: "imaging",
+              description: `Imaging: ${item.name}`,
+              amount: item.price,
+              billing_stage: "imaging",
+            });
+          }
+        }
       }
 
-      // Determine next workflow stage based on orders
+      // Determine next workflow stage
       type WorkflowStage = "at_billing" | "at_imaging" | "at_lab" | "at_pharmacy" | "checked_in" | "checked_out" | "in_consult" | "order_placed_imaging" | "order_placed_lab" | "triage" | "waiting_for_doctor";
-      
       let nextStage: WorkflowStage = "at_billing";
-      if (selectedLabTests.length > 0) {
-        nextStage = "at_lab";
-      } else if (selectedImaging.length > 0) {
-        nextStage = "at_imaging";
-      } else if (prescriptions.length > 0) {
-        nextStage = "at_pharmacy";
-      }
+      if (selectedLabTests.length > 0) nextStage = "at_lab";
+      else if (selectedImaging.length > 0) nextStage = "at_imaging";
+      else if (prescriptions.length > 0) nextStage = "at_pharmacy";
 
-      // Update ticket status
-      await supabase
-        .from("tickets")
-        .update({ workflow_stage: nextStage })
-        .eq("id", selectedTicket.id);
+      await supabase.from("tickets").update({ workflow_stage: nextStage }).eq("id", selectedTicket.id);
 
-      toast({
-        title: "Consultation Saved",
-        description: `Encounter recorded. Patient moved to ${nextStage.replace("_", " ")}.`,
-      });
-
+      toast({ title: "Consultation Saved", description: `Patient moved to ${nextStage.replace(/_/g, " ")}.` });
       setSelectedTicket(null);
       fetchQueue();
     } catch (error) {
       console.error("Error saving encounter:", error);
-      toast({
-        title: "Error",
-        description: "Failed to save consultation",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to save consultation", variant: "destructive" });
     } finally {
       setSavingEncounter(false);
     }
@@ -454,9 +401,7 @@ const Consultation = () => {
     const today = new Date();
     let age = today.getFullYear() - birthDate.getFullYear();
     const m = today.getMonth() - birthDate.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-      age--;
-    }
+    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
     return `${age} years`;
   };
 
@@ -480,8 +425,7 @@ const Consultation = () => {
             </h2>
             {isLive && (
               <Badge variant="outline" className="gap-1 text-green-600 border-green-600 text-xs">
-                <Radio className="h-2 w-2 animate-pulse" />
-                Live
+                <Radio className="h-2 w-2 animate-pulse" /> Live
               </Badge>
             )}
           </div>
@@ -496,32 +440,21 @@ const Consultation = () => {
                 <div
                   key={ticket.id}
                   className={`p-3 rounded-lg border cursor-pointer transition-colors ${
-                    selectedTicket?.id === ticket.id
-                      ? "bg-primary/10 border-primary"
-                      : "bg-background hover:bg-muted"
+                    selectedTicket?.id === ticket.id ? "bg-primary/10 border-primary" : "bg-background hover:bg-muted"
                   }`}
                   onClick={() => startConsultation(ticket)}
                 >
                   <div className="flex items-start justify-between">
                     <div>
-                      <p className="font-medium text-sm">
-                        {ticket.patient?.profile?.full_name || "Unknown"}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {ticket.ticket_number} • {ticket.patient?.patient_id}
-                      </p>
+                      <p className="font-medium text-sm">{ticket.patient?.profile?.full_name || "Unknown"}</p>
+                      <p className="text-xs text-muted-foreground">{ticket.ticket_number} • {ticket.patient?.patient_id}</p>
                     </div>
-                    <Badge
-                      variant={ticket.priority > 1 ? "destructive" : "secondary"}
-                      className="text-xs"
-                    >
+                    <Badge variant={ticket.priority > 1 ? "destructive" : "secondary"} className="text-xs">
                       {ticket.priority > 1 ? "Urgent" : "Normal"}
                     </Badge>
                   </div>
                   <div className="flex items-center gap-2 mt-2">
-                    <Badge variant="outline" className="text-xs">
-                      {ticket.workflow_stage.replace(/_/g, " ")}
-                    </Badge>
+                    <Badge variant="outline" className="text-xs">{ticket.workflow_stage.replace(/_/g, " ")}</Badge>
                     {ticket.patient?.allergies && ticket.patient.allergies.length > 0 && (
                       <AlertTriangle className="h-3 w-3 text-orange-500" />
                     )}
@@ -552,9 +485,7 @@ const Consultation = () => {
                     <User className="h-8 w-8 text-primary" />
                   </div>
                   <div>
-                    <h1 className="text-xl font-bold">
-                      {selectedTicket.patient?.profile?.full_name}
-                    </h1>
+                    <h1 className="text-xl font-bold">{selectedTicket.patient?.profile?.full_name}</h1>
                     <div className="flex items-center gap-4 text-sm text-muted-foreground">
                       <span>{selectedTicket.patient?.patient_id}</span>
                       <span>•</span>
@@ -564,9 +495,7 @@ const Consultation = () => {
                       {selectedTicket.patient?.blood_type && (
                         <>
                           <span>•</span>
-                          <span className="font-medium text-red-600">
-                            Blood: {selectedTicket.patient.blood_type}
-                          </span>
+                          <span className="font-medium text-red-600">Blood: {selectedTicket.patient.blood_type}</span>
                         </>
                       )}
                     </div>
@@ -578,13 +507,16 @@ const Consultation = () => {
                     )}
                   </div>
                 </div>
-                <Button variant="outline" onClick={() => setSelectedTicket(null)}>
-                  <X className="h-4 w-4 mr-2" />
-                  Close
-                </Button>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" onClick={() => setShowReferralForm(true)}>
+                    <FileText className="h-4 w-4 mr-1" /> Referral
+                  </Button>
+                  <Button variant="outline" onClick={() => setSelectedTicket(null)}>
+                    <X className="h-4 w-4 mr-2" /> Close
+                  </Button>
+                </div>
               </div>
 
-              {/* Allergies Warning */}
               {selectedTicket.patient?.allergies && selectedTicket.patient.allergies.length > 0 && (
                 <div className="mt-3 p-3 bg-orange-50 border border-orange-200 rounded-lg">
                   <div className="flex items-center gap-2 text-orange-700">
@@ -598,75 +530,82 @@ const Consultation = () => {
 
             {/* Main Workspace */}
             <div className="flex-1 overflow-hidden flex">
-              {/* Left - SOAP Notes & Orders */}
               <div className="flex-1 overflow-auto p-4">
                 <Tabs defaultValue="encounter" className="space-y-4">
                   <TabsList>
-                    <TabsTrigger value="encounter">SOAP Notes</TabsTrigger>
-                    <TabsTrigger value="orders">
-                      Orders ({prescriptions.length + selectedLabTests.length + selectedImaging.length})
-                    </TabsTrigger>
+                    <TabsTrigger value="encounter">Clinical Notes</TabsTrigger>
+                    <TabsTrigger value="orders">Orders ({prescriptions.length + selectedLabTests.length + selectedImaging.length})</TabsTrigger>
                     <TabsTrigger value="history">History</TabsTrigger>
                   </TabsList>
 
                   <TabsContent value="encounter" className="space-y-4">
                     <div className="space-y-2">
-                      <Label>Chief Complaint *</Label>
-                      <Input
-                        value={encounter.chiefComplaint}
-                        onChange={(e) => setEncounter({ ...encounter, chiefComplaint: e.target.value })}
-                        placeholder="What brings the patient in today?"
-                      />
+                      <Label className="font-semibold">Chief Complaints *</Label>
+                      <Input value={encounter.chiefComplaint} onChange={(e) => setEncounter({ ...encounter, chiefComplaint: e.target.value })} placeholder="What brings the patient in today?" />
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Subjective (S)</Label>
-                      <Textarea
-                        value={encounter.subjective}
-                        onChange={(e) => setEncounter({ ...encounter, subjective: e.target.value })}
-                        placeholder="Patient's symptoms, history, concerns..."
-                        rows={3}
-                      />
+                      <Label className="font-semibold">History of Presenting Illness</Label>
+                      <Textarea value={encounter.historyOfPresentIllness} onChange={(e) => setEncounter({ ...encounter, historyOfPresentIllness: e.target.value })} placeholder="Onset, duration, progression, associated symptoms..." rows={3} />
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Past Medical History</Label>
+                        <Textarea value={encounter.pastMedicalHistory} onChange={(e) => setEncounter({ ...encounter, pastMedicalHistory: e.target.value })} placeholder="Previous illnesses, hospitalizations..." rows={2} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Past Surgical History</Label>
+                        <Textarea value={encounter.pastSurgicalHistory} onChange={(e) => setEncounter({ ...encounter, pastSurgicalHistory: e.target.value })} placeholder="Previous surgeries..." rows={2} />
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Medicine History</Label>
+                        <Textarea value={encounter.medicineHistory} onChange={(e) => setEncounter({ ...encounter, medicineHistory: e.target.value })} placeholder="Current medications, allergies..." rows={2} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Social History</Label>
+                        <Textarea value={encounter.socialHistory} onChange={(e) => setEncounter({ ...encounter, socialHistory: e.target.value })} placeholder="Smoking, alcohol, occupation..." rows={2} />
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    <div className="space-y-2">
+                      <Label className="font-semibold">Subjective (S)</Label>
+                      <Textarea value={encounter.subjective} onChange={(e) => setEncounter({ ...encounter, subjective: e.target.value })} placeholder="Patient's symptoms, history, concerns..." rows={3} />
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Objective (O)</Label>
-                      <Textarea
-                        value={encounter.objective}
-                        onChange={(e) => setEncounter({ ...encounter, objective: e.target.value })}
-                        placeholder="Physical exam findings, observations..."
-                        rows={3}
-                      />
+                      <Label className="font-semibold">Objective (O) - Physical Examination</Label>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <Label className="text-sm">General Examination</Label>
+                          <Textarea value={encounter.physicalExamGeneral} onChange={(e) => setEncounter({ ...encounter, physicalExamGeneral: e.target.value })} placeholder="General appearance, vital signs review..." rows={3} />
+                        </div>
+                        <div className="space-y-2">
+                          <Label className="text-sm">Systemic Examination</Label>
+                          <Textarea value={encounter.physicalExamSystemic} onChange={(e) => setEncounter({ ...encounter, physicalExamSystemic: e.target.value })} placeholder="CVS, RS, GIT, CNS, MSK findings..." rows={3} />
+                        </div>
+                      </div>
+                      <Textarea value={encounter.objective} onChange={(e) => setEncounter({ ...encounter, objective: e.target.value })} placeholder="Additional objective findings..." rows={2} />
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Assessment (A) / Diagnosis</Label>
-                      <Textarea
-                        value={encounter.assessment}
-                        onChange={(e) => setEncounter({ ...encounter, assessment: e.target.value })}
-                        placeholder="Clinical impression, differential diagnosis..."
-                        rows={2}
-                      />
+                      <Label className="font-semibold">Assessment (A) / Diagnosis</Label>
+                      <Textarea value={encounter.assessment} onChange={(e) => setEncounter({ ...encounter, assessment: e.target.value })} placeholder="Clinical impression, differential diagnosis..." rows={2} />
                       <div className="flex gap-2">
-                        <Input
-                          value={diagnosisInput}
-                          onChange={(e) => setDiagnosisInput(e.target.value)}
-                          placeholder="Add diagnosis (e.g., J06.9 - Upper respiratory infection)"
-                          onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addDiagnosis())}
-                        />
-                        <Button type="button" variant="outline" onClick={addDiagnosis}>
-                          Add
-                        </Button>
+                        <Input value={diagnosisInput} onChange={(e) => setDiagnosisInput(e.target.value)} placeholder="Add diagnosis (e.g., J06.9 - Upper respiratory infection)" onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addDiagnosis())} />
+                        <Button type="button" variant="outline" onClick={addDiagnosis}>Add</Button>
                       </div>
                       {encounter.diagnosis.length > 0 && (
                         <div className="flex flex-wrap gap-2 mt-2">
                           {encounter.diagnosis.map((d, i) => (
                             <Badge key={i} variant="secondary" className="gap-1">
                               {d}
-                              <X
-                                className="h-3 w-3 cursor-pointer"
-                                onClick={() => removeDiagnosis(i)}
-                              />
+                              <X className="h-3 w-3 cursor-pointer" onClick={() => removeDiagnosis(i)} />
                             </Badge>
                           ))}
                         </div>
@@ -674,22 +613,13 @@ const Consultation = () => {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Plan (P)</Label>
-                      <Textarea
-                        value={encounter.plan}
-                        onChange={(e) => setEncounter({ ...encounter, plan: e.target.value })}
-                        placeholder="Treatment plan, medications, follow-up..."
-                        rows={3}
-                      />
+                      <Label className="font-semibold">Plan (P)</Label>
+                      <Textarea value={encounter.plan} onChange={(e) => setEncounter({ ...encounter, plan: e.target.value })} placeholder="Treatment plan, medications, follow-up..." rows={3} />
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Follow-up Date</Label>
-                      <Input
-                        type="date"
-                        value={encounter.followUpDate}
-                        onChange={(e) => setEncounter({ ...encounter, followUpDate: e.target.value })}
-                      />
+                      <Label>Follow-up Date (TCA)</Label>
+                      <Input type="date" value={encounter.followUpDate} onChange={(e) => setEncounter({ ...encounter, followUpDate: e.target.value })} />
                     </div>
                   </TabsContent>
 
@@ -699,12 +629,10 @@ const Consultation = () => {
                       <CardHeader className="pb-2">
                         <div className="flex items-center justify-between">
                           <CardTitle className="text-base flex items-center gap-2">
-                            <Pill className="h-4 w-4" />
-                            Prescriptions ({prescriptions.length})
+                            <Pill className="h-4 w-4" /> Prescriptions ({prescriptions.length})
                           </CardTitle>
                           <Button size="sm" onClick={() => setShowPrescriptionDialog(true)}>
-                            <Plus className="h-4 w-4 mr-1" />
-                            Add
+                            <Plus className="h-4 w-4 mr-1" /> Add
                           </Button>
                         </div>
                       </CardHeader>
@@ -717,17 +645,9 @@ const Consultation = () => {
                               <div key={i} className="flex items-center justify-between p-2 bg-muted rounded">
                                 <div>
                                   <p className="font-medium text-sm">{p.medication_name}</p>
-                                  <p className="text-xs text-muted-foreground">
-                                    {p.dosage} • {p.frequency} • {p.duration} • Qty: {p.quantity}
-                                  </p>
+                                  <p className="text-xs text-muted-foreground">{p.dosage} • {p.frequency} • {p.duration} • Qty: {p.quantity}</p>
                                 </div>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  onClick={() => removePrescription(i)}
-                                >
-                                  <X className="h-4 w-4" />
-                                </Button>
+                                <Button size="sm" variant="ghost" onClick={() => removePrescription(i)}><X className="h-4 w-4" /></Button>
                               </div>
                             ))}
                           </div>
@@ -739,8 +659,7 @@ const Consultation = () => {
                     <Card>
                       <CardHeader className="pb-2">
                         <CardTitle className="text-base flex items-center gap-2">
-                          <TestTube className="h-4 w-4" />
-                          Lab Tests ({selectedLabTests.length})
+                          <TestTube className="h-4 w-4" /> Lab Tests ({selectedLabTests.length})
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
@@ -748,17 +667,10 @@ const Consultation = () => {
                           {labTests.map((test) => (
                             <div
                               key={test.id}
-                              className={`p-2 border rounded cursor-pointer transition-colors text-sm ${
-                                selectedLabTests.includes(test.id)
-                                  ? "bg-primary/10 border-primary"
-                                  : "hover:bg-muted"
-                              }`}
+                              className={`p-2 border rounded cursor-pointer transition-colors text-sm ${selectedLabTests.includes(test.id) ? "bg-primary/10 border-primary" : "hover:bg-muted"}`}
                               onClick={() => {
-                                if (selectedLabTests.includes(test.id)) {
-                                  setSelectedLabTests(selectedLabTests.filter((t) => t !== test.id));
-                                } else {
-                                  setSelectedLabTests([...selectedLabTests, test.id]);
-                                }
+                                if (selectedLabTests.includes(test.id)) setSelectedLabTests(selectedLabTests.filter((t) => t !== test.id));
+                                else setSelectedLabTests([...selectedLabTests, test.id]);
                               }}
                             >
                               <p className="font-medium">{test.test_name}</p>
@@ -773,8 +685,7 @@ const Consultation = () => {
                     <Card>
                       <CardHeader className="pb-2">
                         <CardTitle className="text-base flex items-center gap-2">
-                          <Camera className="h-4 w-4" />
-                          Imaging ({selectedImaging.length})
+                          <Camera className="h-4 w-4" /> Imaging ({selectedImaging.length})
                         </CardTitle>
                       </CardHeader>
                       <CardContent>
@@ -782,23 +693,14 @@ const Consultation = () => {
                           {imagingItems.map((item) => (
                             <div
                               key={item.id}
-                              className={`p-2 border rounded cursor-pointer transition-colors text-sm ${
-                                selectedImaging.includes(item.id)
-                                  ? "bg-primary/10 border-primary"
-                                  : "hover:bg-muted"
-                              }`}
+                              className={`p-2 border rounded cursor-pointer transition-colors text-sm ${selectedImaging.includes(item.id) ? "bg-primary/10 border-primary" : "hover:bg-muted"}`}
                               onClick={() => {
-                                if (selectedImaging.includes(item.id)) {
-                                  setSelectedImaging(selectedImaging.filter((i) => i !== item.id));
-                                } else {
-                                  setSelectedImaging([...selectedImaging, item.id]);
-                                }
+                                if (selectedImaging.includes(item.id)) setSelectedImaging(selectedImaging.filter((i) => i !== item.id));
+                                else setSelectedImaging([...selectedImaging, item.id]);
                               }}
                             >
                               <p className="font-medium">{item.name}</p>
-                              <p className="text-xs text-muted-foreground">
-                                {item.modality} • KES {item.price}
-                              </p>
+                              <p className="text-xs text-muted-foreground">{item.modality} • KES {item.price}</p>
                             </div>
                           ))}
                         </div>
@@ -819,19 +721,11 @@ const Consultation = () => {
                             {patientHistory.map((enc) => (
                               <div key={enc.id} className="p-3 border rounded-lg">
                                 <div className="flex items-center justify-between mb-2">
-                                  <span className="text-sm font-medium">
-                                    {new Date(enc.encounter_date).toLocaleDateString()}
-                                  </span>
-                                  {enc.diagnosis && enc.diagnosis.length > 0 && (
-                                    <Badge variant="outline">{enc.diagnosis[0]}</Badge>
-                                  )}
+                                  <span className="text-sm font-medium">{new Date(enc.encounter_date).toLocaleDateString()}</span>
+                                  {enc.diagnosis && enc.diagnosis.length > 0 && <Badge variant="outline">{enc.diagnosis[0]}</Badge>}
                                 </div>
                                 <p className="text-sm text-muted-foreground">{enc.chief_complaint}</p>
-                                {enc.plan && (
-                                  <p className="text-sm mt-1">
-                                    <strong>Plan:</strong> {enc.plan}
-                                  </p>
-                                )}
+                                {enc.plan && <p className="text-sm mt-1"><strong>Plan:</strong> {enc.plan}</p>}
                               </div>
                             ))}
                           </div>
@@ -845,38 +739,24 @@ const Consultation = () => {
               {/* Right - Vitals & Quick Info */}
               <div className="w-72 border-l bg-muted/20 p-4 overflow-auto">
                 <h3 className="font-semibold mb-3 flex items-center gap-2">
-                  <Activity className="h-4 w-4" />
-                  Latest Vitals
+                  <Activity className="h-4 w-4" /> Latest Vitals
                 </h3>
                 {latestVitals ? (
                   <div className="space-y-3">
                     <div className="grid grid-cols-2 gap-2">
-                      <div className="p-2 bg-background rounded border">
-                        <p className="text-xs text-muted-foreground">BP</p>
-                        <p className="font-semibold">
-                          {latestVitals.blood_pressure_systolic}/{latestVitals.blood_pressure_diastolic}
-                        </p>
-                      </div>
-                      <div className="p-2 bg-background rounded border">
-                        <p className="text-xs text-muted-foreground">Pulse</p>
-                        <p className="font-semibold">{latestVitals.pulse_rate} bpm</p>
-                      </div>
-                      <div className="p-2 bg-background rounded border">
-                        <p className="text-xs text-muted-foreground">Temp</p>
-                        <p className="font-semibold">{latestVitals.temperature}°C</p>
-                      </div>
-                      <div className="p-2 bg-background rounded border">
-                        <p className="text-xs text-muted-foreground">SpO2</p>
-                        <p className="font-semibold">{latestVitals.oxygen_saturation}%</p>
-                      </div>
-                      <div className="p-2 bg-background rounded border">
-                        <p className="text-xs text-muted-foreground">RR</p>
-                        <p className="font-semibold">{latestVitals.respiratory_rate}/min</p>
-                      </div>
-                      <div className="p-2 bg-background rounded border">
-                        <p className="text-xs text-muted-foreground">Weight</p>
-                        <p className="font-semibold">{latestVitals.weight} kg</p>
-                      </div>
+                      {[
+                        { label: "BP", value: `${latestVitals.blood_pressure_systolic}/${latestVitals.blood_pressure_diastolic}` },
+                        { label: "Pulse", value: `${latestVitals.pulse_rate} bpm` },
+                        { label: "Temp", value: `${latestVitals.temperature}°C` },
+                        { label: "SpO2", value: `${latestVitals.oxygen_saturation}%` },
+                        { label: "RR", value: `${latestVitals.respiratory_rate}/min` },
+                        { label: "Weight", value: `${latestVitals.weight} kg` },
+                      ].map((v, i) => (
+                        <div key={i} className="p-2 bg-background rounded border">
+                          <p className="text-xs text-muted-foreground">{v.label}</p>
+                          <p className="font-semibold">{v.value}</p>
+                        </div>
+                      ))}
                     </div>
                     <p className="text-xs text-muted-foreground">
                       Recorded: {new Date(latestVitals.recorded_at).toLocaleString()}
@@ -888,18 +768,13 @@ const Consultation = () => {
 
                 <Separator className="my-4" />
 
-                {/* Chronic Conditions */}
                 <h3 className="font-semibold mb-2 flex items-center gap-2">
-                  <Heart className="h-4 w-4" />
-                  Chronic Conditions
+                  <Heart className="h-4 w-4" /> Chronic Conditions
                 </h3>
-                {selectedTicket.patient?.chronic_conditions &&
-                selectedTicket.patient.chronic_conditions.length > 0 ? (
+                {selectedTicket.patient?.chronic_conditions && selectedTicket.patient.chronic_conditions.length > 0 ? (
                   <div className="flex flex-wrap gap-1">
                     {selectedTicket.patient.chronic_conditions.map((c, i) => (
-                      <Badge key={i} variant="secondary" className="text-xs">
-                        {c}
-                      </Badge>
+                      <Badge key={i} variant="secondary" className="text-xs">{c}</Badge>
                     ))}
                   </div>
                 ) : (
@@ -908,28 +783,19 @@ const Consultation = () => {
 
                 <Separator className="my-4" />
 
-                {/* Insurance */}
                 <h3 className="font-semibold mb-2">Insurance</h3>
-                <p className="text-sm">
-                  {selectedTicket.patient?.insurance_provider || "Self-pay / Cash"}
-                </p>
+                <p className="text-sm">{selectedTicket.patient?.insurance_provider || "Self-pay / Cash"}</p>
               </div>
             </div>
 
             {/* Footer Actions */}
             <div className="p-4 border-t bg-background flex justify-between items-center">
               <div className="text-sm text-muted-foreground">
-                {prescriptions.length} prescriptions, {selectedLabTests.length} lab tests,{" "}
-                {selectedImaging.length} imaging orders
+                {prescriptions.length} prescriptions, {selectedLabTests.length} lab tests, {selectedImaging.length} imaging orders
               </div>
               <div className="flex gap-2">
-                <Button variant="outline" onClick={() => setSelectedTicket(null)}>
-                  Cancel
-                </Button>
-                <Button
-                  onClick={saveEncounter}
-                  disabled={!encounter.chiefComplaint || savingEncounter}
-                >
+                <Button variant="outline" onClick={() => setSelectedTicket(null)}>Cancel</Button>
+                <Button onClick={saveEncounter} disabled={!encounter.chiefComplaint || savingEncounter}>
                   {savingEncounter ? "Saving..." : "Complete & Save"}
                 </Button>
               </div>
@@ -941,52 +807,25 @@ const Consultation = () => {
       {/* Prescription Dialog */}
       <Dialog open={showPrescriptionDialog} onOpenChange={setShowPrescriptionDialog}>
         <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Prescription</DialogTitle>
-          </DialogHeader>
+          <DialogHeader><DialogTitle>Add Prescription</DialogTitle></DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Medication Name *</Label>
-              <Input
-                value={currentPrescription.medication_name}
-                onChange={(e) =>
-                  setCurrentPrescription({ ...currentPrescription, medication_name: e.target.value })
-                }
-                placeholder="e.g., Amoxicillin 500mg"
-              />
+              <Input value={currentPrescription.medication_name} onChange={(e) => setCurrentPrescription({ ...currentPrescription, medication_name: e.target.value })} placeholder="e.g., Amoxicillin 500mg" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Dosage *</Label>
-                <Input
-                  value={currentPrescription.dosage}
-                  onChange={(e) =>
-                    setCurrentPrescription({ ...currentPrescription, dosage: e.target.value })
-                  }
-                  placeholder="e.g., 1 tablet"
-                />
+                <Input value={currentPrescription.dosage} onChange={(e) => setCurrentPrescription({ ...currentPrescription, dosage: e.target.value })} placeholder="e.g., 1 tablet" />
               </div>
               <div className="space-y-2">
                 <Label>Frequency</Label>
-                <Select
-                  value={currentPrescription.frequency}
-                  onValueChange={(value) =>
-                    setCurrentPrescription({ ...currentPrescription, frequency: value })
-                  }
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select" />
-                  </SelectTrigger>
+                <Select value={currentPrescription.frequency} onValueChange={(value) => setCurrentPrescription({ ...currentPrescription, frequency: value })}>
+                  <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Once daily">Once daily</SelectItem>
-                    <SelectItem value="Twice daily">Twice daily</SelectItem>
-                    <SelectItem value="Three times daily">Three times daily</SelectItem>
-                    <SelectItem value="Four times daily">Four times daily</SelectItem>
-                    <SelectItem value="Every 4 hours">Every 4 hours</SelectItem>
-                    <SelectItem value="Every 6 hours">Every 6 hours</SelectItem>
-                    <SelectItem value="Every 8 hours">Every 8 hours</SelectItem>
-                    <SelectItem value="As needed">As needed (PRN)</SelectItem>
-                    <SelectItem value="At bedtime">At bedtime</SelectItem>
+                    {["Once daily", "Twice daily", "Three times daily", "Four times daily", "Every 4 hours", "Every 6 hours", "Every 8 hours", "As needed", "At bedtime"].map(f => (
+                      <SelectItem key={f} value={f}>{f}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
@@ -994,54 +833,35 @@ const Consultation = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Duration</Label>
-                <Input
-                  value={currentPrescription.duration}
-                  onChange={(e) =>
-                    setCurrentPrescription({ ...currentPrescription, duration: e.target.value })
-                  }
-                  placeholder="e.g., 7 days"
-                />
+                <Input value={currentPrescription.duration} onChange={(e) => setCurrentPrescription({ ...currentPrescription, duration: e.target.value })} placeholder="e.g., 7 days" />
               </div>
               <div className="space-y-2">
                 <Label>Quantity</Label>
-                <Input
-                  type="number"
-                  value={currentPrescription.quantity}
-                  onChange={(e) =>
-                    setCurrentPrescription({
-                      ...currentPrescription,
-                      quantity: parseInt(e.target.value) || 1,
-                    })
-                  }
-                  min="1"
-                />
+                <Input type="number" value={currentPrescription.quantity} onChange={(e) => setCurrentPrescription({ ...currentPrescription, quantity: parseInt(e.target.value) || 1 })} min="1" />
               </div>
             </div>
             <div className="space-y-2">
               <Label>Special Instructions</Label>
-              <Textarea
-                value={currentPrescription.instructions}
-                onChange={(e) =>
-                  setCurrentPrescription({ ...currentPrescription, instructions: e.target.value })
-                }
-                placeholder="e.g., Take with food, Avoid alcohol"
-                rows={2}
-              />
+              <Textarea value={currentPrescription.instructions} onChange={(e) => setCurrentPrescription({ ...currentPrescription, instructions: e.target.value })} placeholder="e.g., Take with food" rows={2} />
             </div>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setShowPrescriptionDialog(false)}>
-                Cancel
-              </Button>
-              <Button
-                onClick={addPrescription}
-                disabled={!currentPrescription.medication_name || !currentPrescription.dosage}
-              >
-                Add Prescription
-              </Button>
+              <Button variant="outline" onClick={() => setShowPrescriptionDialog(false)}>Cancel</Button>
+              <Button onClick={addPrescription} disabled={!currentPrescription.medication_name || !currentPrescription.dosage}>Add Prescription</Button>
             </div>
           </div>
         </DialogContent>
       </Dialog>
+
+      {/* Referral Form */}
+      {selectedTicket?.patient && (
+        <ReferralForm
+          patientId={selectedTicket.patient.id}
+          patientName={selectedTicket.patient.profile?.full_name || ""}
+          patientAge={calculateAge(selectedTicket.patient.profile?.date_of_birth || null)}
+          patientGender={selectedTicket.patient.profile?.gender || ""}
+          doctorName=""
+        />
+      )}
     </div>
   );
 };

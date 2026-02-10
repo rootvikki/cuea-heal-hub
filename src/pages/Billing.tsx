@@ -5,75 +5,45 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from "@/components/ui/dialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useQueueTransition } from "@/hooks/useQueueTransition";
-import { Receipt, Plus, CreditCard, Smartphone } from "lucide-react";
+import { StationQueue } from "@/components/StationQueue";
+import { Receipt, CreditCard, Smartphone, FileText, DollarSign } from "lucide-react";
 
 const Billing = () => {
   const { toast } = useToast();
   const { getActiveTicket, onPaymentComplete } = useQueueTransition();
   const [invoices, setInvoices] = useState<any[]>([]);
-  const [patients, setPatients] = useState<any[]>([]);
+  const [serviceCharges, setServiceCharges] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
+  const [chargeSheetOpen, setChargeSheetOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
+  const [selectedPatientCharges, setSelectedPatientCharges] = useState<any[]>([]);
+  const [selectedPatientInfo, setSelectedPatientInfo] = useState<any>(null);
   const [paymentPhone, setPaymentPhone] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState("mpesa");
   const [processingPayment, setProcessingPayment] = useState(false);
-  const [formData, setFormData] = useState({
-    patientId: "",
-    items: [{ description: "", quantity: 1, unitPrice: "" }],
-  });
+  const [selectedTicket, setSelectedTicket] = useState<any>(null);
 
   useEffect(() => {
     fetchInvoices();
-    fetchPatients();
   }, []);
 
   const fetchInvoices = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from("invoices")
-      .select("*")
-      .order("created_at", { ascending: false });
-
+    const { data } = await supabase.from("invoices").select("*").order("created_at", { ascending: false });
     if (data) {
       const invoicesWithDetails = await Promise.all(
         data.map(async (invoice) => {
-          const { data: patient } = await supabase
-            .from("patients")
-            .select("patient_id, user_id")
-            .eq("id", invoice.patient_id)
-            .single();
-
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name, phone")
-            .eq("user_id", patient?.user_id)
-            .single();
-
-          const { data: items } = await supabase
-            .from("invoice_items")
-            .select("*")
-            .eq("invoice_id", invoice.id);
-
+          const { data: patient } = await supabase.from("patients").select("patient_id, user_id, patient_type, payroll_number, admission_number, national_id").eq("id", invoice.patient_id).single();
+          const { data: profile } = await supabase.from("profiles").select("full_name, phone").eq("user_id", patient?.user_id).single();
+          const { data: items } = await supabase.from("invoice_items").select("*").eq("invoice_id", invoice.id);
           return { ...invoice, patient: { ...patient, profile }, items };
         })
       );
@@ -82,50 +52,27 @@ const Billing = () => {
     setLoading(false);
   };
 
-  const fetchPatients = async () => {
-    const { data } = await supabase.from("patients").select("id, patient_id, user_id");
-    if (data) {
-      const patientsWithProfiles = await Promise.all(
-        data.map(async (patient) => {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("user_id", patient.user_id)
-            .single();
-          return { ...patient, profile };
-        })
-      );
-      setPatients(patientsWithProfiles);
+  // Generate invoice from accumulated service charges for a patient's ticket
+  const generateInvoiceFromCharges = async (ticketId: string) => {
+    // Get all charges for this ticket
+    const { data: charges } = await supabase.from("service_charges").select("*").eq("ticket_id", ticketId);
+    if (!charges || charges.length === 0) {
+      toast({ title: "No charges", description: "No service charges found for this visit", variant: "destructive" });
+      return;
     }
-  };
 
-  const addItem = () => {
-    setFormData({
-      ...formData,
-      items: [...formData.items, { description: "", quantity: 1, unitPrice: "" }],
-    });
-  };
-
-  const updateItem = (index: number, field: string, value: any) => {
-    const newItems = [...formData.items];
-    newItems[index] = { ...newItems[index], [field]: value };
-    setFormData({ ...formData, items: newItems });
-  };
-
-  const handleCreateInvoice = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+    const patientId = charges[0].patient_id;
+    const encounterId = charges[0].encounter_id;
+    const totalAmount = charges.reduce((sum, c) => sum + (c.amount || 0), 0);
     const invoiceNumber = `INV-${Date.now().toString().slice(-8)}`;
-    const totalAmount = formData.items.reduce(
-      (sum, item) => sum + (parseFloat(item.unitPrice) || 0) * item.quantity,
-      0
-    );
 
+    // Create invoice
     const { data: invoice, error: invoiceError } = await supabase
       .from("invoices")
       .insert({
         invoice_number: invoiceNumber,
-        patient_id: formData.patientId,
+        patient_id: patientId,
+        encounter_id: encounterId,
         total_amount: totalAmount,
         net_amount: totalAmount,
         balance: totalAmount,
@@ -135,284 +82,149 @@ const Billing = () => {
       .single();
 
     if (invoiceError) {
-      toast({
-        title: "Error creating invoice",
-        description: invoiceError.message,
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: invoiceError.message, variant: "destructive" });
       return;
     }
 
-    const itemsToInsert = formData.items.map((item) => ({
+    // Create invoice items from service charges
+    const items = charges.map(c => ({
       invoice_id: invoice.id,
-      description: item.description,
-      quantity: item.quantity,
-      unit_price: parseFloat(item.unitPrice),
-      total_price: parseFloat(item.unitPrice) * item.quantity,
+      description: c.description,
+      quantity: 1,
+      unit_price: c.amount,
+      total_price: c.amount,
     }));
 
-    const { error: itemsError } = await supabase
-      .from("invoice_items")
-      .insert(itemsToInsert);
+    await supabase.from("invoice_items").insert(items);
 
-    if (itemsError) {
-      toast({
-        title: "Error adding items",
-        description: itemsError.message,
-        variant: "destructive",
-      });
-    } else {
-      toast({
-        title: "Invoice created",
-        description: `Invoice ${invoiceNumber} created successfully`,
-      });
-      setDialogOpen(false);
-      setFormData({
-        patientId: "",
-        items: [{ description: "", quantity: 1, unitPrice: "" }],
-      });
-      fetchInvoices();
-    }
+    toast({ title: "Invoice generated", description: `${invoiceNumber} — KES ${totalAmount.toFixed(2)}` });
+    fetchInvoices();
   };
 
-  const handleMpesaPayment = async () => {
-    if (!selectedInvoice || !paymentPhone) return;
-
-    setProcessingPayment(true);
+  const viewChargeSheet = async (ticket: any) => {
+    const { data: charges } = await supabase.from("service_charges").select("*").eq("ticket_id", ticket.id).order("created_at");
     
+    const { data: patient } = await supabase.from("patients").select("patient_id, user_id, patient_type, payroll_number, admission_number, national_id").eq("id", ticket.patient_id).single();
+    const { data: profile } = await supabase.from("profiles").select("full_name, phone").eq("user_id", patient?.user_id).single();
+
+    setSelectedPatientCharges(charges || []);
+    setSelectedPatientInfo({ ...patient, profile, ticket });
+    setChargeSheetOpen(true);
+  };
+
+  const handleGenerateAndPay = async () => {
+    if (!selectedPatientInfo?.ticket?.id) return;
+    await generateInvoiceFromCharges(selectedPatientInfo.ticket.id);
+    setChargeSheetOpen(false);
+    fetchInvoices();
+  };
+
+  const handlePayment = async () => {
+    if (!selectedInvoice) return;
+    setProcessingPayment(true);
+
     try {
-      // Call real M-Pesa edge function
-      const { data, error } = await supabase.functions.invoke("mpesa-stk-push", {
-        body: {
-          phone_number: paymentPhone,
-          amount: selectedInvoice.balance,
-          invoice_id: selectedInvoice.id,
-          account_reference: selectedInvoice.invoice_number
-        }
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Payment initiated",
-        description: "STK push sent. Check phone to complete payment.",
-      });
-
-      // For demo: simulate successful callback after delay
-      setTimeout(async () => {
-        const { error: paymentError } = await supabase.from("payments").insert({
-          invoice_id: selectedInvoice.id,
-          patient_id: selectedInvoice.patient_id,
-          amount: selectedInvoice.balance,
-          payment_method: "mpesa",
-          transaction_ref: `MPE${Date.now().toString().slice(-10)}`,
-          status: "completed",
+      if (paymentMethod === "mpesa") {
+        await supabase.functions.invoke("mpesa-stk-push", {
+          body: {
+            phone_number: paymentPhone,
+            amount: selectedInvoice.balance,
+            invoice_id: selectedInvoice.id,
+            account_reference: selectedInvoice.invoice_number,
+          },
         });
+        toast({ title: "STK Push sent", description: "Check phone to complete payment" });
+      }
 
-        const { error: invoiceError } = await supabase
-          .from("invoices")
-          .update({
-            amount_paid: selectedInvoice.net_amount,
-            balance: 0,
-            status: "paid",
-          })
-          .eq("id", selectedInvoice.id);
+      // Record payment
+      const { error: payError } = await supabase.from("payments").insert({
+        invoice_id: selectedInvoice.id,
+        patient_id: selectedInvoice.patient_id,
+        amount: selectedInvoice.balance,
+        payment_method: paymentMethod as any,
+        transaction_ref: paymentMethod === "mpesa" ? `MPE${Date.now().toString().slice(-10)}` : `${paymentMethod.toUpperCase()}-${Date.now().toString().slice(-8)}`,
+        status: "completed",
+      });
 
-        if (!paymentError && !invoiceError) {
-          toast({
-            title: "Payment successful",
-            description: "M-Pesa payment completed",
-          });
+      if (!payError) {
+        await supabase.from("invoices").update({
+          amount_paid: selectedInvoice.net_amount,
+          balance: 0,
+          status: "paid",
+        }).eq("id", selectedInvoice.id);
 
-          // Auto-transition: Check out patient after payment
-          const ticket = await getActiveTicket(selectedInvoice.patient_id);
-          if (ticket && ticket.status === "at_billing") {
-            await onPaymentComplete({ ticketId: ticket.id });
-          }
+        toast({ title: "Payment recorded", description: `Invoice ${selectedInvoice.invoice_number} paid` });
 
-          fetchInvoices();
+        // Auto-checkout patient
+        const ticket = await getActiveTicket(selectedInvoice.patient_id);
+        if (ticket && (ticket.status === "at_billing" || ticket.workflow_stage === "at_billing")) {
+          await onPaymentComplete({ ticketId: ticket.id });
         }
 
-        setPaymentDialogOpen(false);
-        setPaymentPhone("");
-        setProcessingPayment(false);
-      }, 3000);
+        fetchInvoices();
+      }
 
+      setPaymentDialogOpen(false);
+      setPaymentPhone("");
     } catch (error) {
-      console.error("Payment error:", error);
-      toast({
-        title: "Payment error",
-        description: "Failed to initiate payment",
-        variant: "destructive",
-      });
+      toast({ title: "Payment error", description: "Failed to process payment", variant: "destructive" });
+    } finally {
       setProcessingPayment(false);
     }
   };
 
   const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = {
-      pending: "bg-warning",
-      partial: "bg-status-in-progress",
-      paid: "bg-status-completed",
-      cancelled: "bg-status-cancelled",
-    };
+    const colors: Record<string, string> = { pending: "bg-yellow-100 text-yellow-800", partial: "bg-blue-100 text-blue-800", paid: "bg-green-100 text-green-800", cancelled: "bg-muted" };
     return colors[status] || "bg-muted";
   };
 
+  const getPaymentMethodLabel = (patientType: string | null) => {
+    switch (patientType) {
+      case "cuea_staff": return "Payroll / Insurance";
+      case "cuea_student": return "Student Account";
+      default: return "M-Pesa / Cash";
+    }
+  };
+
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold">Billing & Payments</h1>
-          <p className="text-muted-foreground mt-1">
-            Manage invoices and process payments
-          </p>
+    <div className="flex h-screen overflow-hidden">
+      <StationQueue
+        stationStages={["at_billing"]}
+        nextStage="checked_out"
+        title="Billing Queue"
+        onSelectPatient={(ticket) => {
+          setSelectedTicket(ticket);
+          viewChargeSheet(ticket);
+        }}
+        selectedTicketId={selectedTicket?.id}
+      />
+
+      <div className="flex-1 overflow-auto p-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold">Billing & Payments</h1>
+            <p className="text-muted-foreground">Service charge accumulation & payment processing</p>
+          </div>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              Create Invoice
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>Create New Invoice</DialogTitle>
-              <DialogDescription>Generate invoice for patient services</DialogDescription>
-            </DialogHeader>
-            <form onSubmit={handleCreateInvoice} className="space-y-4">
-              <div className="space-y-2">
-                <Label>Patient</Label>
-                <Select
-                  value={formData.patientId}
-                  onValueChange={(value) => setFormData({ ...formData, patientId: value })}
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select patient" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {patients.map((patient) => (
-                      <SelectItem key={patient.id} value={patient.id}>
-                        {patient.patient_id} - {patient.profile?.full_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
 
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label>Invoice Items</Label>
-                  <Button type="button" variant="outline" size="sm" onClick={addItem}>
-                    Add Item
-                  </Button>
-                </div>
-
-                {formData.items.map((item, index) => (
-                  <div key={index} className="grid grid-cols-12 gap-2">
-                    <div className="col-span-6">
-                      <Input
-                        placeholder="Description"
-                        value={item.description}
-                        onChange={(e) => updateItem(index, "description", e.target.value)}
-                        required
-                      />
-                    </div>
-                    <div className="col-span-2">
-                      <Input
-                        type="number"
-                        min="1"
-                        placeholder="Qty"
-                        value={item.quantity}
-                        onChange={(e) => updateItem(index, "quantity", parseInt(e.target.value))}
-                        required
-                      />
-                    </div>
-                    <div className="col-span-4">
-                      <Input
-                        type="number"
-                        step="0.01"
-                        placeholder="Unit Price (KES)"
-                        value={item.unitPrice}
-                        onChange={(e) => updateItem(index, "unitPrice", e.target.value)}
-                        required
-                      />
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="p-3 bg-muted rounded-lg">
-                <p className="text-sm font-medium">
-                  Total: KES{" "}
-                  {formData.items
-                    .reduce((sum, item) => sum + (parseFloat(item.unitPrice) || 0) * item.quantity, 0)
-                    .toFixed(2)}
-                </p>
-              </div>
-
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                  Cancel
-                </Button>
-                <Button type="submit">Create Invoice</Button>
-              </div>
-            </form>
-          </DialogContent>
-        </Dialog>
-      </div>
-
-      <div className="grid gap-6 md:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Total Revenue</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              KES {invoices.reduce((sum, inv) => sum + parseFloat(inv.amount_paid || 0), 0).toFixed(2)}
-            </div>
-          </CardContent>
-        </Card>
+        <div className="grid gap-4 md:grid-cols-4">
+          <Card><CardHeader><CardTitle className="text-sm">Total Revenue</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">KES {invoices.reduce((s, i) => s + parseFloat(i.amount_paid || 0), 0).toLocaleString()}</div></CardContent></Card>
+          <Card><CardHeader><CardTitle className="text-sm">Pending</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{invoices.filter(i => i.status === "pending").length}</div></CardContent></Card>
+          <Card><CardHeader><CardTitle className="text-sm">Outstanding</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">KES {invoices.reduce((s, i) => s + parseFloat(i.balance || 0), 0).toLocaleString()}</div></CardContent></Card>
+          <Card><CardHeader><CardTitle className="text-sm">Paid Today</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{invoices.filter(i => i.status === "paid" && i.updated_at?.startsWith(new Date().toISOString().split('T')[0])).length}</div></CardContent></Card>
+        </div>
 
         <Card>
           <CardHeader>
-            <CardTitle className="text-sm">Pending Payments</CardTitle>
+            <CardTitle className="flex items-center gap-2"><Receipt className="h-5 w-5" /> Invoices</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-3xl font-bold">
-              {invoices.filter(i => i.status === "pending").length}
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-sm">Outstanding Balance</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-3xl font-bold">
-              KES {invoices.reduce((sum, inv) => sum + parseFloat(inv.balance || 0), 0).toFixed(2)}
-            </div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Receipt className="h-5 w-5" />
-            Invoices
-          </CardTitle>
-          <CardDescription>Recent invoices and payments</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-md border">
             <Table>
               <TableHeader>
                 <TableRow>
                   <TableHead>Invoice #</TableHead>
                   <TableHead>Patient</TableHead>
+                  <TableHead>Type</TableHead>
                   <TableHead>Amount</TableHead>
                   <TableHead>Balance</TableHead>
                   <TableHead>Status</TableHead>
@@ -421,40 +233,27 @@ const Billing = () => {
               </TableHeader>
               <TableBody>
                 {invoices.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={6} className="text-center py-8">
-                      No invoices yet
-                    </TableCell>
-                  </TableRow>
+                  <TableRow><TableCell colSpan={7} className="text-center py-8">No invoices yet</TableCell></TableRow>
                 ) : (
                   invoices.map((invoice) => (
                     <TableRow key={invoice.id}>
                       <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
                       <TableCell>
-                        <div>
-                          <p>{invoice.patient?.profile?.full_name}</p>
-                          <p className="text-sm text-muted-foreground">{invoice.patient?.patient_id}</p>
-                        </div>
+                        <p>{invoice.patient?.profile?.full_name}</p>
+                        <p className="text-sm text-muted-foreground">{invoice.patient?.patient_id}</p>
                       </TableCell>
-                      <TableCell>KES {parseFloat(invoice.net_amount).toFixed(2)}</TableCell>
-                      <TableCell>KES {parseFloat(invoice.balance).toFixed(2)}</TableCell>
                       <TableCell>
-                        <Badge className={getStatusColor(invoice.status)}>
-                          {invoice.status}
+                        <Badge variant="outline" className="text-xs capitalize">
+                          {(invoice.patient?.patient_type || "outsider").replace("_", " ")}
                         </Badge>
                       </TableCell>
+                      <TableCell>KES {parseFloat(invoice.net_amount).toLocaleString()}</TableCell>
+                      <TableCell>KES {parseFloat(invoice.balance).toLocaleString()}</TableCell>
+                      <TableCell><Badge className={getStatusColor(invoice.status)}>{invoice.status}</Badge></TableCell>
                       <TableCell>
                         {invoice.status !== "paid" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setSelectedInvoice(invoice);
-                              setPaymentDialogOpen(true);
-                            }}
-                          >
-                            <Smartphone className="h-4 w-4 mr-2" />
-                            M-Pesa
+                          <Button size="sm" variant="outline" onClick={() => { setSelectedInvoice(invoice); setPaymentDialogOpen(true); }}>
+                            <DollarSign className="h-4 w-4 mr-1" /> Pay
                           </Button>
                         )}
                       </TableCell>
@@ -463,43 +262,105 @@ const Billing = () => {
                 )}
               </TableBody>
             </Table>
-          </div>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      </div>
 
+      {/* Charge Sheet Dialog */}
+      <Dialog open={chargeSheetOpen} onOpenChange={setChargeSheetOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> CUEA Infirmary Charge Sheet</DialogTitle>
+            <DialogDescription>TO CREDIT CONTROLLER</DialogDescription>
+          </DialogHeader>
+          {selectedPatientInfo && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
+                <div>
+                  <p className="text-sm text-muted-foreground">Patient Name</p>
+                  <p className="font-medium">{selectedPatientInfo.profile?.full_name}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Reg/ID No.</p>
+                  <p className="font-medium">{selectedPatientInfo.admission_number || selectedPatientInfo.payroll_number || selectedPatientInfo.national_id || selectedPatientInfo.patient_id}</p>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Patient Type</p>
+                  <Badge variant="outline" className="capitalize">{(selectedPatientInfo.patient_type || "outsider").replace("_", " ")}</Badge>
+                </div>
+                <div>
+                  <p className="text-sm text-muted-foreground">Payment Mode</p>
+                  <p className="font-medium">{getPaymentMethodLabel(selectedPatientInfo.patient_type)}</p>
+                </div>
+              </div>
+
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>#</TableHead>
+                    <TableHead>Service</TableHead>
+                    <TableHead>Stage</TableHead>
+                    <TableHead>Amount (KES)</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {selectedPatientCharges.map((charge, idx) => (
+                    <TableRow key={charge.id}>
+                      <TableCell>{idx + 1}</TableCell>
+                      <TableCell>{charge.description}</TableCell>
+                      <TableCell className="capitalize">{charge.billing_stage?.replace("_", " ") || "-"}</TableCell>
+                      <TableCell>{charge.amount.toLocaleString()}</TableCell>
+                    </TableRow>
+                  ))}
+                  <TableRow className="font-bold">
+                    <TableCell colSpan={3} className="text-right">TOTAL BILL</TableCell>
+                    <TableCell>KES {selectedPatientCharges.reduce((s, c) => s + (c.amount || 0), 0).toLocaleString()}</TableCell>
+                  </TableRow>
+                </TableBody>
+              </Table>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setChargeSheetOpen(false)}>Close</Button>
+                <Button onClick={handleGenerateAndPay}>Generate Invoice</Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Payment Dialog */}
       <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>M-Pesa Payment</DialogTitle>
+            <DialogTitle>Process Payment</DialogTitle>
             <DialogDescription>
-              {selectedInvoice && (
-                <>
-                  Invoice: {selectedInvoice.invoice_number} | Amount: KES {selectedInvoice.balance}
-                </>
-              )}
+              {selectedInvoice && <>Invoice: {selectedInvoice.invoice_number} | Balance: KES {parseFloat(selectedInvoice.balance).toLocaleString()}</>}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Phone Number</Label>
-              <Input
-                type="tel"
-                placeholder="254712345678"
-                value={paymentPhone}
-                onChange={(e) => setPaymentPhone(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                Enter phone number in format: 254XXXXXXXXX
-              </p>
+              <Label>Payment Method</Label>
+              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="mpesa">M-Pesa</SelectItem>
+                  <SelectItem value="cash">Cash</SelectItem>
+                  <SelectItem value="insurance">Insurance</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
+            {paymentMethod === "mpesa" && (
+              <div className="space-y-2">
+                <Label>Phone Number</Label>
+                <Input type="tel" placeholder="254712345678" value={paymentPhone} onChange={(e) => setPaymentPhone(e.target.value)} />
+              </div>
+            )}
+
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setPaymentDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button onClick={handleMpesaPayment} disabled={!paymentPhone || processingPayment}>
-                <Smartphone className="h-4 w-4 mr-2" />
-                {processingPayment ? "Processing..." : "Send STK Push"}
+              <Button variant="outline" onClick={() => setPaymentDialogOpen(false)}>Cancel</Button>
+              <Button onClick={handlePayment} disabled={processingPayment || (paymentMethod === "mpesa" && !paymentPhone)}>
+                {processingPayment ? "Processing..." : "Complete Payment"}
               </Button>
             </div>
           </div>
