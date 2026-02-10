@@ -92,8 +92,8 @@ const Vitals = () => {
         });
       }
 
-      // Advance ticket to waiting_for_doctor
-      await supabase.from("tickets").update({ workflow_stage: "waiting_for_doctor" }).eq("id", selectedTicket.id);
+      // Advance ticket to waiting_for_doctor (sync both fields)
+      await supabase.from("tickets").update({ workflow_stage: "waiting_for_doctor", status: "waiting_for_doctor" }).eq("id", selectedTicket.id);
 
       toast({ title: "Vitals saved", description: "Patient sent to doctor queue" });
       logAuditEvent({ action: "vitals_recorded", module: "triage", details: { patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id, procedures: procedures.length } });

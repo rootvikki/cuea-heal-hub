@@ -147,6 +147,7 @@ const Queue = () => {
       department_id: formData.departmentId,
       priority: parseInt(formData.priority),
       status: "checked_in",
+      workflow_stage: "checked_in",
     });
 
     if (error) {
@@ -170,7 +171,7 @@ const Queue = () => {
   const updateTicketStatus = async (ticketId: string, newStatus: TicketStatus) => {
     const { error } = await supabase
       .from("tickets")
-      .update({ status: newStatus })
+      .update({ status: newStatus, workflow_stage: newStatus })
       .eq("id", ticketId);
 
     if (error) {
@@ -359,21 +360,30 @@ const Queue = () => {
                     </Badge>
                   </div>
 
-                  <div className="flex gap-2 flex-wrap">
-                    {statusFlow.map((status, idx) => (
-                      <Button
-                        key={status}
-                        size="sm"
-                        variant={ticket.status === status ? "default" : "outline"}
-                        onClick={() => updateTicketStatus(ticket.id, status)}
-                        disabled={ticket.status === status}
-                      >
-                        {status.replace(/_/g, " ")}
-                        {idx < statusFlow.length - 1 && (
-                          <ArrowRight className="ml-1 h-3 w-3" />
-                        )}
-                      </Button>
-                    ))}
+                  <div className="flex gap-1 flex-wrap items-center">
+                    {statusFlow.map((status, idx) => {
+                      const currentIdx = statusFlow.indexOf(ticket.workflow_stage || ticket.status);
+                      const isCompleted = idx < currentIdx;
+                      const isCurrent = idx === currentIdx;
+                      return (
+                        <div key={status} className="flex items-center gap-1">
+                          <div
+                            className={`px-2 py-1 rounded text-xs font-medium ${
+                              isCurrent
+                                ? "bg-primary text-primary-foreground"
+                                : isCompleted
+                                ? "bg-primary/20 text-primary"
+                                : "bg-muted text-muted-foreground"
+                            }`}
+                          >
+                            {status.replace(/_/g, " ")}
+                          </div>
+                          {idx < statusFlow.length - 1 && (
+                            <ArrowRight className="h-3 w-3 text-muted-foreground" />
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               ))}

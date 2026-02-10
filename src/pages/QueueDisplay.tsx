@@ -231,8 +231,8 @@ const QueueDisplay = () => {
                       <p className="font-medium text-lg">
                         {ticket.patient?.profile?.full_name || "Patient"}
                       </p>
-                      <Badge className={`${getStageColor(ticket.status)} mt-2`}>
-                        {stageLabels[ticket.status]}
+                      <Badge className={`${getStageColor(ticket.workflow_stage || ticket.status)} mt-2`}>
+                        {stageLabels[ticket.workflow_stage || ticket.status]}
                       </Badge>
                     </div>
                   );
@@ -310,14 +310,14 @@ const QueueDisplay = () => {
               <Clock className="h-5 w-5" />
               Waiting Queue
               <Badge variant="outline" className="ml-2">
-                {tickets.filter((t) => t.status === "waiting_for_doctor").length} waiting
+                {tickets.filter((t) => (t.workflow_stage || t.status) === "waiting_for_doctor").length} waiting
               </Badge>
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
               {tickets
-                .filter((t) => t.status === "waiting_for_doctor")
+                .filter((t) => (t.workflow_stage || t.status) === "waiting_for_doctor")
                 .map((ticket, index) => {
                   const priority = getPriorityLabel(ticket.priority);
                   return (
@@ -356,7 +356,7 @@ const QueueDisplay = () => {
           </div>
           <div>
             <p className="text-4xl font-bold text-secondary">
-              {tickets.filter((t) => t.status === "waiting_for_doctor").length}
+              {tickets.filter((t) => (t.workflow_stage || t.status) === "waiting_for_doctor").length}
             </p>
             <p className="text-sm text-muted-foreground">Waiting</p>
           </div>

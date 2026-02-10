@@ -1,10 +1,13 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdminRoleAssignment } from "@/components/AdminRoleAssignment";
+import { PatientRegistrationDialog } from "@/components/PatientRegistrationDialog";
 import { Users, Calendar, ClipboardList, DollarSign, Activity, Pill } from "lucide-react";
 
 const Dashboard = () => {
+  const navigate = useNavigate();
   const [stats, setStats] = useState({
     totalPatients: 0,
     todayAppointments: 0,
@@ -135,15 +138,12 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="grid gap-2">
-              <button className="w-full p-3 text-left rounded-lg bg-primary/10 hover:bg-primary/20 transition-colors">
-                <div className="font-medium">Register New Patient</div>
-                <div className="text-sm text-muted-foreground">Add a new patient to the system</div>
-              </button>
-              <button className="w-full p-3 text-left rounded-lg bg-accent/10 hover:bg-accent/20 transition-colors">
+              <PatientRegistrationDialog />
+              <button className="w-full p-3 text-left rounded-lg bg-accent/10 hover:bg-accent/20 transition-colors" onClick={() => navigate("/appointments")}>
                 <div className="font-medium">Create Appointment</div>
                 <div className="text-sm text-muted-foreground">Schedule a new appointment</div>
               </button>
-              <button className="w-full p-3 text-left rounded-lg bg-success/10 hover:bg-success/20 transition-colors">
+              <button className="w-full p-3 text-left rounded-lg bg-success/10 hover:bg-success/20 transition-colors" onClick={() => navigate("/queue")}>
                 <div className="font-medium">Check-in Patient</div>
                 <div className="text-sm text-muted-foreground">Generate queue ticket</div>
               </button>
