@@ -195,6 +195,8 @@ export type Database = {
           id: string
           ip_address: string | null
           module: string
+          payroll_number: string | null
+          staff_id: string | null
           user_id: string | null
         }
         Insert: {
@@ -204,6 +206,8 @@ export type Database = {
           id?: string
           ip_address?: string | null
           module: string
+          payroll_number?: string | null
+          staff_id?: string | null
           user_id?: string | null
         }
         Update: {
@@ -213,6 +217,8 @@ export type Database = {
           id?: string
           ip_address?: string | null
           module?: string
+          payroll_number?: string | null
+          staff_id?: string | null
           user_id?: string | null
         }
         Relationships: []
@@ -1821,6 +1827,7 @@ export type Database = {
           department_id: string | null
           id: string
           license_number: string | null
+          payroll_number: string | null
           specialization: string | null
           staff_id: string
           updated_at: string | null
@@ -1831,6 +1838,7 @@ export type Database = {
           department_id?: string | null
           id?: string
           license_number?: string | null
+          payroll_number?: string | null
           specialization?: string | null
           staff_id: string
           updated_at?: string | null
@@ -1841,6 +1849,7 @@ export type Database = {
           department_id?: string | null
           id?: string
           license_number?: string | null
+          payroll_number?: string | null
           specialization?: string | null
           staff_id?: string
           updated_at?: string | null
@@ -2132,6 +2141,7 @@ export type Database = {
           created_at: string
           email: string
           full_name: string
+          payroll_number: string
           phone: string
           roles: string[]
           user_id: string

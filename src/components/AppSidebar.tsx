@@ -2,28 +2,9 @@ import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import {
-  Home,
-  Users,
-  Calendar,
-  FileText,
-  Pill,
-  TestTube,
-  Receipt,
-  Settings,
-  LogOut,
-  Hospital,
-  ClipboardList,
-  Activity,
-  Camera,
-  Bed,
-  Shield,
-  UserCog,
-  BarChart3,
-  Stethoscope,
-  UserCircle,
-  UserPlus,
-  ShieldCheck,
-  Monitor,
+  Home, Users, Calendar, FileText, Pill, TestTube, Receipt, Settings,
+  LogOut, ClipboardList, Activity, Camera, Bed, Shield, UserCog,
+  BarChart3, Stethoscope, UserCircle, UserPlus, ShieldCheck, Monitor, FileSearch,
 } from "lucide-react";
 import {
   Sidebar,
@@ -99,8 +80,8 @@ export function AppSidebar() {
 
   const supportItems = [
     { title: "Pharmacy", url: "/pharmacy", icon: Pill, roles: ["admin", "super_admin", "pharmacist", "doctor"] },
-    { title: "Billing", url: "/billing", icon: Receipt, roles: ["admin", "super_admin", "finance_officer"] },
-    { title: "Insurance", url: "/insurance", icon: Shield, roles: ["admin", "super_admin", "finance_officer", "receptionist"] },
+    { title: "Billing", url: "/billing", icon: Receipt, roles: ["admin", "super_admin", "finance_officer", "cashier"] },
+    { title: "Insurance", url: "/insurance", icon: Shield, roles: ["admin", "super_admin", "finance_officer", "receptionist", "cashier"] },
   ];
 
   const adminItems = [
@@ -108,6 +89,7 @@ export function AppSidebar() {
     { title: "Staff Onboarding", url: "/admin/onboard-staff", icon: UserPlus, roles: ["admin", "super_admin", "hr_admin"] },
     { title: "Role Management", url: "/admin/roles", icon: ShieldCheck, roles: ["super_admin"] },
     { title: "Staff", url: "/staff", icon: UserCog, roles: ["admin", "super_admin"] },
+    { title: "Audit Logs", url: "/admin/audit-logs", icon: FileSearch, roles: ["admin", "super_admin"] },
     { title: "Reports", url: "/reports", icon: BarChart3, roles: ["admin", "super_admin", "finance_officer"] },
     { title: "Settings", url: "/settings", icon: Settings, roles: ["all"] },
   ];

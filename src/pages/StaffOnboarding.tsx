@@ -24,6 +24,7 @@ interface FormData {
   fullName: string;
   phone: string;
   nationalId: string;
+  payrollNumber: string;
   primaryRole: AppRole | "";
   secondaryRoles: AppRole[];
   departmentId: string;
@@ -62,7 +63,19 @@ const ROLES: { value: AppRole; label: string; category: string }[] = [
 ];
 
 const WORKING_DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-const SHIFTS = ["Morning (6AM - 2PM)", "Afternoon (2PM - 10PM)", "Night (10PM - 6AM)", "Flexible"];
+const SHIFTS = ["All Day (8AM - 5PM)", "Morning (6AM - 2PM)", "Afternoon (2PM - 10PM)", "Night (10PM - 6AM)", "Flexible"];
+
+const ROLE_DEPARTMENT_MAP: Record<string, string> = {
+  doctor: "General Medicine",
+  clinical_officer: "General Medicine",
+  nurse: "General Medicine",
+  ward_manager: "General Medicine",
+  receptionist: "General Medicine",
+  records_officer: "General Medicine",
+  lab_technician: "Laboratory",
+  radiologist: "Imaging",
+  pharmacist: "Pharmacy",
+};
 
 export default function StaffOnboarding() {
   const navigate = useNavigate();
@@ -76,13 +89,14 @@ export default function StaffOnboarding() {
     fullName: "",
     phone: "",
     nationalId: "",
+    payrollNumber: "",
     primaryRole: "",
     secondaryRoles: [],
     departmentId: "",
     specialization: "",
     licenseNumber: "",
     workingDays: ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
-    shiftPreference: "Morning (6AM - 2PM)",
+    shiftPreference: "All Day (8AM - 5PM)",
     notes: "",
   });
 
@@ -117,12 +131,23 @@ export default function StaffOnboarding() {
     }));
   };
 
+  // Auto-suggest department when primary role changes
+  useEffect(() => {
+    if (formData.primaryRole && departments.length > 0) {
+      const suggestedDeptName = ROLE_DEPARTMENT_MAP[formData.primaryRole];
+      if (suggestedDeptName) {
+        const dept = departments.find(d => d.name.toLowerCase().includes(suggestedDeptName.toLowerCase()));
+        if (dept) setFormData(prev => ({ ...prev, departmentId: dept.id }));
+      }
+    }
+  }, [formData.primaryRole, departments]);
+
   const validateStep = (step: number): boolean => {
     switch (step) {
       case 1:
-        return !!(formData.email && formData.fullName);
+        return !!(formData.email && formData.fullName && formData.payrollNumber);
       case 2:
-        return !!(formData.primaryRole && formData.departmentId);
+        return !!(formData.primaryRole);
       case 3:
         return formData.workingDays.length > 0;
       default:
@@ -162,9 +187,9 @@ export default function StaffOnboarding() {
           fullName: formData.fullName,
           phone: formData.phone,
           roles: allRoles,
-          departmentId: formData.departmentId,
-          specialization: formData.specialization,
-          licenseNumber: formData.licenseNumber,
+          departmentId: formData.departmentId || null,
+          adminUserId: session?.user?.id,
+          payrollNumber: formData.payrollNumber,
         },
       });
 
@@ -263,9 +288,18 @@ export default function StaffOnboarding() {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="staff@hospital.com"
+                    placeholder="staff@cuea.edu"
                     value={formData.email}
                     onChange={e => updateFormData("email", e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="payrollNumber">Payroll Number *</Label>
+                  <Input
+                    id="payrollNumber"
+                    placeholder="e.g. PAY-0001"
+                    value={formData.payrollNumber}
+                    onChange={e => updateFormData("payrollNumber", e.target.value)}
                   />
                 </div>
                 <div className="space-y-2">
@@ -458,6 +492,10 @@ export default function StaffOnboarding() {
                     <div className="flex justify-between">
                       <span className="text-muted-foreground">National ID:</span>
                       <span className="font-medium">{formData.nationalId || "Not provided"}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-muted-foreground">Payroll Number:</span>
+                      <span className="font-medium">{formData.payrollNumber || "Not provided"}</span>
                     </div>
                   </CardContent>
                 </Card>

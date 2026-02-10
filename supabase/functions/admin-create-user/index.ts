@@ -14,6 +14,7 @@ interface CreateUserRequest {
   roles: string[];
   departmentId?: string;
   adminUserId: string;
+  payrollNumber?: string;
 }
 
 function generateTempPassword(): string {
@@ -31,10 +32,11 @@ serve(async (req) => {
   }
 
   try {
-    const { email, fullName, phone, roles, departmentId, adminUserId }: CreateUserRequest = await req.json();
+    const body: CreateUserRequest = await req.json();
+    const { email, fullName, phone, roles, departmentId, adminUserId, payrollNumber } = body;
 
     if (!email || !fullName || !roles || roles.length === 0 || !adminUserId) {
-      throw new Error("Missing required fields");
+      throw new Error("Missing required fields: email, fullName, roles, adminUserId");
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -47,9 +49,7 @@ serve(async (req) => {
       .select("role")
       .eq("user_id", adminUserId);
 
-    if (roleError) {
-      throw new Error("Failed to verify admin permissions");
-    }
+    if (roleError) throw new Error("Failed to verify admin permissions");
 
     const isAdmin = adminRoles?.some(r => r.role === "admin" || r.role === "super_admin");
     if (!isAdmin) {
@@ -59,43 +59,28 @@ serve(async (req) => {
       );
     }
 
-    // Generate temporary password
     const tempPassword = generateTempPassword();
 
-    // Create user in auth
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email: email,
+      email,
       password: tempPassword,
       email_confirm: true,
-      user_metadata: {
-        full_name: fullName,
-        phone: phone || "",
-      },
+      user_metadata: { full_name: fullName, phone: phone || "" },
     });
 
-    if (authError) {
-      throw new Error(`Failed to create user: ${authError.message}`);
-    }
+    if (authError) throw new Error(`Failed to create user: ${authError.message}`);
 
     const userId = authData.user.id;
 
     // Remove default patient role and add specified roles
-    await supabase
-      .from("user_roles")
-      .delete()
-      .eq("user_id", userId)
-      .eq("role", "patient");
+    await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", "patient");
 
-    // Add specified roles
     for (const role of roles) {
-      await supabase.from("user_roles").insert({
-        user_id: userId,
-        role: role,
-      });
+      await supabase.from("user_roles").insert({ user_id: userId, role });
     }
 
-    // If staff role, create staff record
-    const staffRoles = ["doctor", "nurse", "receptionist", "lab_technician", "pharmacist", "radiologist", "finance_officer", "admin", "clinical_officer", "records_officer", "ward_manager"];
+    // If staff role, create staff record with payroll_number
+    const staffRoles = ["doctor", "nurse", "receptionist", "lab_technician", "pharmacist", "radiologist", "finance_officer", "admin", "clinical_officer", "records_officer", "ward_manager", "cashier", "accountant", "hr_admin", "auditor", "super_admin", "system_admin"];
     const hasStaffRole = roles.some(r => staffRoles.includes(r));
 
     if (hasStaffRole) {
@@ -104,117 +89,87 @@ serve(async (req) => {
         user_id: userId,
         staff_id: staffId,
         department_id: departmentId || null,
+        payroll_number: payrollNumber || null,
       });
     }
 
-    // Send welcome email with credentials
+    // Log audit event
+    await supabase.from("audit_logs").insert({
+      user_id: adminUserId,
+      action: "CREATE_STAFF",
+      module: "staff_onboarding",
+      staff_id: payrollNumber || null,
+      payroll_number: payrollNumber || null,
+      details: { created_user_email: email, roles, department_id: departmentId },
+    });
+
+    // Send welcome email
     const smtpHost = Deno.env.get("SMTP_HOST");
     const smtpPort = parseInt(Deno.env.get("SMTP_PORT") || "587");
     const smtpUser = Deno.env.get("SMTP_USER");
     const smtpPassword = Deno.env.get("SMTP_PASSWORD");
 
     if (smtpHost && smtpUser && smtpPassword) {
-      const client = new SMTPClient({
-        connection: {
-          hostname: smtpHost,
-          port: smtpPort,
-          tls: true,
-          auth: {
-            username: smtpUser,
-            password: smtpPassword,
+      try {
+        const client = new SMTPClient({
+          connection: {
+            hostname: smtpHost,
+            port: smtpPort,
+            tls: true,
+            auth: { username: smtpUser, password: smtpPassword },
           },
-        },
-      });
+        });
 
-      const htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #0066cc, #0099cc); padding: 20px; text-align: center; color: white; border-radius: 8px 8px 0 0; }
-            .content { background: #f9f9f9; padding: 30px; border-radius: 0 0 8px 8px; }
-            .credentials { background: white; padding: 20px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #0066cc; }
-            .credential-item { margin: 10px 0; }
-            .label { font-weight: bold; color: #666; }
-            .value { font-family: monospace; background: #f0f0f0; padding: 5px 10px; border-radius: 4px; }
-            .warning { background: #fff3cd; border: 1px solid #ffc107; padding: 15px; border-radius: 8px; margin: 20px 0; }
-            .footer { text-align: center; color: #666; font-size: 12px; margin-top: 20px; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>🏥 CUEA Infirmary</h1>
-              <p>Welcome to the Hospital Management System</p>
+        const htmlContent = `<!DOCTYPE html><html><head><style>
+          body{font-family:Arial,sans-serif;line-height:1.6;color:#333}
+          .container{max-width:600px;margin:0 auto;padding:20px}
+          .header{background:linear-gradient(135deg,#0066cc,#0099cc);padding:20px;text-align:center;color:white;border-radius:8px 8px 0 0}
+          .content{background:#f9f9f9;padding:30px;border-radius:0 0 8px 8px}
+          .credentials{background:white;padding:20px;border-radius:8px;margin:20px 0;border-left:4px solid #0066cc}
+          .label{font-weight:bold;color:#666}.value{font-family:monospace;background:#f0f0f0;padding:5px 10px;border-radius:4px}
+          .warning{background:#fff3cd;border:1px solid #ffc107;padding:15px;border-radius:8px;margin:20px 0}
+        </style></head><body><div class="container">
+          <div class="header"><h1>🏥 CUEA Infirmary</h1><p>Welcome to the Hospital Management System</p></div>
+          <div class="content">
+            <p>Hello ${fullName},</p>
+            <p>Your account has been created for the CUEA Infirmary Hospital Management System.</p>
+            <div class="credentials">
+              <h3>Your Login Credentials</h3>
+              <p><span class="label">Email:</span> <span class="value">${email}</span></p>
+              <p><span class="label">Temporary Password:</span> <span class="value">${tempPassword}</span></p>
+              <p><span class="label">Role(s):</span> <span class="value">${roles.join(", ")}</span></p>
+              ${payrollNumber ? `<p><span class="label">Payroll Number:</span> <span class="value">${payrollNumber}</span></p>` : ""}
             </div>
-            <div class="content">
-              <p>Hello ${fullName},</p>
-              <p>Your account has been created for the CUEA Infirmary Hospital Management System.</p>
-              
-              <div class="credentials">
-                <h3>Your Login Credentials</h3>
-                <div class="credential-item">
-                  <span class="label">Email:</span>
-                  <span class="value">${email}</span>
-                </div>
-                <div class="credential-item">
-                  <span class="label">Temporary Password:</span>
-                  <span class="value">${tempPassword}</span>
-                </div>
-                <div class="credential-item">
-                  <span class="label">Role(s):</span>
-                  <span class="value">${roles.join(", ")}</span>
-                </div>
-              </div>
-              
-              <div class="warning">
-                <strong>⚠️ Important:</strong> Please change your password after your first login for security purposes.
-              </div>
-              
-              <p>If you have any questions, please contact the IT department.</p>
-              
-              <div class="footer">
-                <p>CUEA Infirmary - Hospital Management System</p>
-                <p>This is an automated message, please do not reply.</p>
-              </div>
-            </div>
+            <div class="warning"><strong>⚠️ Important:</strong> Please change your password after your first login.</div>
           </div>
-        </body>
-        </html>
-      `;
+        </div></body></html>`;
 
-      await client.send({
-        from: smtpUser,
-        to: email,
-        subject: "Welcome to CUEA Infirmary - Your Account Has Been Created",
-        content: `Welcome ${fullName}! Your account has been created. Email: ${email}, Temporary Password: ${tempPassword}. Please change your password after first login.`,
-        html: htmlContent,
-      });
+        await client.send({
+          from: smtpUser,
+          to: email,
+          subject: "Welcome to CUEA Infirmary - Your Account Has Been Created",
+          content: `Welcome ${fullName}! Email: ${email}, Temporary Password: ${tempPassword}. Please change your password after first login.`,
+          html: htmlContent,
+        });
+        await client.close();
 
-      await client.close();
-
-      // Log email
-      await supabase.from("email_logs").insert({
-        recipient_email: email,
-        email_type: "welcome",
-        subject: "Welcome to CUEA Infirmary",
-        status: "sent",
-        sent_at: new Date().toISOString(),
-        reference_id: userId,
-      });
+        await supabase.from("email_logs").insert({
+          recipient_email: email,
+          email_type: "welcome",
+          subject: "Welcome to CUEA Infirmary",
+          status: "sent",
+          sent_at: new Date().toISOString(),
+          reference_id: userId,
+        });
+      } catch (emailError) {
+        console.error("Email sending failed:", emailError);
+      }
     }
 
     console.log(`User ${email} created successfully by admin ${adminUserId}`);
 
     return new Response(
-      JSON.stringify({ 
-        success: true, 
-        message: "User created successfully",
-        userId: userId,
-        tempPassword: tempPassword 
-      }),
+      JSON.stringify({ success: true, message: "User created successfully", userId, tempPassword }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {

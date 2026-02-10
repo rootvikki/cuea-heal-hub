@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { StationQueue } from "@/components/StationQueue";
 import { NursingProcedures, type SelectedProcedure } from "@/components/NursingProcedures";
+import { InterimPayment } from "@/components/InterimPayment";
 import { Activity, Send, Calendar } from "lucide-react";
 
 const Vitals = () => {
@@ -130,10 +131,13 @@ const Vitals = () => {
           <>
             {/* Patient Info Bar */}
             <Card>
-              <CardContent className="py-3 flex items-center gap-6 text-sm">
-                <div><span className="text-muted-foreground">Ticket:</span> <strong>{selectedTicket.ticket_number}</strong></div>
-                <div><span className="text-muted-foreground">Patient:</span> <strong>{selectedTicket.patient?.profile?.full_name}</strong></div>
-                <div><span className="text-muted-foreground">OPD No:</span> <strong>{selectedTicket.patient?.patient_id}</strong></div>
+              <CardContent className="py-3 flex items-center justify-between">
+                <div className="flex items-center gap-6 text-sm">
+                  <div><span className="text-muted-foreground">Ticket:</span> <strong>{selectedTicket.ticket_number}</strong></div>
+                  <div><span className="text-muted-foreground">Patient:</span> <strong>{selectedTicket.patient?.profile?.full_name}</strong></div>
+                  <div><span className="text-muted-foreground">OPD No:</span> <strong>{selectedTicket.patient?.patient_id}</strong></div>
+                </div>
+                <InterimPayment ticketId={selectedTicket.id} patientId={selectedTicket.patient_id} />
               </CardContent>
             </Card>
 

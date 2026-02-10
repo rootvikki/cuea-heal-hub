@@ -152,13 +152,13 @@ const QueueDisplay = () => {
 
   // Group tickets by stage
   const ticketsByStage = stageOrder.reduce((acc, stage) => {
-    acc[stage] = tickets.filter((t) => t.status === stage);
+    acc[stage] = tickets.filter((t) => (t.workflow_stage || t.status) === stage);
     return acc;
   }, {} as Record<string, TicketWithDetails[]>);
 
   // Get currently being served (in_consult, at_lab, at_imaging, at_pharmacy, at_billing)
   const nowServing = tickets.filter((t) =>
-    ["in_consult", "at_lab", "at_imaging", "at_pharmacy", "at_billing"].includes(t.status)
+    ["in_consult", "at_lab", "at_imaging", "at_pharmacy", "at_billing"].includes(t.workflow_stage || t.status)
   );
 
   return (
@@ -167,9 +167,7 @@ const QueueDisplay = () => {
       <header className="bg-primary text-primary-foreground py-4 px-6 shadow-lg">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 bg-white rounded-full flex items-center justify-center">
-              <span className="text-primary font-bold text-xl">C</span>
-            </div>
+            <img src="/favicon.png" alt="CUEA Logo" className="w-12 h-12 rounded-full bg-white p-1" />
             <div>
               <h1 className="text-2xl font-bold">CUEA Health Center</h1>
               <p className="text-primary-foreground/80 text-sm">Queue Display</p>
