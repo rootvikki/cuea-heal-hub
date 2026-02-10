@@ -34,7 +34,6 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: () => voi
     payrollNumber: "",
     admissionNumber: "",
     visitReason: "outpatient" as "outpatient" | "dental",
-    bloodType: "",
     insuranceProvider: "",
     insuranceNumber: "",
     nextOfKinName: "",
@@ -92,7 +91,6 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: () => voi
         payroll_number: formData.payrollNumber || null,
         admission_number: formData.admissionNumber || null,
         visit_reason: formData.visitReason || "outpatient",
-        blood_type: formData.bloodType || null,
         insurance_provider: formData.insuranceProvider || null,
         insurance_number: formData.insuranceNumber || null,
         next_of_kin_name: formData.nextOfKinName || null,
@@ -112,7 +110,7 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: () => voi
         fullName: "", phone: "", email: "", password: "", dateOfBirth: "", gender: "",
         nationalId: "", nationality: "Kenyan", postalAddress: "", address: "",
         patientType: "", payrollNumber: "", admissionNumber: "", visitReason: "outpatient",
-        bloodType: "", insuranceProvider: "", insuranceNumber: "",
+        insuranceProvider: "", insuranceNumber: "",
         nextOfKinName: "", nextOfKinRelationship: "", nextOfKinPhone: "",
       });
       onSuccess?.();
@@ -259,17 +257,14 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: () => voi
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label>Blood Type</Label>
-            <Select value={formData.bloodType} onValueChange={(v) => update("bloodType", v)}>
-              <SelectTrigger><SelectValue placeholder="Select" /></SelectTrigger>
-              <SelectContent>
-                {["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"].map((bt) => (
-                  <SelectItem key={bt} value={bt}>{bt}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+
+          {/* Insurance - for staff patients */}
+          {formData.patientType === "cuea_staff" && formData.insuranceProvider && (
+            <div className="space-y-2">
+              <Label>Insurance Member Number</Label>
+              <Input value={formData.insuranceNumber} onChange={(e) => update("insuranceNumber", e.target.value)} />
+            </div>
+          )}
 
           {/* Next of Kin */}
           <div className="border-t pt-4">

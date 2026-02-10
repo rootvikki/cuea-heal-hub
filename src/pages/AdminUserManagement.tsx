@@ -62,6 +62,7 @@ interface UserWithRoles {
   phone: string | null;
   roles: string[];
   created_at: string;
+  payroll_number?: string | null;
   status?: string;
   last_login_at?: string;
 }
@@ -441,6 +442,7 @@ const AdminUserManagement = () => {
                 <TableHeader>
                   <TableRow>
                     <TableHead>User</TableHead>
+                    <TableHead>Payroll No</TableHead>
                     <TableHead>Roles</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="w-12"></TableHead>
@@ -449,7 +451,7 @@ const AdminUserManagement = () => {
                 <TableBody>
                   {filteredUsers.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={4} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">
                         No users found
                       </TableCell>
                     </TableRow>
@@ -464,6 +466,9 @@ const AdminUserManagement = () => {
                               <p className="text-xs text-muted-foreground">{user.phone}</p>
                             )}
                           </div>
+                        </TableCell>
+                        <TableCell className="text-sm font-mono text-muted-foreground">
+                          {user.payroll_number || "—"}
                         </TableCell>
                         <TableCell>
                           <div className="flex flex-wrap gap-1">

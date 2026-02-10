@@ -32,6 +32,7 @@ import PatientPortal from "./pages/PatientPortal";
 import ProtectedRoute from "./components/ProtectedRoute";
 import Dental from "./pages/Dental";
 import NotFound from "./pages/NotFound";
+import AuditLogs from "./pages/AuditLogs";
 
 const queryClient = new QueryClient();
 
@@ -249,6 +250,16 @@ const App = () => (
           <Route path="/portal" element={
             <ProtectedRoute>
               <PatientPortal />
+            </ProtectedRoute>
+          } />
+          <Route path="/admin/audit-logs" element={
+            <ProtectedRoute>
+              <SidebarProvider>
+                <div className="flex min-h-screen w-full">
+                  <AppSidebar />
+                  <main className="flex-1"><AuditLogs /></main>
+                </div>
+              </SidebarProvider>
             </ProtectedRoute>
           } />
           <Route path="*" element={<NotFound />} />
