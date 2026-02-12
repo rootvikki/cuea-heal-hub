@@ -6,147 +6,135 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { AdminRoleAssignment } from "@/components/AdminRoleAssignment";
 import { PatientRegistrationDialog } from "@/components/PatientRegistrationDialog";
 import { DashboardSkeleton } from "@/components/PageSkeleton";
-import { Users, Calendar, ClipboardList, DollarSign, Activity, Pill } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import {
+  Users, Calendar, ClipboardList, DollarSign, Activity, Pill,
+  Stethoscope, TestTube, Camera, Heart, Shield, FileText, Package, AlertTriangle, Receipt
+} from "lucide-react";
 import { format } from "date-fns";
+
+const ROLE_PRIORITY = [
+  "super_admin", "admin", "doctor", "clinical_officer", "nurse", "ward_manager",
+  "receptionist", "lab_technician", "radiologist", "pharmacist", "finance_officer",
+  "cashier", "accountant", "hr_admin", "records_officer", "auditor", "patient",
+];
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { user, profile, roles } = useUser();
-  const [stats, setStats] = useState({
-    totalPatients: 0,
-    todayAppointments: 0,
-    activeTickets: 0,
-    pendingPayments: 0,
-  });
+  const [stats, setStats] = useState<Record<string, number>>({});
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
   const [statsLoading, setStatsLoading] = useState(true);
 
   const userName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
   const hasRole = roles.length > 0;
 
+  // Determine primary role
+  const primaryRole = ROLE_PRIORITY.find(r => roles.includes(r)) || "patient";
+
+  // Redirect patients to portal
   useEffect(() => {
-    const fetchStats = async () => {
-      const today = new Date().toISOString().split('T')[0];
+    if (!statsLoading && primaryRole === "patient" && roles.length === 1) {
+      navigate("/portal", { replace: true });
+    }
+  }, [primaryRole, roles, statsLoading]);
 
-      const [patientsRes, appointmentsRes, ticketsRes, invoicesRes, activityRes] = await Promise.all([
-        supabase.from("patients").select("id", { count: "exact", head: true }),
-        supabase.from("appointments").select("id", { count: "exact", head: true }).gte("appointment_date", today),
-        supabase.from("tickets").select("id", { count: "exact", head: true }).neq("status", "checked_out"),
-        supabase.from("invoices").select("id", { count: "exact", head: true }).eq("status", "pending"),
-        supabase.from("audit_logs").select("id, action, module, created_at").order("created_at", { ascending: false }).limit(6),
-      ]);
-
-      setStats({
-        totalPatients: patientsRes.count || 0,
-        todayAppointments: appointmentsRes.count || 0,
-        activeTickets: ticketsRes.count || 0,
-        pendingPayments: invoicesRes.count || 0,
-      });
-      setRecentActivity(activityRes.data || []);
-      setStatsLoading(false);
-    };
-
+  useEffect(() => {
     fetchStats();
-  }, []);
+  }, [primaryRole]);
 
-  const statCards = [
-    {
-      title: "Total Patients",
-      value: stats.totalPatients,
-      icon: Users,
-      description: "Registered patients",
-      color: "text-primary",
-    },
-    {
-      title: "Today's Appointments",
-      value: stats.todayAppointments,
-      icon: Calendar,
-      description: "Scheduled for today",
-      color: "text-accent",
-    },
-    {
-      title: "Active Queue",
-      value: stats.activeTickets,
-      icon: ClipboardList,
-      description: "Patients in queue",
-      color: "text-warning",
-    },
-    {
-      title: "Pending Payments",
-      value: stats.pendingPayments,
-      icon: DollarSign,
-      description: "Awaiting payment",
-      color: "text-destructive",
-    },
-  ];
+  const fetchStats = async () => {
+    const today = new Date().toISOString().split("T")[0];
+    const queries: Record<string, () => PromiseLike<any>> = {};
+
+    if (["super_admin", "admin", "receptionist"].includes(primaryRole)) {
+      queries.totalPatients = () => supabase.from("patients").select("id", { count: "exact", head: true });
+      queries.todayAppointments = () => supabase.from("appointments").select("id", { count: "exact", head: true }).gte("appointment_date", today);
+      queries.activeTickets = () => supabase.from("tickets").select("id", { count: "exact", head: true }).neq("status", "checked_out");
+      queries.pendingPayments = () => supabase.from("invoices").select("id", { count: "exact", head: true }).eq("status", "pending");
+    }
+
+    if (["doctor", "clinical_officer"].includes(primaryRole)) {
+      queries.myQueue = () => supabase.from("tickets").select("id", { count: "exact", head: true }).in("workflow_stage", ["waiting_for_doctor", "in_consult"]);
+      queries.pendingLabs = () => supabase.from("lab_orders").select("id", { count: "exact", head: true }).neq("status", "completed");
+      queries.pendingImaging = () => supabase.from("imaging_orders").select("id", { count: "exact", head: true }).neq("status", "completed");
+    }
+
+    if (primaryRole === "nurse") {
+      queries.triageQueue = () => supabase.from("tickets").select("id", { count: "exact", head: true }).in("workflow_stage", ["checked_in", "triage"]);
+      queries.activeTickets = () => supabase.from("tickets").select("id", { count: "exact", head: true }).neq("status", "checked_out");
+    }
+
+    if (primaryRole === "lab_technician") {
+      queries.pendingLabs = () => supabase.from("lab_orders").select("id", { count: "exact", head: true }).eq("status", "pending");
+      queries.completedToday = () => supabase.from("lab_orders").select("id", { count: "exact", head: true }).eq("status", "completed").gte("result_entered_at", today);
+    }
+
+    if (primaryRole === "pharmacist") {
+      queries.pendingRx = () => supabase.from("prescriptions").select("id", { count: "exact", head: true }).eq("dispensed", false);
+      queries.lowStock = () => supabase.from("pharmacy_inventory").select("id, quantity, reorder_level");
+    }
+
+    if (primaryRole === "radiologist") {
+      queries.pendingImaging = () => supabase.from("imaging_orders").select("id", { count: "exact", head: true }).neq("status", "completed");
+      queries.completedToday = () => supabase.from("imaging_orders").select("id", { count: "exact", head: true }).eq("status", "completed").gte("reported_at", today);
+    }
+
+    if (["finance_officer", "cashier"].includes(primaryRole)) {
+      queries.pendingPayments = () => supabase.from("invoices").select("id", { count: "exact", head: true }).eq("status", "pending");
+      queries.paidToday = () => supabase.from("invoices").select("id", { count: "exact", head: true }).eq("status", "paid").gte("updated_at", today);
+    }
+
+    if (["super_admin", "admin"].includes(primaryRole)) {
+      queries.activity = () => supabase.from("audit_logs").select("id, action, module, created_at").order("created_at", { ascending: false }).limit(6);
+    }
+
+    const results: Record<string, number> = {};
+    const entries = Object.entries(queries);
+    const responses = await Promise.all(entries.map(([, fn]) => fn()));
+
+    entries.forEach(([key], i) => {
+      const res = responses[i];
+      if (key === "activity") {
+        setRecentActivity(res.data || []);
+      } else if (key === "lowStock") {
+        const items = res.data || [];
+        results[key] = items.filter((i: any) => i.quantity <= (i.reorder_level || 50)).length;
+      } else {
+        results[key] = res.count || 0;
+      }
+    });
+
+    setStats(results);
+    setStatsLoading(false);
+  };
 
   if (statsLoading) return <DashboardSkeleton />;
 
-  return (
-    <div className="p-8 space-y-8">
-      <div className="space-y-2">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-4xl font-bold">Welcome back, {userName}!</h1>
-            <p className="text-muted-foreground text-lg">
-              Here's what's happening in your hospital today.
-            </p>
-          </div>
-          {!hasRole && user && (
-            <AdminRoleAssignment userId={user.id} userEmail={user.email || ""} />
-          )}
-        </div>
+  const renderAdminDashboard = () => (
+    <>
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <StatCard title="Total Patients" value={stats.totalPatients} icon={Users} description="Registered patients" color="text-primary" />
+        <StatCard title="Today's Appointments" value={stats.todayAppointments} icon={Calendar} description="Scheduled for today" color="text-accent" />
+        <StatCard title="Active Queue" value={stats.activeTickets} icon={ClipboardList} description="Patients in queue" color="text-warning" />
+        <StatCard title="Pending Payments" value={stats.pendingPayments} icon={DollarSign} description="Awaiting payment" color="text-destructive" />
       </div>
-
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        {statCards.map((stat) => (
-          <Card key={stat.title} className="hover:shadow-lg transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-sm font-medium text-muted-foreground">
-                {stat.title}
-              </CardTitle>
-              <stat.icon className={`h-5 w-5 ${stat.color}`} />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold">{stat.value}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {stat.description}
-              </p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
-
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Activity className="h-5 w-5 text-success" />
-              Quick Actions
-            </CardTitle>
+            <CardTitle className="flex items-center gap-2"><Activity className="h-5 w-5 text-success" />Quick Actions</CardTitle>
             <CardDescription>Frequently used functions</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            <div className="grid gap-2">
-              <PatientRegistrationDialog />
-              <button className="w-full p-3 text-left rounded-lg bg-accent/10 hover:bg-accent/20 transition-colors" onClick={() => navigate("/appointments")}>
-                <div className="font-medium">Create Appointment</div>
-                <div className="text-sm text-muted-foreground">Schedule a new appointment</div>
-              </button>
-              <button className="w-full p-3 text-left rounded-lg bg-success/10 hover:bg-success/20 transition-colors" onClick={() => navigate("/queue")}>
-                <div className="font-medium">Check-in Patient</div>
-                <div className="text-sm text-muted-foreground">Generate queue ticket</div>
-              </button>
-            </div>
+            <PatientRegistrationDialog />
+            <QuickActionButton label="Create Appointment" desc="Schedule a new appointment" onClick={() => navigate("/appointments")} />
+            <QuickActionButton label="Check-in Patient" desc="Generate queue ticket" onClick={() => navigate("/queue")} />
+            <QuickActionButton label="Manage Users" desc="User accounts & roles" onClick={() => navigate("/admin/users")} />
           </CardContent>
         </Card>
-
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Pill className="h-5 w-5 text-warning" />
-              Recent Activity
-            </CardTitle>
+            <CardTitle className="flex items-center gap-2"><Pill className="h-5 w-5 text-warning" />Recent Activity</CardTitle>
             <CardDescription>Latest system actions</CardDescription>
           </CardHeader>
           <CardContent>
@@ -158,12 +146,8 @@ const Dashboard = () => {
                   <div key={log.id} className="flex items-start gap-3">
                     <div className={`w-2 h-2 rounded-full mt-2 ${log.action === "INSERT" ? "bg-success" : log.action === "UPDATE" ? "bg-primary" : "bg-destructive"}`}></div>
                     <div className="flex-1">
-                      <p className="text-sm font-medium">
-                        {log.action === "INSERT" ? "Created" : log.action === "UPDATE" ? "Updated" : log.action} in {log.module.replace(/_/g, " ")}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        {log.created_at ? format(new Date(log.created_at), "MMM d, h:mm a") : "—"}
-                      </p>
+                      <p className="text-sm font-medium">{log.action === "INSERT" ? "Created" : log.action === "UPDATE" ? "Updated" : log.action} in {log.module.replace(/_/g, " ")}</p>
+                      <p className="text-xs text-muted-foreground">{log.created_at ? format(new Date(log.created_at), "MMM d, h:mm a") : "—"}</p>
                     </div>
                   </div>
                 ))
@@ -172,8 +156,198 @@ const Dashboard = () => {
           </CardContent>
         </Card>
       </div>
+    </>
+  );
+
+  const renderDoctorDashboard = () => (
+    <>
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
+        <StatCard title="My Queue" value={stats.myQueue} icon={Stethoscope} description="Patients waiting" color="text-primary" />
+        <StatCard title="Pending Lab Results" value={stats.pendingLabs} icon={TestTube} description="Awaiting results" color="text-warning" />
+        <StatCard title="Pending Imaging" value={stats.pendingImaging} icon={Camera} description="Awaiting results" color="text-accent" />
+      </div>
+      <div className="grid gap-6 md:grid-cols-2">
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2"><Stethoscope className="h-5 w-5" />Quick Actions</CardTitle></CardHeader>
+          <CardContent className="space-y-2">
+            <QuickActionButton label="Start Consultation" desc="Open consultation workspace" onClick={() => navigate("/consultation")} />
+            <QuickActionButton label="View Lab Results" desc="Check lab orders" onClick={() => navigate("/laboratory")} />
+            <QuickActionButton label="View Imaging" desc="Check imaging results" onClick={() => navigate("/imaging")} />
+          </CardContent>
+        </Card>
+      </div>
+    </>
+  );
+
+  const renderNurseDashboard = () => (
+    <>
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
+        <StatCard title="Triage Queue" value={stats.triageQueue} icon={Heart} description="Awaiting triage" color="text-destructive" />
+        <StatCard title="Active Patients" value={stats.activeTickets} icon={ClipboardList} description="In facility" color="text-primary" />
+      </div>
+      <Card>
+        <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          <QuickActionButton label="Start Triage" desc="Record vitals & procedures" onClick={() => navigate("/vitals")} />
+          <QuickActionButton label="Inpatient Ward" desc="Nursing notes & bed management" onClick={() => navigate("/inpatient")} />
+        </CardContent>
+      </Card>
+    </>
+  );
+
+  const renderLabDashboard = () => (
+    <>
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
+        <StatCard title="Pending Orders" value={stats.pendingLabs} icon={TestTube} description="Awaiting results" color="text-warning" />
+        <StatCard title="Completed Today" value={stats.completedToday} icon={Activity} description="Results entered" color="text-success" />
+      </div>
+      <Card>
+        <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          <QuickActionButton label="Enter Lab Results" desc="Process pending orders" onClick={() => navigate("/laboratory")} />
+        </CardContent>
+      </Card>
+    </>
+  );
+
+  const renderPharmacistDashboard = () => (
+    <>
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
+        <StatCard title="Pending Prescriptions" value={stats.pendingRx} icon={Pill} description="Awaiting dispensing" color="text-primary" />
+        <StatCard title="Low Stock Alerts" value={stats.lowStock} icon={AlertTriangle} description="Below reorder level" color="text-destructive" />
+      </div>
+      <Card>
+        <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          <QuickActionButton label="Dispense Medications" desc="Process prescriptions" onClick={() => navigate("/pharmacy")} />
+        </CardContent>
+      </Card>
+    </>
+  );
+
+  const renderRadiologistDashboard = () => (
+    <>
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
+        <StatCard title="Pending Studies" value={stats.pendingImaging} icon={Camera} description="Awaiting processing" color="text-warning" />
+        <StatCard title="Completed Today" value={stats.completedToday} icon={Activity} description="Reports submitted" color="text-success" />
+      </div>
+      <Card>
+        <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          <QuickActionButton label="Imaging Worklist" desc="Process pending orders" onClick={() => navigate("/imaging")} />
+        </CardContent>
+      </Card>
+    </>
+  );
+
+  const renderFinanceDashboard = () => (
+    <>
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
+        <StatCard title="Pending Invoices" value={stats.pendingPayments} icon={Receipt} description="Awaiting payment" color="text-warning" />
+        <StatCard title="Paid Today" value={stats.paidToday} icon={DollarSign} description="Payments received" color="text-success" />
+      </div>
+      <Card>
+        <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          <QuickActionButton label="Process Payments" desc="Billing & invoices" onClick={() => navigate("/billing")} />
+          <QuickActionButton label="Insurance Claims" desc="Manage claims" onClick={() => navigate("/insurance")} />
+        </CardContent>
+      </Card>
+    </>
+  );
+
+  const renderReceptionistDashboard = () => (
+    <>
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
+        <StatCard title="Total Patients" value={stats.totalPatients} icon={Users} description="Registered" color="text-primary" />
+        <StatCard title="Today's Appointments" value={stats.todayAppointments} icon={Calendar} description="Scheduled" color="text-accent" />
+        <StatCard title="Active Queue" value={stats.activeTickets} icon={ClipboardList} description="In facility" color="text-warning" />
+        <StatCard title="Pending Payments" value={stats.pendingPayments} icon={DollarSign} description="Awaiting" color="text-destructive" />
+      </div>
+      <Card>
+        <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
+        <CardContent className="space-y-2">
+          <PatientRegistrationDialog />
+          <QuickActionButton label="Check-in Patient" desc="Generate queue ticket" onClick={() => navigate("/queue")} />
+          <QuickActionButton label="Appointments" desc="View & manage appointments" onClick={() => navigate("/appointments")} />
+        </CardContent>
+      </Card>
+    </>
+  );
+
+  const getDashboardContent = () => {
+    switch (primaryRole) {
+      case "super_admin":
+      case "admin":
+        return renderAdminDashboard();
+      case "doctor":
+      case "clinical_officer":
+        return renderDoctorDashboard();
+      case "nurse":
+      case "ward_manager":
+        return renderNurseDashboard();
+      case "receptionist":
+        return renderReceptionistDashboard();
+      case "lab_technician":
+        return renderLabDashboard();
+      case "pharmacist":
+        return renderPharmacistDashboard();
+      case "radiologist":
+        return renderRadiologistDashboard();
+      case "finance_officer":
+      case "cashier":
+      case "accountant":
+        return renderFinanceDashboard();
+      default:
+        return renderAdminDashboard();
+    }
+  };
+
+  const roleLabel = primaryRole.replace(/_/g, " ").replace(/\b\w/g, l => l.toUpperCase());
+
+  return (
+    <div className="p-6 lg:p-8 space-y-6">
+      <div className="space-y-2">
+        <div className="flex items-center justify-between flex-wrap gap-4">
+          <div>
+            <h1 className="text-3xl lg:text-4xl font-bold">Welcome back, {userName}!</h1>
+            <div className="flex items-center gap-2 mt-1">
+              <p className="text-muted-foreground text-lg">Here's your dashboard overview</p>
+              <Badge variant="secondary" className="text-xs">{roleLabel}</Badge>
+            </div>
+          </div>
+          {!hasRole && user && (
+            <AdminRoleAssignment userId={user.id} userEmail={user.email || ""} />
+          )}
+        </div>
+      </div>
+      {getDashboardContent()}
     </div>
   );
 };
+
+// Reusable stat card
+const StatCard = ({ title, value, icon: Icon, description, color }: {
+  title: string; value: number | undefined; icon: any; description: string; color: string;
+}) => (
+  <Card className="hover:shadow-lg transition-shadow">
+    <CardHeader className="flex flex-row items-center justify-between pb-2">
+      <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
+      <Icon className={`h-5 w-5 ${color}`} />
+    </CardHeader>
+    <CardContent>
+      <div className="text-3xl font-bold">{value ?? 0}</div>
+      <p className="text-xs text-muted-foreground mt-1">{description}</p>
+    </CardContent>
+  </Card>
+);
+
+// Quick action button
+const QuickActionButton = ({ label, desc, onClick }: { label: string; desc: string; onClick: () => void }) => (
+  <button className="w-full p-3 text-left rounded-lg bg-muted/50 hover:bg-muted transition-colors" onClick={onClick}>
+    <div className="font-medium">{label}</div>
+    <div className="text-sm text-muted-foreground">{desc}</div>
+  </button>
+);
 
 export default Dashboard;

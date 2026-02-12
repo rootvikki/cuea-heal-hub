@@ -7,6 +7,7 @@ interface UserProfile {
   email: string | null;
   phone: string | null;
   avatar_url: string | null;
+  status: string | null;
 }
 
 interface UserContextType {
@@ -33,7 +34,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const fetchUserData = async (userId: string) => {
     const [rolesRes, profileRes] = await Promise.all([
       supabase.from("user_roles").select("role").eq("user_id", userId),
-      supabase.from("profiles").select("full_name, email, phone, avatar_url").eq("user_id", userId).maybeSingle(),
+      supabase.from("profiles").select("full_name, email, phone, avatar_url, status").eq("user_id", userId).maybeSingle(),
     ]);
 
     setRoles(rolesRes.data?.map((r) => r.role) || []);
