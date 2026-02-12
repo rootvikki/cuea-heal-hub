@@ -13,6 +13,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
+import { PatientDetailDialog } from "@/components/PatientDetailDialog";
 
 interface Patient {
   id: string;
@@ -29,6 +30,8 @@ const Patients = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [loading, setLoading] = useState(true);
+  const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
+  const [detailOpen, setDetailOpen] = useState(false);
 
   useEffect(() => {
     fetchPatients();
@@ -133,7 +136,7 @@ const Patients = () => {
                         <TableCell>{patient.profiles?.phone || "N/A"}</TableCell>
                         <TableCell>{patient.insurance_provider || "None"}</TableCell>
                         <TableCell className="text-right">
-                          <Button variant="outline" size="sm">
+                          <Button variant="outline" size="sm" onClick={() => { setSelectedPatientId(patient.id); setDetailOpen(true); }}>
                             View Details
                           </Button>
                         </TableCell>
@@ -146,6 +149,12 @@ const Patients = () => {
           </div>
         </CardContent>
       </Card>
+
+      <PatientDetailDialog
+        patientId={selectedPatientId}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+      />
     </div>
   );
 };

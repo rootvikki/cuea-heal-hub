@@ -156,6 +156,16 @@ const Queue = () => {
       return;
     }
 
+    // Check patient visit_reason for dental auto-routing
+    const { data: patientData } = await supabase
+      .from("patients")
+      .select("visit_reason")
+      .eq("id", formData.patientId)
+      .single();
+
+    const isDental = patientData?.visit_reason === "dental";
+    const initialStatus = isDental ? "at_dental" : "checked_in";
+
     const ticketNumber = `T-${Date.now().toString().slice(-6)}`;
 
     const { error } = await supabase.from("tickets").insert({
@@ -163,8 +173,8 @@ const Queue = () => {
       patient_id: formData.patientId,
       department_id: formData.departmentId,
       priority: parseInt(formData.priority),
-      status: "checked_in",
-      workflow_stage: "checked_in",
+      status: initialStatus,
+      workflow_stage: initialStatus,
     });
 
     if (error) {
@@ -176,7 +186,9 @@ const Queue = () => {
     } else {
       toast({
         title: "Patient checked in",
-        description: `Ticket number: ${ticketNumber}`,
+        description: isDental
+          ? `Ticket ${ticketNumber} — routed to Dental`
+          : `Ticket number: ${ticketNumber}`,
       });
       setDialogOpen(false);
       setFormData({ patientId: "", departmentId: "", priority: "1" });
