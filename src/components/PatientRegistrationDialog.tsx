@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { logAuditEvent } from "@/lib/auditLog";
+import { validatePatientForm } from "@/lib/validation";
 import {
   Dialog,
   DialogContent,
@@ -57,6 +58,22 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: () => voi
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    // Client-side validation
+    const errors = validatePatientForm({
+      fullName: formData.fullName,
+      email: formData.email,
+      phone: formData.phone,
+      password: formData.password,
+      nationalId: formData.nationalId,
+      nextOfKinName: formData.nextOfKinName,
+      nextOfKinPhone: formData.nextOfKinPhone,
+    });
+    if (errors.length > 0) {
+      toast({ title: "Validation Error", description: errors[0].message, variant: "destructive" });
+      return;
+    }
+
     setLoading(true);
 
     try {
