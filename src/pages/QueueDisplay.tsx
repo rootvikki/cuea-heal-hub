@@ -24,6 +24,7 @@ const stageLabels: Record<string, string> = {
   triage: "Triage",
   waiting_for_doctor: "Waiting Room",
   in_consult: "Doctor's Office",
+  at_dental: "Dental",
   order_placed_lab: "Lab Order Placed",
   order_placed_imaging: "Imaging Order Placed",
   at_lab: "Laboratory",
@@ -38,6 +39,7 @@ const stageOrder = [
   "triage",
   "waiting_for_doctor",
   "in_consult",
+  "at_dental",
   "at_lab",
   "at_imaging",
   "at_pharmacy",
@@ -133,6 +135,7 @@ const QueueDisplay = () => {
       triage: "bg-warning text-warning-foreground",
       waiting_for_doctor: "bg-secondary text-secondary-foreground",
       in_consult: "bg-primary text-primary-foreground",
+      at_dental: "bg-primary text-primary-foreground",
       order_placed_lab: "bg-accent text-accent-foreground",
       order_placed_imaging: "bg-accent text-accent-foreground",
       at_lab: "bg-accent text-accent-foreground",
@@ -158,7 +161,7 @@ const QueueDisplay = () => {
 
   // Get currently being served (in_consult, at_lab, at_imaging, at_pharmacy, at_billing)
   const nowServing = tickets.filter((t) =>
-    ["in_consult", "at_lab", "at_imaging", "at_pharmacy", "at_billing"].includes(t.workflow_stage || t.status)
+    ["in_consult", "at_dental", "at_lab", "at_imaging", "at_pharmacy", "at_billing"].includes(t.workflow_stage || t.status)
   );
 
   return (

@@ -211,6 +211,7 @@ const Queue = () => {
       triage: "bg-warning",
       waiting_for_doctor: "bg-status-pending",
       in_consult: "bg-status-in-progress",
+      at_dental: "bg-status-in-progress",
       order_placed_lab: "bg-primary",
       order_placed_imaging: "bg-primary",
       at_lab: "bg-accent",
@@ -237,6 +238,21 @@ const Queue = () => {
     "at_billing",
     "checked_out",
   ];
+
+  type TicketStatusDental = TicketStatus | "at_dental";
+
+  const getDisplayFlow = (ticket: any): string[] => {
+    const stage = ticket.workflow_stage || ticket.status;
+    if (stage === "at_dental") {
+      return ["checked_in", "triage", "at_dental", "at_pharmacy", "at_billing", "checked_out"];
+    }
+    const base = [...statusFlow] as string[];
+    if (["at_lab", "at_imaging"].includes(stage)) {
+      const idx = base.indexOf("in_consult");
+      base.splice(idx + 1, 0, stage);
+    }
+    return base;
+  };
 
   return (
     <div className="p-8 space-y-6">
@@ -378,8 +394,9 @@ const Queue = () => {
                   </div>
 
                   <div className="flex gap-1 flex-wrap items-center">
-                    {statusFlow.map((status, idx) => {
-                      const currentIdx = statusFlow.indexOf(ticket.workflow_stage || ticket.status);
+                    {getDisplayFlow(ticket).map((status, idx, arr) => {
+                      const currentStage = ticket.workflow_stage || ticket.status;
+                      const currentIdx = arr.indexOf(currentStage);
                       const isCompleted = idx < currentIdx;
                       const isCurrent = idx === currentIdx;
                       return (
@@ -395,7 +412,7 @@ const Queue = () => {
                           >
                             {status.replace(/_/g, " ")}
                           </div>
-                          {idx < statusFlow.length - 1 && (
+                          {idx < arr.length - 1 && (
                             <ArrowRight className="h-3 w-3 text-muted-foreground" />
                           )}
                         </div>

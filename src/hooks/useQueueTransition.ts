@@ -6,6 +6,7 @@ type TicketStatus =
   | "triage"
   | "waiting_for_doctor"
   | "in_consult"
+  | "at_dental"
   | "order_placed_lab"
   | "order_placed_imaging"
   | "at_lab"
@@ -22,7 +23,6 @@ interface TransitionOptions {
 
 export const useQueueTransition = () => {
   
-  // Get current ticket for a patient
   const getActiveTicket = async (patientId: string) => {
     const { data, error } = await supabase
       .from("tickets")
@@ -40,7 +40,6 @@ export const useQueueTransition = () => {
     return data;
   };
 
-  // Update ticket status
   const updateTicketStatus = async (ticketId: string, status: TicketStatus, workflowStage?: string) => {
     const updateData: Record<string, unknown> = { 
       status,
@@ -65,45 +64,25 @@ export const useQueueTransition = () => {
     return true;
   };
 
-  // Transition: Vitals recorded → Move to waiting for doctor
   const onVitalsRecorded = async ({ ticketId }: TransitionOptions) => {
     const success = await updateTicketStatus(ticketId, "waiting_for_doctor");
-    if (success) {
-      toast.success("Patient moved to doctor queue");
-    }
+    if (success) toast.success("Patient moved to doctor queue");
     return success;
   };
 
-  // Transition: Start consultation
   const onConsultationStarted = async ({ ticketId }: TransitionOptions) => {
     const success = await updateTicketStatus(ticketId, "in_consult");
-    if (success) {
-      toast.success("Consultation started");
-    }
+    if (success) toast.success("Consultation started");
     return success;
   };
 
-  // Transition: Consultation complete - determine next stage based on orders
   const onConsultationComplete = async ({ ticketId, encounterId }: TransitionOptions) => {
     if (!encounterId) return false;
 
-    // Check for pending orders
     const [labOrders, imagingOrders, prescriptions] = await Promise.all([
-      supabase
-        .from("lab_orders")
-        .select("id")
-        .eq("encounter_id", encounterId)
-        .eq("status", "pending"),
-      supabase
-        .from("imaging_orders")
-        .select("id")
-        .eq("encounter_id", encounterId)
-        .eq("status", "pending"),
-      supabase
-        .from("prescriptions")
-        .select("id")
-        .eq("encounter_id", encounterId)
-        .eq("dispensed", false)
+      supabase.from("lab_orders").select("id").eq("encounter_id", encounterId).eq("status", "pending"),
+      supabase.from("imaging_orders").select("id").eq("encounter_id", encounterId).eq("status", "pending"),
+      supabase.from("prescriptions").select("id").eq("encounter_id", encounterId).eq("dispensed", false),
     ]);
 
     const hasLabOrders = (labOrders.data?.length || 0) > 0;
@@ -128,28 +107,22 @@ export const useQueueTransition = () => {
     }
 
     const success = await updateTicketStatus(ticketId, nextStatus);
-    if (success) {
-      toast.success(message);
-    }
+    if (success) toast.success(message);
     return success;
   };
 
-  // Transition: Lab results complete
-  const onLabComplete = async ({ ticketId, encounterId }: TransitionOptions) => {
+  const onLabComplete = async ({ ticketId, encounterId }: TransitionOptions, returnToDoctor = false) => {
     if (!encounterId) return false;
 
-    // Check for pending imaging or prescriptions
+    if (returnToDoctor) {
+      const success = await updateTicketStatus(ticketId, "waiting_for_doctor");
+      if (success) toast.success("Patient returned to doctor for review");
+      return success;
+    }
+
     const [imagingOrders, prescriptions] = await Promise.all([
-      supabase
-        .from("imaging_orders")
-        .select("id")
-        .eq("encounter_id", encounterId)
-        .eq("status", "pending"),
-      supabase
-        .from("prescriptions")
-        .select("id")
-        .eq("encounter_id", encounterId)
-        .eq("dispensed", false)
+      supabase.from("imaging_orders").select("id").eq("encounter_id", encounterId).eq("status", "pending"),
+      supabase.from("prescriptions").select("id").eq("encounter_id", encounterId).eq("dispensed", false),
     ]);
 
     const hasImagingOrders = (imagingOrders.data?.length || 0) > 0;
@@ -170,22 +143,21 @@ export const useQueueTransition = () => {
     }
 
     const success = await updateTicketStatus(ticketId, nextStatus);
-    if (success) {
-      toast.success(message);
-    }
+    if (success) toast.success(message);
     return success;
   };
 
-  // Transition: Imaging complete
-  const onImagingComplete = async ({ ticketId, encounterId }: TransitionOptions) => {
+  const onImagingComplete = async ({ ticketId, encounterId }: TransitionOptions, returnToDoctor = false) => {
     if (!encounterId) return false;
 
-    // Check for pending prescriptions
+    if (returnToDoctor) {
+      const success = await updateTicketStatus(ticketId, "waiting_for_doctor");
+      if (success) toast.success("Patient returned to doctor for review");
+      return success;
+    }
+
     const { data: prescriptions } = await supabase
-      .from("prescriptions")
-      .select("id")
-      .eq("encounter_id", encounterId)
-      .eq("dispensed", false);
+      .from("prescriptions").select("id").eq("encounter_id", encounterId).eq("dispensed", false);
 
     const hasPrescriptions = (prescriptions?.length || 0) > 0;
 
@@ -201,50 +173,33 @@ export const useQueueTransition = () => {
     }
 
     const success = await updateTicketStatus(ticketId, nextStatus);
-    if (success) {
-      toast.success(message);
-    }
+    if (success) toast.success(message);
     return success;
   };
 
-  // Transition: Prescription dispensed
   const onPrescriptionDispensed = async ({ ticketId, encounterId }: TransitionOptions) => {
     if (!encounterId) return false;
 
-    // Check if all prescriptions for this encounter are dispensed
     const { data: pendingRx } = await supabase
-      .from("prescriptions")
-      .select("id")
-      .eq("encounter_id", encounterId)
-      .eq("dispensed", false);
+      .from("prescriptions").select("id").eq("encounter_id", encounterId).eq("dispensed", false);
 
     if ((pendingRx?.length || 0) === 0) {
       const success = await updateTicketStatus(ticketId, "at_billing");
-      if (success) {
-        toast.success("Patient sent to billing");
-      }
+      if (success) toast.success("Patient sent to billing");
       return success;
     }
     return true;
   };
 
-  // Transition: Payment complete
   const onPaymentComplete = async ({ ticketId }: TransitionOptions) => {
     const success = await updateTicketStatus(ticketId, "checked_out");
-    if (success) {
-      toast.success("Patient checked out");
-    }
+    if (success) toast.success("Patient checked out");
     return success;
   };
 
-  // Get ticket by encounter
   const getTicketByEncounter = async (encounterId: string) => {
     const { data, error } = await supabase
-      .from("encounters")
-      .select("ticket_id")
-      .eq("id", encounterId)
-      .maybeSingle();
-    
+      .from("encounters").select("ticket_id").eq("id", encounterId).maybeSingle();
     if (error || !data?.ticket_id) return null;
     return data.ticket_id;
   };
@@ -259,6 +214,6 @@ export const useQueueTransition = () => {
     onLabComplete,
     onImagingComplete,
     onPrescriptionDispensed,
-    onPaymentComplete
+    onPaymentComplete,
   };
 };

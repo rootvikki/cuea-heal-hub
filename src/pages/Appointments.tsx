@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar as CalendarIcon, Plus } from "lucide-react";
+import { Calendar as CalendarIcon, Plus, ClipboardList } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Dialog,
@@ -151,6 +151,58 @@ const Appointments = () => {
       });
       setDialogOpen(false);
       setFormData({ patientId: "", departmentId: "", appointmentDate: "", reason: "" });
+      fetchAppointments();
+    }
+  };
+
+  const handleCheckInFromAppointment = async (appointment: Appointment) => {
+    // Check for duplicate active ticket
+    const patientId = (appointment as any).patient_id_raw || appointment.patients?.patient_id;
+    // We need the patient UUID (not OPD number)
+    const { data: patientRecord } = await supabase
+      .from("patients")
+      .select("id")
+      .eq("patient_id", appointment.patients?.patient_id)
+      .single();
+
+    if (!patientRecord) {
+      toast({ title: "Error", description: "Patient record not found", variant: "destructive" });
+      return;
+    }
+
+    const { data: existingTickets } = await supabase
+      .from("tickets")
+      .select("id, ticket_number")
+      .eq("patient_id", patientRecord.id)
+      .neq("status", "checked_out")
+      .limit(1);
+
+    if (existingTickets && existingTickets.length > 0) {
+      toast({
+        title: "Already checked in",
+        description: `This patient already has an active ticket (${existingTickets[0].ticket_number}).`,
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const ticketNumber = `T-${Date.now().toString().slice(-6)}`;
+    const { error } = await supabase.from("tickets").insert({
+      ticket_number: ticketNumber,
+      patient_id: patientRecord.id,
+      department_id: (appointment as any).department_id,
+      priority: 1,
+      status: "checked_in",
+      workflow_stage: "checked_in",
+      appointment_id: appointment.id,
+    });
+
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      // Update appointment status
+      await supabase.from("appointments").update({ status: "confirmed" }).eq("id", appointment.id);
+      toast({ title: "Patient checked in", description: `Ticket: ${ticketNumber}` });
       fetchAppointments();
     }
   };
@@ -310,6 +362,13 @@ const Appointments = () => {
                         </p>
                         {apt.reason && (
                           <p className="text-sm text-muted-foreground">{apt.reason}</p>
+                        )}
+                      </div>
+                      <div className="flex flex-col gap-2 items-end">
+                        {apt.status === "scheduled" && (
+                          <Button size="sm" variant="outline" className="gap-1" onClick={() => handleCheckInFromAppointment(apt)}>
+                            <ClipboardList className="h-3 w-3" /> Check-in
+                          </Button>
                         )}
                       </div>
                     </div>
