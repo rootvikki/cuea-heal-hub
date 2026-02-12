@@ -2194,6 +2194,7 @@ export type Database = {
         | "triage"
         | "waiting_for_doctor"
         | "in_consult"
+        | "at_dental"
         | "order_placed_lab"
         | "order_placed_imaging"
         | "at_lab"
@@ -2365,6 +2366,7 @@ export const Constants = {
         "triage",
         "waiting_for_doctor",
         "in_consult",
+        "at_dental",
         "order_placed_lab",
         "order_placed_imaging",
         "at_lab",

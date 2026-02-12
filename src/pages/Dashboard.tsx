@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { AdminRoleAssignment } from "@/components/AdminRoleAssignment";
 import { PatientRegistrationDialog } from "@/components/PatientRegistrationDialog";
 import { Users, Calendar, ClipboardList, DollarSign, Activity, Pill } from "lucide-react";
+import { format } from "date-fns";
 
 const Dashboard = () => {
   const navigate = useNavigate();
@@ -18,6 +19,7 @@ const Dashboard = () => {
   const [userId, setUserId] = useState("");
   const [userEmail, setUserEmail] = useState("");
   const [hasRole, setHasRole] = useState(false);
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -42,11 +44,12 @@ const Dashboard = () => {
         // Fetch statistics
         const today = new Date().toISOString().split('T')[0];
 
-        const [patientsRes, appointmentsRes, ticketsRes, invoicesRes] = await Promise.all([
+        const [patientsRes, appointmentsRes, ticketsRes, invoicesRes, activityRes] = await Promise.all([
           supabase.from("patients").select("id", { count: "exact", head: true }),
           supabase.from("appointments").select("id", { count: "exact", head: true }).gte("appointment_date", today),
           supabase.from("tickets").select("id", { count: "exact", head: true }).neq("status", "checked_out"),
           supabase.from("invoices").select("id", { count: "exact", head: true }).eq("status", "pending"),
+          supabase.from("audit_logs").select("id, action, module, created_at").order("created_at", { ascending: false }).limit(6),
         ]);
 
         setStats({
@@ -55,6 +58,7 @@ const Dashboard = () => {
           activeTickets: ticketsRes.count || 0,
           pendingPayments: invoicesRes.count || 0,
         });
+        setRecentActivity(activityRes.data || []);
       }
     };
 
@@ -157,24 +161,27 @@ const Dashboard = () => {
               <Pill className="h-5 w-5 text-warning" />
               Recent Activity
             </CardTitle>
-            <CardDescription>Latest system updates</CardDescription>
+            <CardDescription>Latest system actions</CardDescription>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full bg-success mt-2"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">System online and operational</p>
-                  <p className="text-xs text-muted-foreground">All modules functioning normally</p>
-                </div>
-              </div>
-              <div className="flex items-start gap-3">
-                <div className="w-2 h-2 rounded-full bg-primary mt-2"></div>
-                <div className="flex-1">
-                  <p className="text-sm font-medium">Database synchronized</p>
-                  <p className="text-xs text-muted-foreground">Last sync: Just now</p>
-                </div>
-              </div>
+              {recentActivity.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">No recent activity</p>
+              ) : (
+                recentActivity.map((log) => (
+                  <div key={log.id} className="flex items-start gap-3">
+                    <div className={`w-2 h-2 rounded-full mt-2 ${log.action === "INSERT" ? "bg-success" : log.action === "UPDATE" ? "bg-primary" : "bg-destructive"}`}></div>
+                    <div className="flex-1">
+                      <p className="text-sm font-medium">
+                        {log.action === "INSERT" ? "Created" : log.action === "UPDATE" ? "Updated" : log.action} in {log.module.replace(/_/g, " ")}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {log.created_at ? format(new Date(log.created_at), "MMM d, h:mm a") : "—"}
+                      </p>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </CardContent>
         </Card>
