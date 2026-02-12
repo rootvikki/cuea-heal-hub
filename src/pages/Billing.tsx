@@ -207,18 +207,18 @@ const Billing = () => {
       />
 
       <div className="flex-1 overflow-auto p-6 space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-bold">Billing & Payments</h1>
-            <p className="text-muted-foreground">Service charge accumulation & payment processing</p>
+            <h1 className="text-3xl font-bold flex items-center gap-2"><Receipt className="h-7 w-7 text-primary" /> Billing & Payments</h1>
+            <p className="text-muted-foreground mt-1">Service charge accumulation & payment processing</p>
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-4">
-          <Card><CardHeader><CardTitle className="text-sm">Total Revenue</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">KES {invoices.reduce((s, i) => s + parseFloat(i.amount_paid || 0), 0).toLocaleString()}</div></CardContent></Card>
-          <Card><CardHeader><CardTitle className="text-sm">Pending</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{invoices.filter(i => i.status === "pending").length}</div></CardContent></Card>
-          <Card><CardHeader><CardTitle className="text-sm">Outstanding</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">KES {invoices.reduce((s, i) => s + parseFloat(i.balance || 0), 0).toLocaleString()}</div></CardContent></Card>
-          <Card><CardHeader><CardTitle className="text-sm">Paid Today</CardTitle></CardHeader><CardContent><div className="text-2xl font-bold">{invoices.filter(i => i.status === "paid" && i.updated_at?.startsWith(new Date().toISOString().split('T')[0])).length}</div></CardContent></Card>
+        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+          <Card><CardContent className="p-4 flex items-center gap-4"><div className="p-3 rounded-full bg-green-100"><DollarSign className="h-6 w-6 text-green-600" /></div><div><p className="text-sm text-muted-foreground">Total Revenue</p><p className="text-2xl font-bold">KES {invoices.reduce((s, i) => s + parseFloat(i.amount_paid || 0), 0).toLocaleString()}</p></div></CardContent></Card>
+          <Card><CardContent className="p-4 flex items-center gap-4"><div className="p-3 rounded-full bg-yellow-100"><FileText className="h-6 w-6 text-yellow-600" /></div><div><p className="text-sm text-muted-foreground">Pending</p><p className="text-2xl font-bold">{invoices.filter(i => i.status === "pending").length}</p></div></CardContent></Card>
+          <Card><CardContent className="p-4 flex items-center gap-4"><div className="p-3 rounded-full bg-red-100"><CreditCard className="h-6 w-6 text-red-600" /></div><div><p className="text-sm text-muted-foreground">Outstanding</p><p className="text-2xl font-bold">KES {invoices.reduce((s, i) => s + parseFloat(i.balance || 0), 0).toLocaleString()}</p></div></CardContent></Card>
+          <Card><CardContent className="p-4 flex items-center gap-4"><div className="p-3 rounded-full bg-blue-100"><Receipt className="h-6 w-6 text-blue-600" /></div><div><p className="text-sm text-muted-foreground">Paid Today</p><p className="text-2xl font-bold">{invoices.filter(i => i.status === "paid" && i.updated_at?.startsWith(new Date().toISOString().split('T')[0])).length}</p></div></CardContent></Card>
         </div>
 
         <Card>
