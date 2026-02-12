@@ -86,7 +86,7 @@ const Dental = () => {
         });
       }
       // Advance to billing (or pharmacy if prescriptions needed)
-      await supabase.from("tickets").update({ workflow_stage: "at_billing" }).eq("id", selectedTicket.id);
+      await supabase.from("tickets").update({ workflow_stage: "at_billing", status: "at_billing" }).eq("id", selectedTicket.id);
 
       toast({ title: "Dental procedures saved", description: "Patient sent to billing" });
       setSelectedTicket(null);
@@ -102,7 +102,7 @@ const Dental = () => {
   return (
     <div className="flex h-screen overflow-hidden">
       <StationQueue
-        stationStages={["checked_in", "triage"]}
+        stationStages={["at_dental"]}
         nextStage="at_billing"
         title="Dental Queue"
         onSelectPatient={setSelectedTicket}

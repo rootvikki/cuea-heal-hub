@@ -308,7 +308,15 @@ const Imaging = () => {
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setResultDialogOpen(false)}>Cancel</Button>
-                <Button onClick={submitResults} disabled={!findings || !impression}>Submit Results</Button>
+                <Button variant="secondary" onClick={async () => {
+                  if (!selectedOrder || !findings || !impression) return;
+                  await submitResults();
+                  const ticket = await getActiveTicket(selectedOrder.patient_id);
+                  if (ticket && (ticket.status === "at_imaging" || ticket.workflow_stage === "at_imaging")) {
+                    await onImagingComplete({ ticketId: ticket.id, encounterId: selectedOrder.encounter_id }, true);
+                  }
+                }} disabled={!findings || !impression}>Submit & Return to Doctor</Button>
+                <Button onClick={submitResults} disabled={!findings || !impression}>Submit & Advance</Button>
               </div>
             </div>
           )}

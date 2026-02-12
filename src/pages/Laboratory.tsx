@@ -485,7 +485,19 @@ const Laboratory = () => {
             {selectedOrder?.status !== "completed" && (
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setResultDialogOpen(false)}>Cancel</Button>
-                <Button onClick={handleSaveResult}>Save Result & Complete</Button>
+                <Button variant="secondary" onClick={async () => {
+                  await handleSaveResult();
+                  // After saving, check if all labs done and offer return to doctor
+                  const { data: pendingLabs } = await supabase
+                    .from("lab_orders").select("id").eq("encounter_id", selectedOrder.encounter_id).neq("status", "completed");
+                  if ((pendingLabs?.length || 0) <= 1) {
+                    const ticket = await getActiveTicket(selectedOrder.patient_id);
+                    if (ticket && (ticket.status === "at_lab" || ticket.workflow_stage === "at_lab")) {
+                      await onLabComplete({ ticketId: ticket.id, encounterId: selectedOrder.encounter_id }, true);
+                    }
+                  }
+                }}>Save & Return to Doctor</Button>
+                <Button onClick={handleSaveResult}>Save & Advance</Button>
               </div>
             )}
           </div>
