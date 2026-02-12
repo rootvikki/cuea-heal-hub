@@ -30,6 +30,7 @@ import StaffOnboarding from "./pages/StaffOnboarding";
 import RoleManagement from "./pages/RoleManagement";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
+import MyProfile from "./pages/MyProfile";
 import PatientPortal from "./pages/PatientPortal";
 import Dental from "./pages/Dental";
 import NotFound from "./pages/NotFound";
@@ -95,6 +96,7 @@ const App = () => (
 
           {/* Reports & Settings */}
           <Route path="/reports" element={<ProtectedLayout allowedRoles={ALL_STAFF}><Reports /></ProtectedLayout>} />
+          <Route path="/profile" element={<ProtectedLayout><MyProfile /></ProtectedLayout>} />
           <Route path="/settings" element={<ProtectedLayout allowedRoles={ADMIN_ROLES}><Settings /></ProtectedLayout>} />
 
           {/* Patient Portal - separate layout */}
