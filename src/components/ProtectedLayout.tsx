@@ -1,8 +1,11 @@
-import { Navigate } from "react-router-dom";
+import { useEffect } from "react";
+import { Navigate, useNavigate } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useUser } from "@/contexts/UserContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 interface ProtectedLayoutProps {
   children: React.ReactNode;
@@ -10,7 +13,21 @@ interface ProtectedLayoutProps {
 }
 
 const ProtectedLayout = ({ children, allowedRoles }: ProtectedLayoutProps) => {
-  const { user, session, roles, loading } = useUser();
+  const { user, session, roles, profile, loading } = useUser();
+  const navigate = useNavigate();
+  const { toast } = useToast();
+
+  // Suspension guard
+  useEffect(() => {
+    if (!loading && profile?.status === "suspended") {
+      toast({
+        title: "Account Suspended",
+        description: "Your account has been suspended. Please contact your administrator.",
+        variant: "destructive",
+      });
+      supabase.auth.signOut().then(() => navigate("/auth", { replace: true }));
+    }
+  }, [profile?.status, loading]);
 
   if (loading) {
     return (
@@ -22,6 +39,10 @@ const ProtectedLayout = ({ children, allowedRoles }: ProtectedLayoutProps) => {
 
   if (!user || !session) {
     return <Navigate to="/auth" replace />;
+  }
+
+  if (profile?.status === "suspended") {
+    return null; // Will redirect via useEffect
   }
 
   // Check role-based access
