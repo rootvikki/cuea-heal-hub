@@ -19,7 +19,7 @@ const Vitals = () => {
 
   const [form, setForm] = useState({
     weight: "", height: "", bpSystolic: "", bpDiastolic: "",
-    pulseRate: "", temperature: "", spo2: "",
+    pulseRate: "", temperature: "", respiratoryRate: "", spo2: "",
     allergies: "", presentingComplaint: "", nursingNotes: "", nextVisit: "",
   });
   const [procedures, setProcedures] = useState<SelectedProcedure[]>([]);
@@ -65,6 +65,7 @@ const Vitals = () => {
         blood_pressure_diastolic: form.bpDiastolic ? parseInt(form.bpDiastolic) : null,
         pulse_rate: form.pulseRate ? parseInt(form.pulseRate) : null,
         temperature: form.temperature ? parseFloat(form.temperature) : null,
+        respiratory_rate: form.respiratoryRate ? parseInt(form.respiratoryRate) : null,
         oxygen_saturation: form.spo2 ? parseFloat(form.spo2) : null,
         allergies_noted: form.allergies || null,
         presenting_complaint: form.presentingComplaint || null,
@@ -98,7 +99,7 @@ const Vitals = () => {
       toast({ title: "Vitals saved", description: "Patient sent to doctor queue" });
       logAuditEvent({ action: "vitals_recorded", module: "triage", details: { patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id, procedures: procedures.length } });
       setSelectedTicket(null);
-      setForm({ weight: "", height: "", bpSystolic: "", bpDiastolic: "", pulseRate: "", temperature: "", spo2: "", allergies: "", presentingComplaint: "", nursingNotes: "", nextVisit: "" });
+      setForm({ weight: "", height: "", bpSystolic: "", bpDiastolic: "", pulseRate: "", temperature: "", respiratoryRate: "", spo2: "", allergies: "", presentingComplaint: "", nursingNotes: "", nextVisit: "" });
       setProcedures([]);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
@@ -169,7 +170,7 @@ const Vitals = () => {
                     </div>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   <div className="space-y-1">
                     <Label>Pulse Rate (bpm)</Label>
                     <Input type="number" value={form.pulseRate} onChange={(e) => u("pulseRate", e.target.value)} />
@@ -177,6 +178,10 @@ const Vitals = () => {
                   <div className="space-y-1">
                     <Label>Temperature (°C)</Label>
                     <Input type="number" step="0.1" value={form.temperature} onChange={(e) => u("temperature", e.target.value)} />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Respiratory Rate (/min)</Label>
+                    <Input type="number" value={form.respiratoryRate} onChange={(e) => u("respiratoryRate", e.target.value)} />
                   </div>
                   <div className="space-y-1">
                     <Label>SPO₂ (%)</Label>
