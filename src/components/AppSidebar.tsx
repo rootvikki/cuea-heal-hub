@@ -73,6 +73,7 @@ export function AppSidebar() {
     { title: "Staff", url: "/staff", icon: UserCog, roles: ["admin", "super_admin"] },
     { title: "Audit Logs", url: "/admin/audit-logs", icon: FileSearch, roles: ["admin", "super_admin"] },
     { title: "Reports", url: "/reports", icon: BarChart3, roles: ["admin", "super_admin", "finance_officer"] },
+    { title: "My Profile", url: "/profile", icon: UserCircle, roles: ["all"] },
     { title: "Settings", url: "/settings", icon: Settings, roles: ["all"] },
   ];
 
