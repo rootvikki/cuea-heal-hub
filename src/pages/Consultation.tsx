@@ -400,14 +400,17 @@ const Consultation = () => {
 
   const latestVitals = patientVitals[0];
 
-  const calculateAge = (dob: string | null) => {
+  const calcAge = (dob: string | null) => {
     if (!dob) return "N/A";
     const birthDate = new Date(dob);
     const today = new Date();
-    let age = today.getFullYear() - birthDate.getFullYear();
-    const m = today.getMonth() - birthDate.getMonth();
-    if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
-    return `${age} years`;
+    let years = today.getFullYear() - birthDate.getFullYear();
+    let months = today.getMonth() - birthDate.getMonth();
+    if (today.getDate() < birthDate.getDate()) months--;
+    if (months < 0) { years--; months += 12; }
+    if (years < 1) return `${months} mo`;
+    if (months === 0) return `${years} yr`;
+    return `${years} yr ${months} mo`;
   };
 
   if (loading) {
@@ -499,7 +502,7 @@ const Consultation = () => {
                     <div className="flex items-center gap-4 text-sm text-muted-foreground">
                       <span>{selectedTicket.patient?.patient_id}</span>
                       <span>•</span>
-                      <span>{calculateAge(selectedTicket.patient?.profile?.date_of_birth || null)}</span>
+                      <span>{calcAge(selectedTicket.patient?.profile?.date_of_birth || null)}</span>
                       <span>•</span>
                       <span className="capitalize">{selectedTicket.patient?.profile?.gender || "N/A"}</span>
                       {selectedTicket.patient?.blood_type && (
@@ -872,7 +875,7 @@ const Consultation = () => {
         <ReferralForm
           patientId={selectedTicket.patient.id}
           patientName={selectedTicket.patient.profile?.full_name || ""}
-          patientAge={calculateAge(selectedTicket.patient.profile?.date_of_birth || null)}
+          patientAge={calcAge(selectedTicket.patient.profile?.date_of_birth || null)}
           patientGender={selectedTicket.patient.profile?.gender || ""}
           doctorName=""
         />
