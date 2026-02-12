@@ -150,10 +150,10 @@ const Imaging = () => {
       />
 
       <div className="flex-1 overflow-auto p-6 space-y-6">
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-bold">Imaging & Radiology</h1>
-            <p className="text-muted-foreground">CUEA Radiology — manage orders and results</p>
+            <h1 className="text-3xl font-bold flex items-center gap-2"><Camera className="h-7 w-7 text-primary" /> Imaging & Radiology</h1>
+            <p className="text-muted-foreground mt-1">CUEA Radiology — manage orders and results</p>
           </div>
           <div className="flex gap-2 items-center">
             {selectedTicket && <InterimPayment ticketId={selectedTicket.id} patientId={selectedTicket.patient_id} />}

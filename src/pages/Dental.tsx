@@ -7,9 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { StationQueue } from "@/components/StationQueue";
-import { Plus, X, Send } from "lucide-react";
+import { InterimPayment } from "@/components/InterimPayment";
+import { Plus, X, Send, Calendar } from "lucide-react";
 
 const DENTAL_PROCEDURES = [
   { name: "Dental Examination", price: 500 },
@@ -67,27 +69,17 @@ const Dental = () => {
       const { data: { user } } = await supabase.auth.getUser();
       for (const entry of entries) {
         await supabase.from("dental_procedures").insert({
-          patient_id: selectedTicket.patient_id,
-          ticket_id: selectedTicket.id,
-          dentist_id: user?.id || "",
-          procedure_name: entry.procedure,
-          tooth_number: entry.toothNumber || null,
-          notes: entry.notes || null,
-          price: entry.price,
-          next_visit: nextVisit || null,
+          patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id,
+          dentist_id: user?.id || "", procedure_name: entry.procedure,
+          tooth_number: entry.toothNumber || null, notes: entry.notes || null,
+          price: entry.price, next_visit: nextVisit || null,
         });
         await supabase.from("service_charges").insert({
-          patient_id: selectedTicket.patient_id,
-          ticket_id: selectedTicket.id,
-          service_type: "dental",
-          description: entry.procedure,
-          amount: entry.price,
-          billing_stage: "dental",
+          patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id,
+          service_type: "dental", description: entry.procedure, amount: entry.price, billing_stage: "dental",
         });
       }
-      // Advance to billing (or pharmacy if prescriptions needed)
       await supabase.from("tickets").update({ workflow_stage: "at_billing", status: "at_billing" }).eq("id", selectedTicket.id);
-
       toast({ title: "Dental procedures saved", description: "Patient sent to billing" });
       setSelectedTicket(null);
       setEntries([]);
@@ -109,23 +101,32 @@ const Dental = () => {
         selectedTicketId={selectedTicket?.id}
       />
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        <h1 className="text-3xl font-bold">🦷 Dental Department</h1>
+        <div>
+          <h1 className="text-3xl font-bold">🦷 Dental Department</h1>
+          <p className="text-muted-foreground mt-1">Record dental procedures and advance patients</p>
+        </div>
+
         {!selectedTicket ? (
           <Card><CardContent className="py-16 text-center text-muted-foreground">Select a patient from the queue</CardContent></Card>
         ) : (
           <>
-            <Card>
-              <CardContent className="py-3 flex gap-6 text-sm">
-                <div><span className="text-muted-foreground">Patient:</span> <strong>{selectedTicket.patient?.profile?.full_name}</strong></div>
-                <div><span className="text-muted-foreground">OPD:</span> <strong>{selectedTicket.patient?.patient_id}</strong></div>
+            {/* Patient Info */}
+            <Card className="border-primary/20">
+              <CardContent className="py-3 flex items-center justify-between">
+                <div className="flex gap-6 text-sm">
+                  <div><span className="text-muted-foreground">Patient:</span> <strong>{selectedTicket.patient?.profile?.full_name}</strong></div>
+                  <div><span className="text-muted-foreground">OPD:</span> <strong>{selectedTicket.patient?.patient_id}</strong></div>
+                </div>
+                <InterimPayment ticketId={selectedTicket.id} patientId={selectedTicket.patient_id} />
               </CardContent>
             </Card>
 
+            {/* Add Procedures */}
             <Card>
-              <CardHeader><CardTitle>Add Procedures</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-lg">Add Procedures</CardTitle></CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="space-y-1">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-1.5">
                     <Label>Procedure</Label>
                     <Select value={selectedProc} onValueChange={setSelectedProc}>
                       <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
@@ -136,46 +137,49 @@ const Dental = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <Label>Tooth #</Label>
                     <Input value={toothNum} onChange={(e) => setToothNum(e.target.value)} placeholder="e.g. 14" />
                   </div>
-                  <div className="space-y-1">
+                  <div className="space-y-1.5">
                     <Label>Notes</Label>
                     <div className="flex gap-2">
                       <Input value={procNotes} onChange={(e) => setProcNotes(e.target.value)} />
-                      <Button onClick={addEntry} disabled={!selectedProc}><Plus className="h-4 w-4" /></Button>
+                      <Button onClick={addEntry} disabled={!selectedProc} size="icon"><Plus className="h-4 w-4" /></Button>
                     </div>
                   </div>
                 </div>
 
                 {entries.length > 0 && (
-                  <div className="space-y-2">
-                    {entries.map((e, i) => (
-                      <div key={i} className="flex items-center justify-between p-2 border rounded text-sm">
-                        <div>
-                          <strong>{e.procedure}</strong>
-                          {e.toothNumber && <span className="ml-2 text-muted-foreground">Tooth #{e.toothNumber}</span>}
-                          {e.notes && <span className="ml-2 text-muted-foreground">— {e.notes}</span>}
+                  <>
+                    <Separator />
+                    <div className="space-y-2">
+                      {entries.map((e, i) => (
+                        <div key={i} className="flex items-center justify-between p-3 border rounded-lg bg-muted/30 text-sm">
+                          <div>
+                            <strong>{e.procedure}</strong>
+                            {e.toothNumber && <span className="ml-2 text-muted-foreground">Tooth #{e.toothNumber}</span>}
+                            {e.notes && <span className="ml-2 text-muted-foreground">— {e.notes}</span>}
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant="outline">KES {e.price.toLocaleString()}</Badge>
+                            <Button variant="ghost" size="sm" onClick={() => removeEntry(i)}><X className="h-3 w-3" /></Button>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">KES {e.price}</Badge>
-                          <Button variant="ghost" size="sm" onClick={() => removeEntry(i)}><X className="h-3 w-3" /></Button>
-                        </div>
-                      </div>
-                    ))}
-                    <div className="text-right font-semibold">Total: KES {total}</div>
-                  </div>
+                      ))}
+                      <div className="text-right font-semibold text-lg">Total: KES {total.toLocaleString()}</div>
+                    </div>
+                  </>
                 )}
 
-                <div className="max-w-xs space-y-1">
-                  <Label>Next Visit</Label>
+                <div className="max-w-xs space-y-1.5">
+                  <Label className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> Next Visit</Label>
                   <Input type="date" value={nextVisit} onChange={(e) => setNextVisit(e.target.value)} />
                 </div>
               </CardContent>
             </Card>
 
-            <div className="flex justify-end">
+            <div className="flex justify-end pb-6">
               <Button size="lg" onClick={handleSave} disabled={saving || entries.length === 0} className="gap-2">
                 <Send className="h-4 w-4" /> {saving ? "Saving..." : "Complete & Send to Billing"}
               </Button>

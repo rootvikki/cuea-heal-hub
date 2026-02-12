@@ -284,10 +284,10 @@ const Laboratory = () => {
       />
 
       <div className="flex-1 overflow-auto p-6 space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-bold">Laboratory</h1>
-            <p className="text-muted-foreground">Manage lab orders and enter structured results</p>
+            <h1 className="text-3xl font-bold flex items-center gap-2"><TestTube className="h-7 w-7 text-primary" /> Laboratory</h1>
+            <p className="text-muted-foreground mt-1">Manage lab orders and enter structured results</p>
           </div>
           <div className="flex gap-2 items-center">
             {selectedTicket && <InterimPayment ticketId={selectedTicket.id} patientId={selectedTicket.patient_id} />}
@@ -298,10 +298,10 @@ const Laboratory = () => {
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
-          <Card><CardHeader><CardTitle className="text-sm">Pending</CardTitle></CardHeader><CardContent><div className="text-3xl font-bold">{pendingOrders.length}</div></CardContent></Card>
-          <Card><CardHeader><CardTitle className="text-sm">Completed Today</CardTitle></CardHeader><CardContent><div className="text-3xl font-bold">{completedOrders.filter(o => o.result_entered_at?.startsWith(new Date().toISOString().split('T')[0])).length}</div></CardContent></Card>
-          <Card><CardHeader><CardTitle className="text-sm">Abnormal Results</CardTitle></CardHeader><CardContent><div className="text-3xl font-bold text-destructive">{completedOrders.filter(o => o.flag === "abnormal").length}</div></CardContent></Card>
+        <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
+          <Card><CardContent className="p-4 flex items-center gap-4"><div className="p-3 rounded-full bg-yellow-100"><TestTube className="h-6 w-6 text-yellow-600" /></div><div><p className="text-sm text-muted-foreground">Pending</p><p className="text-2xl font-bold">{pendingOrders.length}</p></div></CardContent></Card>
+          <Card><CardContent className="p-4 flex items-center gap-4"><div className="p-3 rounded-full bg-green-100"><TestTube className="h-6 w-6 text-green-600" /></div><div><p className="text-sm text-muted-foreground">Completed Today</p><p className="text-2xl font-bold">{completedOrders.filter(o => o.result_entered_at?.startsWith(new Date().toISOString().split('T')[0])).length}</p></div></CardContent></Card>
+          <Card><CardContent className="p-4 flex items-center gap-4"><div className="p-3 rounded-full bg-red-100"><TestTube className="h-6 w-6 text-red-600" /></div><div><p className="text-sm text-muted-foreground">Abnormal Results</p><p className="text-2xl font-bold text-destructive">{completedOrders.filter(o => o.flag === "abnormal").length}</p></div></CardContent></Card>
         </div>
 
         <Tabs defaultValue="pending" className="space-y-4">

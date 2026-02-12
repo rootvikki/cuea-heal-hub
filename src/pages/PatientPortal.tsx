@@ -273,12 +273,12 @@ const PatientPortal = () => {
         <AppSidebar />
         <main className="flex-1 p-6">
           <div className="mb-6">
-            <h1 className="text-3xl font-bold">Patient Portal</h1>
-            <p className="text-muted-foreground">Patient ID: {patient.patient_id}</p>
+            <h1 className="text-3xl font-bold flex items-center gap-2"><User className="h-7 w-7 text-primary" /> Patient Portal</h1>
+            <p className="text-muted-foreground mt-1">Patient ID: {patient.patient_id}</p>
           </div>
 
           <Tabs defaultValue="appointments" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
               <TabsTrigger value="appointments" className="gap-2">
                 <Calendar className="h-4 w-4" />
                 <span className="hidden sm:inline">Appointments</span>

@@ -176,10 +176,10 @@ const Pharmacy = () => {
       />
 
       <div className="flex-1 overflow-auto p-6 space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl font-bold">Pharmacy</h1>
-            <p className="text-muted-foreground">Manage inventory, dispense & stock cards</p>
+            <h1 className="text-3xl font-bold flex items-center gap-2"><Pill className="h-7 w-7 text-primary" /> Pharmacy</h1>
+            <p className="text-muted-foreground mt-1">Manage inventory, dispense & stock cards</p>
           </div>
           <div className="flex gap-2 items-center">
             {selectedTicket && <InterimPayment ticketId={selectedTicket.id} patientId={selectedTicket.patient_id} />}
