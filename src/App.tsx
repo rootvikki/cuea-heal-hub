@@ -3,6 +3,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { UserProvider } from "@/contexts/UserContext";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import ProtectedLayout from "@/components/ProtectedLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
@@ -48,6 +49,7 @@ const ALL_STAFF = [...CLINICAL_ROLES, ...RECEPTION_ROLES, ...LAB_ROLES, ...IMAGI
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
+    <UserProvider>
     <TooltipProvider>
       <Toaster />
       <Sonner />
@@ -103,6 +105,7 @@ const App = () => (
         </ErrorBoundary>
       </BrowserRouter>
     </TooltipProvider>
+    </UserProvider>
   </QueryClientProvider>
 );
 

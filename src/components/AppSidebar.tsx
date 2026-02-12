@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useUser } from "@/contexts/UserContext";
 import {
   Home, Users, Calendar, FileText, Pill, TestTube, Receipt, Settings,
   LogOut, ClipboardList, Activity, Camera, Bed, Shield, UserCog,
@@ -26,25 +26,7 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const [userRoles, setUserRoles] = useState<string[]>([]);
-
-  useEffect(() => {
-    const fetchUserRoles = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
-        const { data: roles } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user.id);
-        
-        if (roles && roles.length > 0) {
-          setUserRoles(roles.map(r => r.role));
-        }
-      }
-    };
-
-    fetchUserRoles();
-  }, []);
+  const { roles: userRoles, isAdmin: hasAdminAccess } = useUser();
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -94,9 +76,6 @@ export function AppSidebar() {
     { title: "Settings", url: "/settings", icon: Settings, roles: ["all"] },
   ];
 
-  // Super admin and admin see everything
-  const hasAdminAccess = userRoles.includes("super_admin") || userRoles.includes("admin");
-  
   const filterItems = (items: typeof clinicalItems) =>
     items.filter(item => 
       item.roles.includes("all") || 
