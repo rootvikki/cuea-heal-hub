@@ -114,21 +114,22 @@ const Laboratory = () => {
     setLoading(true);
     const { data } = await supabase
       .from("lab_orders")
-      .select("*")
+      .select("*, patients!inner(patient_id, user_id, profiles!inner(full_name, gender)), lab_tests_catalog!inner(test_name, test_code, normal_range, result_fields, gender_specific_ranges), lab_result_fields(*)")
       .order("created_at", { ascending: false })
       .limit(100);
 
     if (data) {
-      const ordersWithDetails = await Promise.all(
-        data.map(async (order) => {
-          const { data: patient } = await supabase.from("patients").select("patient_id, user_id").eq("id", order.patient_id).single();
-          const { data: profile } = await supabase.from("profiles").select("full_name, gender").eq("user_id", patient?.user_id).single();
-          const { data: test } = await supabase.from("lab_tests_catalog").select("test_name, test_code, normal_range, result_fields, gender_specific_ranges").eq("id", order.test_id).single();
-          const { data: fields } = await supabase.from("lab_result_fields").select("*").eq("lab_order_id", order.id).order("sort_order");
-          return { ...order, patient: { ...patient, profile }, test, result_fields_data: fields || [] };
-        })
-      );
-      setLabOrders(ordersWithDetails);
+      const orders = (data as any[]).map((order) => ({
+        ...order,
+        patient: {
+          patient_id: order.patients?.patient_id,
+          user_id: order.patients?.user_id,
+          profile: { full_name: order.patients?.profiles?.full_name, gender: order.patients?.profiles?.gender },
+        },
+        test: order.lab_tests_catalog,
+        result_fields_data: order.lab_result_fields || [],
+      }));
+      setLabOrders(orders);
     }
     setLoading(false);
   };

@@ -1,72 +1,51 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { Search } from "lucide-react";
+import { Search, ChevronLeft, ChevronRight } from "lucide-react";
 import { PatientRegistrationDialog } from "@/components/PatientRegistrationDialog";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { PatientDetailDialog } from "@/components/PatientDetailDialog";
 
-interface Patient {
-  id: string;
-  patient_id: string;
-  user_id: string;
-  insurance_provider: string | null;
-  profiles: {
-    full_name: string;
-    phone: string | null;
-  };
-}
+const PAGE_SIZE = 25;
 
 const Patients = () => {
-  const [patients, setPatients] = useState<Patient[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
-  const [loading, setLoading] = useState(true);
   const [selectedPatientId, setSelectedPatientId] = useState<string | null>(null);
   const [detailOpen, setDetailOpen] = useState(false);
+  const [page, setPage] = useState(0);
 
-  useEffect(() => {
-    fetchPatients();
-  }, []);
+  const { data, isLoading: loading, refetch } = useQuery({
+    queryKey: ["patients-list", page],
+    queryFn: async () => {
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
 
-  const fetchPatients = async () => {
-    setLoading(true);
-    const { data, error } = await supabase
-      .from("patients")
-      .select("id, patient_id, user_id, insurance_provider")
-      .order("created_at", { ascending: false });
+      const { data, error, count } = await supabase
+        .from("patients")
+        .select("id, patient_id, user_id, insurance_provider, profiles!inner(full_name, phone)", { count: "exact" })
+        .order("created_at", { ascending: false })
+        .range(from, to);
 
-    if (error) {
-      console.error("Error fetching patients:", error);
-      setLoading(false);
-      return;
-    }
+      if (error) throw error;
 
-    // Fetch profiles separately
-    const patientIds = data?.map(p => p.user_id) || [];
-    const { data: profilesData } = await supabase
-      .from("profiles")
-      .select("user_id, full_name, phone")
-      .in("user_id", patientIds);
+      const patients = (data || []).map((p: any) => ({
+        ...p,
+        profiles: { full_name: p.profiles?.full_name, phone: p.profiles?.phone },
+      }));
 
-    const patientsWithProfiles = data?.map(patient => ({
-      ...patient,
-      profiles: profilesData?.find(p => p.user_id === patient.user_id) || { full_name: "", phone: null }
-    })) || [];
+      return { patients, total: count || 0 };
+    },
+    staleTime: 30000,
+  });
 
-    setPatients(patientsWithProfiles as any);
-    setLoading(false);
-  };
+  const patients = data?.patients || [];
+  const total = data?.total || 0;
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
-  const filteredPatients = patients.filter((patient) => {
+  const filteredPatients = patients.filter((patient: any) => {
     const searchLower = searchTerm.toLowerCase();
     return (
       patient.patient_id.toLowerCase().includes(searchLower) ||
@@ -80,17 +59,17 @@ const Patients = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Patient Management</h1>
-          <p className="text-muted-foreground mt-1">
-            View and manage patient records
-          </p>
+          <p className="text-muted-foreground mt-1">View and manage patient records</p>
         </div>
-        <PatientRegistrationDialog onSuccess={fetchPatients} />
+        <PatientRegistrationDialog onSuccess={() => refetch()} />
       </div>
 
       <Card>
         <CardHeader>
           <CardTitle>Patient Directory</CardTitle>
-          <CardDescription>Search and view all registered patients</CardDescription>
+          <CardDescription>
+            {total > 0 ? `Showing ${page * PAGE_SIZE + 1}–${Math.min((page + 1) * PAGE_SIZE, total)} of ${total} patients` : "Search and view all registered patients"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
@@ -118,9 +97,7 @@ const Patients = () => {
                 <TableBody>
                   {loading ? (
                     <TableRow>
-                      <TableCell colSpan={5} className="text-center py-8">
-                        Loading patients...
-                      </TableCell>
+                      <TableCell colSpan={5} className="text-center py-8">Loading patients...</TableCell>
                     </TableRow>
                   ) : filteredPatients.length === 0 ? (
                     <TableRow>
@@ -129,7 +106,7 @@ const Patients = () => {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredPatients.map((patient) => (
+                    filteredPatients.map((patient: any) => (
                       <TableRow key={patient.id}>
                         <TableCell className="font-medium">{patient.patient_id}</TableCell>
                         <TableCell>{patient.profiles?.full_name || "N/A"}</TableCell>
@@ -146,15 +123,25 @@ const Patients = () => {
                 </TableBody>
               </Table>
             </div>
+
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between pt-2">
+                <p className="text-sm text-muted-foreground">Page {page + 1} of {totalPages}</p>
+                <div className="flex gap-2">
+                  <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage(p => p - 1)}>
+                    <ChevronLeft className="h-4 w-4 mr-1" /> Previous
+                  </Button>
+                  <Button variant="outline" size="sm" disabled={page >= totalPages - 1} onClick={() => setPage(p => p + 1)}>
+                    Next <ChevronRight className="h-4 w-4 ml-1" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      <PatientDetailDialog
-        patientId={selectedPatientId}
-        open={detailOpen}
-        onOpenChange={setDetailOpen}
-      />
+      <PatientDetailDialog patientId={selectedPatientId} open={detailOpen} onOpenChange={setDetailOpen} />
     </div>
   );
 };

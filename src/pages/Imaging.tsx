@@ -36,19 +36,20 @@ const Imaging = () => {
 
   const fetchOrders = async () => {
     try {
-      const { data } = await supabase.from("imaging_orders").select("*, imaging_catalog (modality, name, body_part, preparation_instructions)").order("created_at", { ascending: false });
-      const ordersWithPatients = await Promise.all(
-        (data || []).map(async (order) => {
-          const { data: patient } = await supabase.from("patients").select("patient_id, user_id").eq("id", order.patient_id).single();
-          let profile = null;
-          if (patient) {
-            const { data: p } = await supabase.from("profiles").select("full_name, phone").eq("user_id", patient.user_id).single();
-            profile = p;
-          }
-          return { ...order, patient: patient ? { ...patient, profiles: profile } : null };
-        })
-      );
-      setOrders(ordersWithPatients);
+      const { data } = await supabase
+        .from("imaging_orders")
+        .select("*, imaging_catalog(modality, name, body_part, preparation_instructions), patients!inner(patient_id, user_id, profiles!inner(full_name, phone))")
+        .order("created_at", { ascending: false });
+
+      const mapped = (data || []).map((order: any) => ({
+        ...order,
+        patient: {
+          patient_id: order.patients?.patient_id,
+          user_id: order.patients?.user_id,
+          profiles: { full_name: order.patients?.profiles?.full_name, phone: order.patients?.profiles?.phone },
+        },
+      }));
+      setOrders(mapped);
     } catch (error) {
       console.error("Error fetching imaging orders:", error);
     } finally {

@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -14,41 +15,48 @@ interface StationQueueProps {
   selectedTicketId?: string;
 }
 
+async function fetchStationTickets(stationStages: string[]) {
+  const { data, error } = await supabase
+    .from("tickets")
+    .select("*, patients!inner(patient_id, user_id, profiles!inner(full_name))")
+    .in("workflow_stage", stationStages)
+    .order("priority", { ascending: false })
+    .order("created_at", { ascending: true });
+
+  if (error) throw error;
+
+  return (data || []).map((t: any) => ({
+    ...t,
+    patient: {
+      patient_id: t.patients?.patient_id,
+      user_id: t.patients?.user_id,
+      profile: { full_name: t.patients?.profiles?.full_name },
+    },
+  }));
+}
+
 export function StationQueue({ stationStages, nextStage, title, onSelectPatient, selectedTicketId }: StationQueueProps) {
-  const [tickets, setTickets] = useState<any[]>([]);
+  const queryClient = useQueryClient();
   const [isLive, setIsLive] = useState(false);
 
+  const queryKey = ["station-queue", ...stationStages];
+
+  const { data: tickets = [] } = useQuery({
+    queryKey,
+    queryFn: () => fetchStationTickets(stationStages),
+    refetchInterval: 30000,
+  });
+
   useEffect(() => {
-    fetchTickets();
     const channel = supabase
       .channel(`station-${title}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "tickets" }, () => {
-        fetchTickets();
+        queryClient.invalidateQueries({ queryKey });
       })
       .subscribe((status) => setIsLive(status === "SUBSCRIBED"));
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
-
-  const fetchTickets = async () => {
-    const { data } = await supabase
-      .from("tickets")
-      .select("*")
-      .in("workflow_stage", stationStages)
-      .order("priority", { ascending: false })
-      .order("created_at", { ascending: true });
-
-    if (data) {
-      const enriched = await Promise.all(
-        data.map(async (t) => {
-          const { data: patient } = await supabase.from("patients").select("patient_id, user_id").eq("id", t.patient_id).single();
-          const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", patient?.user_id).single();
-          return { ...t, patient: { ...patient, profile } };
-        })
-      );
-      setTickets(enriched);
-    }
-  };
+  }, [queryClient, title]);
 
   const startServing = async (ticket: any) => {
     onSelectPatient?.(ticket);
@@ -64,7 +72,7 @@ export function StationQueue({ stationStages, nextStage, title, onSelectPatient,
       toast.error("Failed to advance patient");
     } else {
       toast.success(`Patient sent to ${nextStage.replace(/_/g, " ")}`);
-      fetchTickets();
+      queryClient.invalidateQueries({ queryKey });
     }
   };
 
@@ -86,7 +94,7 @@ export function StationQueue({ stationStages, nextStage, title, onSelectPatient,
           {tickets.length === 0 ? (
             <p className="text-center text-muted-foreground text-sm py-6">No patients</p>
           ) : (
-            tickets.map((ticket) => (
+            tickets.map((ticket: any) => (
               <div
                 key={ticket.id}
                 className={`p-3 rounded-lg border text-sm space-y-2 cursor-pointer transition-colors ${

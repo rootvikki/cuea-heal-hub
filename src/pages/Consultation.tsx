@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -87,6 +88,7 @@ interface Prescription {
 
 const Consultation = () => {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const [queue, setQueue] = useState<Ticket[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [patientVitals, setPatientVitals] = useState<Vital[]>([]);
@@ -145,12 +147,13 @@ const Consultation = () => {
             sonnerToast.info("New patient ready for consultation");
           }
         }
+        queryClient.invalidateQueries({ queryKey: ["station-queue", "waiting_for_doctor", "in_consult", "triage"] });
         fetchQueue();
       })
       .subscribe((status) => setIsLive(status === "SUBSCRIBED"));
 
     return () => { supabase.removeChannel(channel); };
-  }, []);
+  }, [queryClient]);
 
   useEffect(() => {
     if (selectedTicket?.patient?.id) {
@@ -163,22 +166,18 @@ const Consultation = () => {
     try {
       const { data } = await supabase
         .from("tickets")
-        .select("*")
+        .select("*, patients!inner(*, profiles!inner(full_name, phone, date_of_birth, gender))")
         .in("workflow_stage", ["waiting_for_doctor", "in_consult", "triage"])
         .order("priority", { ascending: false })
         .order("created_at", { ascending: true });
 
-      const ticketsWithPatients = await Promise.all(
-        (data || []).map(async (ticket) => {
-          const { data: patient } = await supabase.from("patients").select("*").eq("id", ticket.patient_id).single();
-          let profile = null;
-          if (patient) {
-            const { data: profileData } = await supabase.from("profiles").select("full_name, phone, date_of_birth, gender").eq("user_id", patient.user_id).single();
-            profile = profileData;
-          }
-          return { ...ticket, patient: patient ? { ...patient, profile } : null };
-        })
-      );
+      const ticketsWithPatients = (data || []).map((ticket: any) => ({
+        ...ticket,
+        patient: {
+          ...ticket.patients,
+          profile: ticket.patients?.profiles,
+        },
+      }));
       setQueue(ticketsWithPatients);
     } catch (error) {
       console.error("Error fetching queue:", error);

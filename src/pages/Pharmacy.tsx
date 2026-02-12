@@ -45,16 +45,22 @@ const Pharmacy = () => {
   };
 
   const fetchPrescriptions = async () => {
-    const { data } = await supabase.from("prescriptions").select("*").eq("dispensed", false).order("created_at", { ascending: false });
+    const { data } = await supabase
+      .from("prescriptions")
+      .select("*, patients!inner(patient_id, user_id, profiles!inner(full_name))")
+      .eq("dispensed", false)
+      .order("created_at", { ascending: false });
+
     if (data) {
-      const prescWithDetails = await Promise.all(
-        data.map(async (presc) => {
-          const { data: patient } = await supabase.from("patients").select("patient_id, user_id").eq("id", presc.patient_id).single();
-          const { data: profile } = await supabase.from("profiles").select("full_name").eq("user_id", patient?.user_id).single();
-          return { ...presc, patient: { ...patient, profile } };
-        })
-      );
-      setPrescriptions(prescWithDetails);
+      const mapped = (data as any[]).map((presc) => ({
+        ...presc,
+        patient: {
+          patient_id: presc.patients?.patient_id,
+          user_id: presc.patients?.user_id,
+          profile: { full_name: presc.patients?.profiles?.full_name },
+        },
+      }));
+      setPrescriptions(mapped);
     }
   };
 
