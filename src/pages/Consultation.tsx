@@ -257,7 +257,7 @@ const Consultation = () => {
 
       const { data: staff } = await supabase.from("staff").select("id").eq("user_id", user.id).single();
 
-      const { data: dept } = await supabase.from("departments").select("id").eq("name", "General").single();
+      const { data: dept } = await supabase.from("departments").select("id").eq("name", "General Medicine").single();
 
       // Build full subjective from clinical fields
       const fullSubjective = [
@@ -280,8 +280,8 @@ const Consultation = () => {
         .insert({
           patient_id: selectedTicket.patient.id,
           ticket_id: selectedTicket.id,
-          doctor_id: staff?.id || user.id,
-          department_id: dept?.id,
+          doctor_id: staff?.id ?? (() => { throw new Error("No staff record found for current user. Please contact admin."); })(),
+          department_id: dept?.id ?? (() => { throw new Error("Department 'General Medicine' not found. Please contact admin."); })(),
           chief_complaint: encounter.chiefComplaint,
           subjective: fullSubjective,
           objective: fullObjective,
@@ -311,7 +311,7 @@ const Consultation = () => {
         const prescriptionRecords = prescriptions.map((p) => ({
           encounter_id: encounterData.id,
           patient_id: selectedTicket.patient!.id,
-          doctor_id: staff?.id || user.id,
+          doctor_id: staff!.id,
           medication_name: p.medication_name,
           dosage: p.dosage,
           frequency: p.frequency,
@@ -327,7 +327,7 @@ const Consultation = () => {
         const labOrders = selectedLabTests.map((testId) => ({
           encounter_id: encounterData.id,
           patient_id: selectedTicket.patient!.id,
-          doctor_id: staff?.id || user.id,
+          doctor_id: staff!.id,
           test_id: testId,
           status: "pending",
         }));
@@ -356,7 +356,7 @@ const Consultation = () => {
           encounter_id: encounterData.id,
           patient_id: selectedTicket.patient!.id,
           imaging_id: imagingId,
-          ordered_by: staff?.id || user.id,
+          ordered_by: staff!.id,
           status: "pending",
           clinical_indication: encounter.chiefComplaint,
         }));

@@ -139,6 +139,23 @@ const Queue = () => {
   const handleCheckIn = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    // Check for duplicate active ticket
+    const { data: existingTickets } = await supabase
+      .from("tickets")
+      .select("id, ticket_number")
+      .eq("patient_id", formData.patientId)
+      .neq("status", "checked_out")
+      .limit(1);
+
+    if (existingTickets && existingTickets.length > 0) {
+      toast({
+        title: "Duplicate ticket",
+        description: `This patient already has an active ticket (${existingTickets[0].ticket_number}). Complete or check out the existing ticket first.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const ticketNumber = `T-${Date.now().toString().slice(-6)}`;
 
     const { error } = await supabase.from("tickets").insert({

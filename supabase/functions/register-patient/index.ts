@@ -37,6 +37,21 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Verify caller has receptionist or admin role
+    const { data: callerRoles } = await supabase
+      .from("user_roles")
+      .select("role")
+      .eq("user_id", caller.id);
+
+    const allowedRoles = ["receptionist", "admin", "super_admin"];
+    const hasPermission = callerRoles?.some((r: any) => allowedRoles.includes(r.role));
+    if (!hasPermission) {
+      return new Response(JSON.stringify({ error: "Insufficient permissions. Only receptionists and admins can register patients." }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     const body = await req.json();
     const {
       fullName, phone, email, password, dateOfBirth, gender,

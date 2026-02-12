@@ -3,8 +3,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { SidebarProvider } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/AppSidebar";
+import ProtectedLayout from "@/components/ProtectedLayout";
+import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
 import ResetPassword from "./pages/ResetPassword";
@@ -29,12 +29,21 @@ import RoleManagement from "./pages/RoleManagement";
 import Reports from "./pages/Reports";
 import Settings from "./pages/Settings";
 import PatientPortal from "./pages/PatientPortal";
-import ProtectedRoute from "./components/ProtectedRoute";
 import Dental from "./pages/Dental";
 import NotFound from "./pages/NotFound";
 import AuditLogs from "./pages/AuditLogs";
 
 const queryClient = new QueryClient();
+
+// Role groupings for route access
+const CLINICAL_ROLES = ["doctor", "nurse", "clinical_officer"];
+const RECEPTION_ROLES = ["receptionist"];
+const LAB_ROLES = ["lab_technician"];
+const IMAGING_ROLES = ["radiologist"];
+const PHARMACY_ROLES = ["pharmacist"];
+const FINANCE_ROLES = ["finance_officer", "cashier", "accountant"];
+const ADMIN_ROLES = ["super_admin", "admin", "system_admin", "hr_admin"];
+const ALL_STAFF = [...CLINICAL_ROLES, ...RECEPTION_ROLES, ...LAB_ROLES, ...IMAGING_ROLES, ...PHARMACY_ROLES, ...FINANCE_ROLES, ...ADMIN_ROLES, "ward_manager", "records_officer", "auditor"];
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
@@ -43,225 +52,50 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
+          {/* Public routes */}
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/queue-display" element={<QueueDisplay />} />
-          <Route path="/admin/users" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><AdminUserManagement /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/dashboard" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><Dashboard /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/patients" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><Patients /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/appointments" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><Appointments /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/queue" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><Queue /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/records" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><Records /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/consultation" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><Consultation /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/vitals" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><Vitals /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/pharmacy" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><Pharmacy /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/laboratory" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><Laboratory /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/billing" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><Billing /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/imaging" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><Imaging /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/insurance" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><Insurance /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/inpatient" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><Inpatient /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/staff" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><StaffManagement /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/onboard-staff" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><StaffOnboarding /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/roles" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><RoleManagement /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/dental" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><Dental /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/reports" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><Reports /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/settings" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><Settings /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
-          <Route path="/portal" element={
-            <ProtectedRoute>
-              <PatientPortal />
-            </ProtectedRoute>
-          } />
-          <Route path="/admin/audit-logs" element={
-            <ProtectedRoute>
-              <SidebarProvider>
-                <div className="flex min-h-screen w-full">
-                  <AppSidebar />
-                  <main className="flex-1"><AuditLogs /></main>
-                </div>
-              </SidebarProvider>
-            </ProtectedRoute>
-          } />
+
+          {/* Dashboard - all authenticated users */}
+          <Route path="/dashboard" element={<ProtectedLayout><Dashboard /></ProtectedLayout>} />
+
+          {/* Reception & Queue */}
+          <Route path="/patients" element={<ProtectedLayout allowedRoles={[...CLINICAL_ROLES, ...RECEPTION_ROLES, ...FINANCE_ROLES]}><Patients /></ProtectedLayout>} />
+          <Route path="/appointments" element={<ProtectedLayout allowedRoles={[...CLINICAL_ROLES, ...RECEPTION_ROLES]}><Appointments /></ProtectedLayout>} />
+          <Route path="/queue" element={<ProtectedLayout allowedRoles={[...CLINICAL_ROLES, ...RECEPTION_ROLES]}><Queue /></ProtectedLayout>} />
+          <Route path="/records" element={<ProtectedLayout allowedRoles={[...CLINICAL_ROLES, "records_officer"]}><Records /></ProtectedLayout>} />
+
+          {/* Clinical stations */}
+          <Route path="/vitals" element={<ProtectedLayout allowedRoles={CLINICAL_ROLES}><Vitals /></ProtectedLayout>} />
+          <Route path="/consultation" element={<ProtectedLayout allowedRoles={["doctor", "clinical_officer"]}><Consultation /></ProtectedLayout>} />
+          <Route path="/dental" element={<ProtectedLayout allowedRoles={["doctor", "clinical_officer"]}><Dental /></ProtectedLayout>} />
+          <Route path="/laboratory" element={<ProtectedLayout allowedRoles={LAB_ROLES}><Laboratory /></ProtectedLayout>} />
+          <Route path="/imaging" element={<ProtectedLayout allowedRoles={IMAGING_ROLES}><Imaging /></ProtectedLayout>} />
+          <Route path="/pharmacy" element={<ProtectedLayout allowedRoles={PHARMACY_ROLES}><Pharmacy /></ProtectedLayout>} />
+
+          {/* Finance */}
+          <Route path="/billing" element={<ProtectedLayout allowedRoles={FINANCE_ROLES}><Billing /></ProtectedLayout>} />
+          <Route path="/insurance" element={<ProtectedLayout allowedRoles={FINANCE_ROLES}><Insurance /></ProtectedLayout>} />
+
+          {/* Inpatient */}
+          <Route path="/inpatient" element={<ProtectedLayout allowedRoles={[...CLINICAL_ROLES, "ward_manager"]}><Inpatient /></ProtectedLayout>} />
+
+          {/* Staff & Admin */}
+          <Route path="/staff" element={<ProtectedLayout allowedRoles={ADMIN_ROLES}><StaffManagement /></ProtectedLayout>} />
+          <Route path="/admin/onboard-staff" element={<ProtectedLayout allowedRoles={ADMIN_ROLES}><StaffOnboarding /></ProtectedLayout>} />
+          <Route path="/admin/users" element={<ProtectedLayout allowedRoles={ADMIN_ROLES}><AdminUserManagement /></ProtectedLayout>} />
+          <Route path="/admin/roles" element={<ProtectedLayout allowedRoles={["super_admin"]}><RoleManagement /></ProtectedLayout>} />
+          <Route path="/admin/audit-logs" element={<ProtectedLayout allowedRoles={["super_admin", "auditor"]}><AuditLogs /></ProtectedLayout>} />
+
+          {/* Reports & Settings */}
+          <Route path="/reports" element={<ProtectedLayout allowedRoles={ALL_STAFF}><Reports /></ProtectedLayout>} />
+          <Route path="/settings" element={<ProtectedLayout allowedRoles={ADMIN_ROLES}><Settings /></ProtectedLayout>} />
+
+          {/* Patient Portal - separate layout */}
+          <Route path="/portal" element={<ProtectedRoute><PatientPortal /></ProtectedRoute>} />
+
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>
