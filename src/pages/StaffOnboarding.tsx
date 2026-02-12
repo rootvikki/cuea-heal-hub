@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { validateStaffForm } from "@/lib/validation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -144,8 +145,20 @@ export default function StaffOnboarding() {
 
   const validateStep = (step: number): boolean => {
     switch (step) {
-      case 1:
-        return !!(formData.email && formData.fullName && formData.payrollNumber);
+      case 1: {
+        if (!(formData.email && formData.fullName && formData.payrollNumber)) return false;
+        const errors = validateStaffForm({
+          email: formData.email,
+          fullName: formData.fullName,
+          phone: formData.phone,
+          payrollNumber: formData.payrollNumber,
+        });
+        if (errors.length > 0) {
+          toast({ title: "Validation Error", description: errors[0].message, variant: "destructive" });
+          return false;
+        }
+        return true;
+      }
       case 2:
         return !!(formData.primaryRole);
       case 3:
