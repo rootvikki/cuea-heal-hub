@@ -1,68 +1,52 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
+import { useUser } from "@/contexts/UserContext";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AdminRoleAssignment } from "@/components/AdminRoleAssignment";
 import { PatientRegistrationDialog } from "@/components/PatientRegistrationDialog";
+import { DashboardSkeleton } from "@/components/PageSkeleton";
 import { Users, Calendar, ClipboardList, DollarSign, Activity, Pill } from "lucide-react";
 import { format } from "date-fns";
 
 const Dashboard = () => {
   const navigate = useNavigate();
+  const { user, profile, roles } = useUser();
   const [stats, setStats] = useState({
     totalPatients: 0,
     todayAppointments: 0,
     activeTickets: 0,
     pendingPayments: 0,
   });
-  const [userName, setUserName] = useState("");
-  const [userId, setUserId] = useState("");
-  const [userEmail, setUserEmail] = useState("");
-  const [hasRole, setHasRole] = useState(false);
   const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [statsLoading, setStatsLoading] = useState(true);
+
+  const userName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
+  const hasRole = roles.length > 0;
 
   useEffect(() => {
-    const fetchData = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      
-      if (user) {
-        // Get user name from metadata or profile
-        const fullName = user.user_metadata?.full_name || user.email?.split("@")[0] || "User";
-        setUserName(fullName);
-        setUserId(user.id);
-        setUserEmail(user.email || "");
+    const fetchStats = async () => {
+      const today = new Date().toISOString().split('T')[0];
 
-        // Check if user has a role
-        const { data: roleData } = await supabase
-          .from("user_roles")
-          .select("role")
-          .eq("user_id", user.id)
-          .limit(1);
-        
-        setHasRole((roleData && roleData.length > 0) || false);
+      const [patientsRes, appointmentsRes, ticketsRes, invoicesRes, activityRes] = await Promise.all([
+        supabase.from("patients").select("id", { count: "exact", head: true }),
+        supabase.from("appointments").select("id", { count: "exact", head: true }).gte("appointment_date", today),
+        supabase.from("tickets").select("id", { count: "exact", head: true }).neq("status", "checked_out"),
+        supabase.from("invoices").select("id", { count: "exact", head: true }).eq("status", "pending"),
+        supabase.from("audit_logs").select("id, action, module, created_at").order("created_at", { ascending: false }).limit(6),
+      ]);
 
-        // Fetch statistics
-        const today = new Date().toISOString().split('T')[0];
-
-        const [patientsRes, appointmentsRes, ticketsRes, invoicesRes, activityRes] = await Promise.all([
-          supabase.from("patients").select("id", { count: "exact", head: true }),
-          supabase.from("appointments").select("id", { count: "exact", head: true }).gte("appointment_date", today),
-          supabase.from("tickets").select("id", { count: "exact", head: true }).neq("status", "checked_out"),
-          supabase.from("invoices").select("id", { count: "exact", head: true }).eq("status", "pending"),
-          supabase.from("audit_logs").select("id, action, module, created_at").order("created_at", { ascending: false }).limit(6),
-        ]);
-
-        setStats({
-          totalPatients: patientsRes.count || 0,
-          todayAppointments: appointmentsRes.count || 0,
-          activeTickets: ticketsRes.count || 0,
-          pendingPayments: invoicesRes.count || 0,
-        });
-        setRecentActivity(activityRes.data || []);
-      }
+      setStats({
+        totalPatients: patientsRes.count || 0,
+        todayAppointments: appointmentsRes.count || 0,
+        activeTickets: ticketsRes.count || 0,
+        pendingPayments: invoicesRes.count || 0,
+      });
+      setRecentActivity(activityRes.data || []);
+      setStatsLoading(false);
     };
 
-    fetchData();
+    fetchStats();
   }, []);
 
   const statCards = [
@@ -96,6 +80,8 @@ const Dashboard = () => {
     },
   ];
 
+  if (statsLoading) return <DashboardSkeleton />;
+
   return (
     <div className="p-8 space-y-8">
       <div className="space-y-2">
@@ -106,8 +92,8 @@ const Dashboard = () => {
               Here's what's happening in your hospital today.
             </p>
           </div>
-          {!hasRole && (
-            <AdminRoleAssignment userId={userId} userEmail={userEmail} />
+          {!hasRole && user && (
+            <AdminRoleAssignment userId={user.id} userEmail={user.email || ""} />
           )}
         </div>
       </div>

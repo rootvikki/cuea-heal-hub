@@ -93,8 +93,10 @@ Deno.serve(async (req) => {
       country: nationality || "Kenya",
     });
 
-    // Generate OPD number
-    const patientId = `OPD-${new Date().getFullYear()}-${String(Math.floor(Math.random() * 10000)).padStart(4, "0")}`;
+    // Generate sequential OPD number
+    const { data: opdData, error: opdError } = await supabase.rpc("next_opd_number");
+    if (opdError) throw new Error("Failed to generate OPD number: " + opdError.message);
+    const patientId = opdData as string;
 
     // Create patient record
     const { error: patientError } = await supabase.from("patients").insert({

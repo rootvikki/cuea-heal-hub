@@ -270,6 +270,24 @@ export type Database = {
           },
         ]
       }
+      counters: {
+        Row: {
+          created_at: string
+          current_value: number
+          id: string
+        }
+        Insert: {
+          created_at?: string
+          current_value?: number
+          id: string
+        }
+        Update: {
+          created_at?: string
+          current_value?: number
+          id?: string
+        }
+        Relationships: []
+      }
       critical_alerts: {
         Row: {
           acknowledged: boolean | null
@@ -2158,6 +2176,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      next_opd_number: { Args: never; Returns: string }
     }
     Enums: {
       app_role:
