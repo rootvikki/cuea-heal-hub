@@ -38,17 +38,21 @@ const Billing = () => {
 
   const fetchInvoices = async () => {
     setLoading(true);
-    const { data } = await supabase.from("invoices").select("*").order("created_at", { ascending: false });
+    const { data } = await supabase
+      .from("invoices")
+      .select("*, patients!inner(patient_id, user_id, patient_type, payroll_number, admission_number, national_id, profiles!inner(full_name, phone)), invoice_items(*)")
+      .order("created_at", { ascending: false });
+
     if (data) {
-      const invoicesWithDetails = await Promise.all(
-        data.map(async (invoice) => {
-          const { data: patient } = await supabase.from("patients").select("patient_id, user_id, patient_type, payroll_number, admission_number, national_id").eq("id", invoice.patient_id).single();
-          const { data: profile } = await supabase.from("profiles").select("full_name, phone").eq("user_id", patient?.user_id).single();
-          const { data: items } = await supabase.from("invoice_items").select("*").eq("invoice_id", invoice.id);
-          return { ...invoice, patient: { ...patient, profile }, items };
-        })
-      );
-      setInvoices(invoicesWithDetails);
+      const mapped = (data as any[]).map((invoice) => ({
+        ...invoice,
+        patient: {
+          ...invoice.patients,
+          profile: invoice.patients?.profiles,
+        },
+        items: invoice.invoice_items,
+      }));
+      setInvoices(mapped);
     }
     setLoading(false);
   };

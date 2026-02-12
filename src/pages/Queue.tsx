@@ -1,145 +1,116 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ClipboardList, Plus, ArrowRight, Radio } from "lucide-react";
+import { ClipboardList, Plus, ArrowRight, Radio, Search } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
+
+async function fetchQueueTickets() {
+  const { data, error } = await supabase
+    .from("tickets")
+    .select("*, patients!inner(patient_id, user_id, profiles!inner(full_name)), departments!inner(name)")
+    .neq("status", "checked_out")
+    .order("priority", { ascending: false })
+    .order("checked_in_at", { ascending: true });
+
+  if (error) throw error;
+
+  return (data || []).map((t: any) => ({
+    ...t,
+    patient: {
+      patient_id: t.patients?.patient_id,
+      user_id: t.patients?.user_id,
+      profile: { full_name: t.patients?.profiles?.full_name },
+    },
+    department: { name: t.departments?.name },
+  }));
+}
+
+async function fetchAllPatients() {
+  const { data, error } = await supabase
+    .from("patients")
+    .select("id, patient_id, user_id, visit_reason, profiles!inner(full_name)")
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  return (data || []).map((p: any) => ({
+    ...p,
+    profile: { full_name: p.profiles?.full_name },
+  }));
+}
 
 const Queue = () => {
   const { toast } = useToast();
-  const [tickets, setTickets] = useState<any[]>([]);
-  const [departments, setDepartments] = useState<any[]>([]);
-  const [patients, setPatients] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isLive, setIsLive] = useState(false);
+  const [patientSearch, setPatientSearch] = useState("");
   const [formData, setFormData] = useState({
     patientId: "",
     departmentId: "",
     priority: "1",
   });
 
-  useEffect(() => {
-    fetchTickets();
-    fetchDepartments();
-    fetchPatients();
+  const { data: tickets = [], isLoading: loading } = useQuery({
+    queryKey: ["queue-tickets"],
+    queryFn: fetchQueueTickets,
+    refetchInterval: 30000,
+  });
 
-    // Subscribe to realtime updates
+  const { data: patients = [] } = useQuery({
+    queryKey: ["all-patients-for-checkin"],
+    queryFn: fetchAllPatients,
+    staleTime: 60000,
+  });
+
+  const { data: departments = [] } = useQuery({
+    queryKey: ["departments"],
+    queryFn: async () => {
+      const { data } = await supabase.from("departments").select("*");
+      return data || [];
+    },
+    staleTime: 300000,
+  });
+
+  useEffect(() => {
     const channel = supabase
       .channel("tickets-realtime")
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "tickets",
-        },
-        (payload) => {
-          console.log("Realtime update:", payload);
-          
-          // Show toast notification for status changes
-          if (payload.eventType === "UPDATE" && payload.new && payload.old) {
-            const newStatus = (payload.new as any).status;
-            const oldStatus = (payload.old as any).status;
-            if (newStatus !== oldStatus) {
-              sonnerToast.info(`Queue updated: Patient moved to ${newStatus.replace(/_/g, " ")}`);
-            }
-          } else if (payload.eventType === "INSERT") {
-            sonnerToast.success("New patient checked in");
+      .on("postgres_changes", { event: "*", schema: "public", table: "tickets" }, (payload) => {
+        if (payload.eventType === "UPDATE" && payload.new && payload.old) {
+          const newStatus = (payload.new as any).status;
+          const oldStatus = (payload.old as any).status;
+          if (newStatus !== oldStatus) {
+            sonnerToast.info(`Queue updated: Patient moved to ${newStatus.replace(/_/g, " ")}`);
           }
-          
-          fetchTickets();
+        } else if (payload.eventType === "INSERT") {
+          sonnerToast.success("New patient checked in");
         }
-      )
-      .subscribe((status) => {
-        setIsLive(status === "SUBSCRIBED");
-      });
+        queryClient.invalidateQueries({ queryKey: ["queue-tickets"] });
+      })
+      .subscribe((status) => setIsLive(status === "SUBSCRIBED"));
 
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, []);
+    return () => { supabase.removeChannel(channel); };
+  }, [queryClient]);
 
-  const fetchTickets = async () => {
-    setLoading(true);
-    const { data } = await supabase
-      .from("tickets")
-      .select("*")
-      .neq("status", "checked_out")
-      .order("priority", { ascending: false })
-      .order("checked_in_at", { ascending: true });
-
-    if (data) {
-      const ticketsWithDetails = await Promise.all(
-        data.map(async (ticket) => {
-          const { data: patient } = await supabase
-            .from("patients")
-            .select("patient_id, user_id")
-            .eq("id", ticket.patient_id)
-            .single();
-
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("user_id", patient?.user_id)
-            .single();
-
-          const { data: dept } = await supabase
-            .from("departments")
-            .select("name")
-            .eq("id", ticket.department_id)
-            .single();
-
-          return {
-            ...ticket,
-            patient: { ...patient, profile },
-            department: dept,
-          };
-        })
-      );
-      setTickets(ticketsWithDetails);
-    }
-    setLoading(false);
-  };
-
-  const fetchDepartments = async () => {
-    const { data } = await supabase.from("departments").select("*");
-    setDepartments(data || []);
-  };
-
-  const fetchPatients = async () => {
-    const { data } = await supabase.from("patients").select("id, patient_id, user_id");
-    if (data) {
-      const patientsWithProfiles = await Promise.all(
-        data.map(async (patient) => {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("user_id", patient.user_id)
-            .single();
-          return { ...patient, profile };
-        })
-      );
-      setPatients(patientsWithProfiles);
-    }
-  };
+  const filteredPatients = patients.filter((p: any) => {
+    if (!patientSearch) return true;
+    const s = patientSearch.toLowerCase();
+    return p.patient_id?.toLowerCase().includes(s) || p.profile?.full_name?.toLowerCase().includes(s);
+  });
 
   const handleCheckIn = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Check for duplicate active ticket
     const { data: existingTickets } = await supabase
       .from("tickets")
       .select("id, ticket_number")
@@ -150,20 +121,14 @@ const Queue = () => {
     if (existingTickets && existingTickets.length > 0) {
       toast({
         title: "Duplicate ticket",
-        description: `This patient already has an active ticket (${existingTickets[0].ticket_number}). Complete or check out the existing ticket first.`,
+        description: `This patient already has an active ticket (${existingTickets[0].ticket_number}).`,
         variant: "destructive",
       });
       return;
     }
 
-    // Check patient visit_reason for dental auto-routing
-    const { data: patientData } = await supabase
-      .from("patients")
-      .select("visit_reason")
-      .eq("id", formData.patientId)
-      .single();
-
-    const isDental = patientData?.visit_reason === "dental";
+    const selectedPatient = patients.find((p: any) => p.id === formData.patientId);
+    const isDental = selectedPatient?.visit_reason === "dental";
     const initialStatus = isDental ? "at_dental" : "checked_in";
 
     const ticketNumber = `T-${Date.now().toString().slice(-6)}`;
@@ -178,20 +143,16 @@ const Queue = () => {
     });
 
     if (error) {
-      toast({
-        title: "Error creating ticket",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Error creating ticket", description: error.message, variant: "destructive" });
     } else {
       toast({
         title: "Patient checked in",
-        description: isDental
-          ? `Ticket ${ticketNumber} — routed to Dental`
-          : `Ticket number: ${ticketNumber}`,
+        description: isDental ? `Ticket ${ticketNumber} — routed to Dental` : `Ticket number: ${ticketNumber}`,
       });
       setDialogOpen(false);
       setFormData({ patientId: "", departmentId: "", priority: "1" });
+      setPatientSearch("");
+      queryClient.invalidateQueries({ queryKey: ["queue-tickets"] });
     }
   };
 
@@ -204,33 +165,20 @@ const Queue = () => {
       .eq("id", ticketId);
 
     if (error) {
-      toast({
-        title: "Error updating ticket",
-        description: error.message,
-        variant: "destructive",
-      });
+      toast({ title: "Error updating ticket", description: error.message, variant: "destructive" });
     } else {
-      toast({
-        title: "Ticket updated",
-        description: "Status changed successfully",
-      });
+      toast({ title: "Ticket updated", description: "Status changed successfully" });
+      queryClient.invalidateQueries({ queryKey: ["queue-tickets"] });
     }
   };
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
-      checked_in: "bg-muted",
-      triage: "bg-warning",
-      waiting_for_doctor: "bg-status-pending",
-      in_consult: "bg-status-in-progress",
-      at_dental: "bg-status-in-progress",
-      order_placed_lab: "bg-primary",
-      order_placed_imaging: "bg-primary",
-      at_lab: "bg-accent",
-      at_imaging: "bg-accent",
-      at_pharmacy: "bg-success",
-      at_billing: "bg-secondary",
-      checked_out: "bg-status-completed",
+      checked_in: "bg-muted", triage: "bg-warning", waiting_for_doctor: "bg-status-pending",
+      in_consult: "bg-status-in-progress", at_dental: "bg-status-in-progress",
+      order_placed_lab: "bg-primary", order_placed_imaging: "bg-primary",
+      at_lab: "bg-accent", at_imaging: "bg-accent", at_pharmacy: "bg-success",
+      at_billing: "bg-secondary", checked_out: "bg-status-completed",
     };
     return colors[status] || "bg-muted";
   };
@@ -241,17 +189,7 @@ const Queue = () => {
     return <Badge variant="outline">Normal</Badge>;
   };
 
-  const statusFlow: TicketStatus[] = [
-    "checked_in",
-    "triage",
-    "waiting_for_doctor",
-    "in_consult",
-    "at_pharmacy",
-    "at_billing",
-    "checked_out",
-  ];
-
-  type TicketStatusDental = TicketStatus | "at_dental";
+  const statusFlow: TicketStatus[] = ["checked_in", "triage", "waiting_for_doctor", "in_consult", "at_pharmacy", "at_billing", "checked_out"];
 
   const getDisplayFlow = (ticket: any): string[] => {
     const stage = ticket.workflow_stage || ticket.status;
@@ -274,21 +212,15 @@ const Queue = () => {
             <h1 className="text-3xl font-bold">Patient Queue</h1>
             {isLive && (
               <Badge variant="outline" className="gap-1 text-green-600 border-green-600">
-                <Radio className="h-3 w-3 animate-pulse" />
-                Live
+                <Radio className="h-3 w-3 animate-pulse" /> Live
               </Badge>
             )}
           </div>
-          <p className="text-muted-foreground mt-1">
-            Real-time patient flow management
-          </p>
+          <p className="text-muted-foreground mt-1">Real-time patient flow management</p>
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
-              Check-in Patient
-            </Button>
+            <Button className="gap-2"><Plus className="h-4 w-4" /> Check-in Patient</Button>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>
@@ -297,17 +229,27 @@ const Queue = () => {
             </DialogHeader>
             <form onSubmit={handleCheckIn} className="space-y-4">
               <div className="space-y-2">
+                <Label>Search Patient</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by name or ID..."
+                    value={patientSearch}
+                    onChange={(e) => setPatientSearch(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
                 <Label>Patient</Label>
                 <Select
                   value={formData.patientId}
                   onValueChange={(value) => setFormData({ ...formData, patientId: value })}
                   required
                 >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select patient" />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select patient" /></SelectTrigger>
                   <SelectContent>
-                    {patients.map((patient) => (
+                    {filteredPatients.slice(0, 50).map((patient: any) => (
                       <SelectItem key={patient.id} value={patient.id}>
                         {patient.patient_id} - {patient.profile?.full_name}
                       </SelectItem>
@@ -315,36 +257,21 @@ const Queue = () => {
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2">
                 <Label>Department</Label>
-                <Select
-                  value={formData.departmentId}
-                  onValueChange={(value) => setFormData({ ...formData, departmentId: value })}
-                  required
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select department" />
-                  </SelectTrigger>
+                <Select value={formData.departmentId} onValueChange={(value) => setFormData({ ...formData, departmentId: value })} required>
+                  <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
                   <SelectContent>
-                    {departments.map((dept) => (
-                      <SelectItem key={dept.id} value={dept.id}>
-                        {dept.name}
-                      </SelectItem>
+                    {departments.map((dept: any) => (
+                      <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="space-y-2">
                 <Label>Priority</Label>
-                <Select
-                  value={formData.priority}
-                  onValueChange={(value) => setFormData({ ...formData, priority: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
+                <Select value={formData.priority} onValueChange={(value) => setFormData({ ...formData, priority: value })}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="1">Normal</SelectItem>
                     <SelectItem value="2">High</SelectItem>
@@ -352,11 +279,8 @@ const Queue = () => {
                   </SelectContent>
                 </Select>
               </div>
-
               <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
-                  Cancel
-                </Button>
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
                 <Button type="submit">Check-in</Button>
               </div>
             </form>
@@ -367,8 +291,7 @@ const Queue = () => {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <ClipboardList className="h-5 w-5" />
-            Active Tickets ({tickets.length})
+            <ClipboardList className="h-5 w-5" /> Active Tickets ({tickets.length})
           </CardTitle>
           <CardDescription>Real-time patient queue status</CardDescription>
         </CardHeader>
@@ -379,32 +302,20 @@ const Queue = () => {
             <p className="text-center py-8 text-muted-foreground">No patients in queue</p>
           ) : (
             <div className="space-y-3">
-              {tickets.map((ticket) => (
-                <div
-                  key={ticket.id}
-                  className="p-4 border rounded-lg hover:bg-muted/50 transition-colors"
-                >
+              {tickets.map((ticket: any) => (
+                <div key={ticket.id} className="p-4 border rounded-lg hover:bg-muted/50 transition-colors">
                   <div className="flex items-start justify-between mb-3">
                     <div className="space-y-1">
                       <div className="flex items-center gap-2">
                         <span className="text-xl font-bold">{ticket.ticket_number}</span>
                         {getPriorityBadge(ticket.priority)}
                       </div>
-                      <p className="font-medium">
-                        {ticket.patient?.profile?.full_name}
-                      </p>
-                      <p className="text-sm text-muted-foreground">
-                        {ticket.patient?.patient_id} • {ticket.department?.name}
-                      </p>
-                      <p className="text-xs text-muted-foreground">
-                        Checked in: {new Date(ticket.checked_in_at).toLocaleString()}
-                      </p>
+                      <p className="font-medium">{ticket.patient?.profile?.full_name}</p>
+                      <p className="text-sm text-muted-foreground">{ticket.patient?.patient_id} • {ticket.department?.name}</p>
+                      <p className="text-xs text-muted-foreground">Checked in: {new Date(ticket.checked_in_at).toLocaleString()}</p>
                     </div>
-                    <Badge className={getStatusColor(ticket.status)}>
-                      {ticket.status.replace(/_/g, " ")}
-                    </Badge>
+                    <Badge className={getStatusColor(ticket.status)}>{ticket.status.replace(/_/g, " ")}</Badge>
                   </div>
-
                   <div className="flex gap-1 flex-wrap items-center">
                     {getDisplayFlow(ticket).map((status, idx, arr) => {
                       const currentStage = ticket.workflow_stage || ticket.status;
@@ -413,20 +324,10 @@ const Queue = () => {
                       const isCurrent = idx === currentIdx;
                       return (
                         <div key={status} className="flex items-center gap-1">
-                          <div
-                            className={`px-2 py-1 rounded text-xs font-medium ${
-                              isCurrent
-                                ? "bg-primary text-primary-foreground"
-                                : isCompleted
-                                ? "bg-primary/20 text-primary"
-                                : "bg-muted text-muted-foreground"
-                            }`}
-                          >
+                          <div className={`px-2 py-1 rounded text-xs font-medium ${isCurrent ? "bg-primary text-primary-foreground" : isCompleted ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
                             {status.replace(/_/g, " ")}
                           </div>
-                          {idx < arr.length - 1 && (
-                            <ArrowRight className="h-3 w-3 text-muted-foreground" />
-                          )}
+                          {idx < arr.length - 1 && <ArrowRight className="h-3 w-3 text-muted-foreground" />}
                         </div>
                       );
                     })}
