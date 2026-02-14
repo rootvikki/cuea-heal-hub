@@ -70,7 +70,7 @@ const App = () => (
           <Route path="/patients" element={<ProtectedLayout allowedRoles={[...CLINICAL_ROLES, ...RECEPTION_ROLES, ...FINANCE_ROLES]}><Patients /></ProtectedLayout>} />
           <Route path="/appointments" element={<ProtectedLayout allowedRoles={[...CLINICAL_ROLES, ...RECEPTION_ROLES]}><Appointments /></ProtectedLayout>} />
           <Route path="/queue" element={<ProtectedLayout allowedRoles={[...CLINICAL_ROLES, ...RECEPTION_ROLES]}><Queue /></ProtectedLayout>} />
-          <Route path="/records" element={<ProtectedLayout allowedRoles={[...CLINICAL_ROLES, "records_officer"]}><Records /></ProtectedLayout>} />
+          <Route path="/records" element={<ProtectedLayout allowedRoles={["doctor", "clinical_officer"]}><Records /></ProtectedLayout>} />
 
           {/* Clinical stations */}
           <Route path="/vitals" element={<ProtectedLayout allowedRoles={CLINICAL_ROLES}><Vitals /></ProtectedLayout>} />
