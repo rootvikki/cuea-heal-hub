@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useUser } from "@/contexts/UserContext";
 import {
   Dialog,
   DialogContent,
@@ -35,6 +36,8 @@ export const PatientDetailDialog = ({
   open,
   onOpenChange,
 }: PatientDetailDialogProps) => {
+  const { hasAnyRole } = useUser();
+  const isDoctor = hasAnyRole(["doctor", "clinical_officer"]);
   const [loading, setLoading] = useState(true);
   const [patient, setPatient] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
@@ -65,38 +68,40 @@ export const PatientDetailDialog = ({
     }
     setPatient(pat);
 
-    const [profileRes, vitalsRes, encountersRes, labRes, rxRes] =
-      await Promise.all([
-        supabase
-          .from("profiles")
-          .select("*")
-          .eq("user_id", pat.user_id)
-          .single(),
-        supabase
-          .from("vitals")
-          .select("*")
-          .eq("patient_id", patientId)
-          .order("recorded_at", { ascending: false })
-          .limit(10),
-        supabase
-          .from("encounters")
-          .select("*, department:departments(name)")
-          .eq("patient_id", patientId)
-          .order("encounter_date", { ascending: false })
-          .limit(20),
-        supabase
-          .from("lab_orders")
-          .select("*, test:lab_tests_catalog(test_name, unit, normal_range)")
-          .eq("patient_id", patientId)
-          .order("created_at", { ascending: false })
-          .limit(20),
-        supabase
-          .from("prescriptions")
-          .select("*")
-          .eq("patient_id", patientId)
-          .order("created_at", { ascending: false })
-          .limit(20),
-      ]);
+    const [profileRes, vitalsRes, encountersRes, labRes, rxRes] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", pat.user_id)
+        .single(),
+      supabase
+        .from("vitals")
+        .select("*")
+        .eq("patient_id", patientId)
+        .order("recorded_at", { ascending: false })
+        .limit(10),
+      isDoctor
+        ? supabase
+            .from("encounters")
+            .select("*, department:departments(name)")
+            .eq("patient_id", patientId)
+            .order("encounter_date", { ascending: false })
+            .limit(20)
+        : Promise.resolve({ data: [] }),
+      supabase
+        .from("lab_orders")
+        .select("*, test:lab_tests_catalog(test_name, unit, normal_range)")
+        .eq("patient_id", patientId)
+        .order("created_at", { ascending: false })
+        .limit(20),
+      supabase
+        .from("prescriptions")
+        .select("*")
+        .eq("patient_id", patientId)
+        .order("created_at", { ascending: false })
+        .limit(20),
+    ]);
+
 
     setProfile(profileRes.data);
     setVitals(vitalsRes.data || []);
@@ -126,10 +131,10 @@ export const PatientDetailDialog = ({
           </p>
         ) : (
           <Tabs defaultValue="demographics" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-5">
+            <TabsList className={`grid w-full ${isDoctor ? 'grid-cols-5' : 'grid-cols-4'}`}>
               <TabsTrigger value="demographics">Profile</TabsTrigger>
               <TabsTrigger value="vitals">Vitals</TabsTrigger>
-              <TabsTrigger value="encounters">Visits</TabsTrigger>
+              {isDoctor && <TabsTrigger value="encounters">Visits</TabsTrigger>}
               <TabsTrigger value="labs">Labs</TabsTrigger>
               <TabsTrigger value="prescriptions">Rx</TabsTrigger>
             </TabsList>
@@ -410,8 +415,8 @@ export const PatientDetailDialog = ({
               </ScrollArea>
             </TabsContent>
 
-            {/* Encounters */}
-            <TabsContent value="encounters">
+            {/* Encounters - doctors only */}
+            {isDoctor && <TabsContent value="encounters">
               <ScrollArea className="h-[500px]">
                 {encounters.length === 0 ? (
                   <p className="text-center py-8 text-muted-foreground">
@@ -471,7 +476,7 @@ export const PatientDetailDialog = ({
                   </div>
                 )}
               </ScrollArea>
-            </TabsContent>
+            </TabsContent>}
 
             {/* Labs */}
             <TabsContent value="labs">
