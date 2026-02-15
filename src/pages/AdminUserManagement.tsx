@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { logAuditEvent } from "@/lib/auditLog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -45,16 +46,21 @@ interface UserWithRoles {
 const ALL_ROLES: { value: AppRole; label: string }[] = [
   { value: "super_admin", label: "Super Admin" },
   { value: "admin", label: "Admin" },
+  { value: "system_admin", label: "System Admin" },
   { value: "doctor", label: "Doctor" },
+  { value: "clinical_officer", label: "Clinical Officer" },
   { value: "nurse", label: "Nurse" },
+  { value: "ward_manager", label: "Ward Manager" },
   { value: "receptionist", label: "Receptionist" },
   { value: "lab_technician", label: "Lab Technician" },
-  { value: "pharmacist", label: "Pharmacist" },
   { value: "radiologist", label: "Radiologist" },
+  { value: "pharmacist", label: "Pharmacist" },
   { value: "finance_officer", label: "Finance Officer" },
-  { value: "clinical_officer", label: "Clinical Officer" },
+  { value: "cashier", label: "Cashier" },
+  { value: "accountant", label: "Accountant" },
+  { value: "hr_admin", label: "HR Admin" },
   { value: "records_officer", label: "Records Officer" },
-  { value: "ward_manager", label: "Ward Manager" },
+  { value: "auditor", label: "Auditor" },
   { value: "patient", label: "Patient" },
 ];
 
@@ -86,7 +92,7 @@ const AdminUserManagement = () => {
   const [updatingRoles, setUpdatingRoles] = useState(false);
 
   // Edit profile
-  const [editForm, setEditForm] = useState({ fullName: "", phone: "", email: "", dateOfBirth: "", gender: "", address: "" });
+  const [editForm, setEditForm] = useState({ fullName: "", phone: "", email: "", dateOfBirth: "", gender: "", address: "", payrollNumber: "" });
   const [editLoading, setEditLoading] = useState(false);
 
   // Change password
@@ -176,6 +182,7 @@ const AdminUserManagement = () => {
         await supabase.from("user_roles").insert({ user_id: selectedUser.user_id, role });
       }
       toast({ title: "Roles updated", description: `${selectedUser.full_name}'s roles updated.` });
+      logAuditEvent({ action: "UPDATE_ROLES", module: "user_management", details: { target_user_id: selectedUser.user_id, target_email: selectedUser.email, old_roles: selectedUser.roles, new_roles: userRolesToUpdate } });
       setRolesDialogOpen(false);
       fetchUsers();
     } catch (error: any) {
@@ -192,6 +199,7 @@ const AdminUserManagement = () => {
       phone: user.phone || "",
       email: user.email || "",
       dateOfBirth: "", gender: "", address: "",
+      payrollNumber: user.payroll_number || "",
     });
     setEditDialogOpen(true);
   };
@@ -210,10 +218,12 @@ const AdminUserManagement = () => {
           dateOfBirth: editForm.dateOfBirth || null,
           gender: editForm.gender || null,
           address: editForm.address || null,
+          payrollNumber: editForm.payrollNumber || null,
         },
       });
       if (res.error) throw res.error;
       if (!res.data.success) throw new Error(res.data.error);
+      logAuditEvent({ action: "UPDATE_PROFILE", module: "user_management", details: { target_user_id: selectedUser.user_id, target_email: selectedUser.email } });
       toast({ title: "Profile updated", description: res.data.message });
       setEditDialogOpen(false);
       fetchUsers();
@@ -553,6 +563,9 @@ const AdminUserManagement = () => {
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2"><Label>Date of Birth</Label><Input type="date" value={editForm.dateOfBirth} onChange={(e) => setEditForm({ ...editForm, dateOfBirth: e.target.value })} /></div>
               <div className="space-y-2"><Label>Address</Label><Input value={editForm.address} onChange={(e) => setEditForm({ ...editForm, address: e.target.value })} /></div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2"><Label>Payroll Number</Label><Input value={editForm.payrollNumber} onChange={(e) => setEditForm({ ...editForm, payrollNumber: e.target.value })} placeholder="e.g., PAY-001" /></div>
             </div>
           </div>
           <DialogFooter>

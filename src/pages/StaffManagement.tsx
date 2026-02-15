@@ -1,15 +1,16 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Users, UserPlus, Search, Shield, Building } from "lucide-react";
+import { Users, UserPlus, Search, Building } from "lucide-react";
 
 interface StaffMember {
   id: string;
@@ -37,35 +38,35 @@ interface Department {
 }
 
 const ROLES = [
-  { value: "admin", label: "Administrator" },
+  { value: "super_admin", label: "Super Admin" },
+  { value: "admin", label: "Admin" },
+  { value: "system_admin", label: "System Admin" },
   { value: "doctor", label: "Doctor" },
+  { value: "clinical_officer", label: "Clinical Officer" },
   { value: "nurse", label: "Nurse" },
+  { value: "ward_manager", label: "Ward Manager" },
   { value: "receptionist", label: "Receptionist" },
   { value: "lab_technician", label: "Lab Technician" },
-  { value: "pharmacist", label: "Pharmacist" },
   { value: "radiologist", label: "Radiologist" },
+  { value: "pharmacist", label: "Pharmacist" },
   { value: "finance_officer", label: "Finance Officer" },
+  { value: "cashier", label: "Cashier" },
+  { value: "accountant", label: "Accountant" },
+  { value: "hr_admin", label: "HR Admin" },
+  { value: "records_officer", label: "Records Officer" },
+  { value: "auditor", label: "Auditor" },
+  { value: "patient", label: "Patient" },
 ];
 
 const StaffManagement = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [staff, setStaff] = useState<StaffMember[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [addStaffOpen, setAddStaffOpen] = useState(false);
   const [selectedStaff, setSelectedStaff] = useState<StaffMember | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
-
-  const [newStaff, setNewStaff] = useState({
-    email: "",
-    full_name: "",
-    phone: "",
-    department_id: "",
-    specialization: "",
-    license_number: "",
-    role: "",
-  });
 
   useEffect(() => {
     fetchData();
@@ -73,50 +74,40 @@ const StaffManagement = () => {
 
   const fetchData = async () => {
     try {
-      // Fetch departments
-      const { data: deptData, error: deptError } = await supabase
-        .from("departments")
-        .select("*")
-        .order("name");
+      // Fetch departments and staff in parallel
+      const [deptRes, staffRes, usersRes] = await Promise.all([
+        supabase.from("departments").select("*").order("name"),
+        supabase.from("staff").select(`*, department:departments(name)`).order("created_at", { ascending: false }),
+        supabase.rpc("get_all_users_with_roles"),
+      ]);
 
-      if (deptError) throw deptError;
-      setDepartments(deptData || []);
+      if (deptRes.error) throw deptRes.error;
+      if (staffRes.error) throw staffRes.error;
 
-      // Fetch staff with departments
-      const { data: staffData, error: staffError } = await supabase
-        .from("staff")
-        .select(`*, department:departments(name)`)
-        .order("created_at", { ascending: false });
+      setDepartments(deptRes.data || []);
 
-      if (staffError) throw staffError;
+      // Build lookup maps from the single RPC call
+      const usersMap = new Map<string, { email?: string; roles: string[]; full_name?: string; phone?: string }>();
+      for (const u of (usersRes.data || [])) {
+        usersMap.set(u.user_id, {
+          email: u.email,
+          roles: u.roles || [],
+          full_name: u.full_name,
+          phone: u.phone,
+        });
+      }
 
-      // Fetch profiles and roles for each staff member
-      const staffWithDetails = await Promise.all(
-        (staffData || []).map(async (member) => {
-          // Get profile
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name, phone")
-            .eq("user_id", member.user_id)
-            .single();
-
-          // Get roles
-          const { data: rolesData } = await supabase
-            .from("user_roles")
-            .select("role")
-            .eq("user_id", member.user_id);
-
-          // Get email from auth (if available through RPC)
-          const { data: userData } = await supabase.rpc("get_all_users_with_roles");
-          const userInfo = userData?.find((u: { user_id: string }) => u.user_id === member.user_id);
-
-          return {
-            ...member,
-            profile: profile ? { ...profile, email: userInfo?.email } : null,
-            roles: rolesData?.map((r) => r.role) || [],
-          };
-        })
-      );
+      // Join in memory — no N+1
+      const staffWithDetails = (staffRes.data || []).map((member) => {
+        const userData = usersMap.get(member.user_id);
+        return {
+          ...member,
+          profile: userData
+            ? { full_name: userData.full_name || "", phone: userData.phone || "", email: userData.email }
+            : null,
+          roles: userData?.roles || [],
+        };
+      });
 
       setStaff(staffWithDetails);
     } catch (error) {
@@ -135,19 +126,11 @@ const StaffManagement = () => {
 
       if (error) throw error;
 
-      toast({
-        title: "Staff Updated",
-        description: "Department assignment updated successfully",
-      });
-
+      toast({ title: "Staff Updated", description: "Department assignment updated successfully" });
       fetchData();
     } catch (error) {
       console.error("Error updating staff:", error);
-      toast({
-        title: "Error",
-        description: "Failed to update staff",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to update staff", variant: "destructive" });
     }
   };
 
@@ -212,15 +195,18 @@ const StaffManagement = () => {
               className="pl-10 w-64"
             />
           </div>
+          <Button onClick={() => navigate("/admin/onboard-staff")}>
+            <UserPlus className="mr-2 h-4 w-4" />Onboard Staff
+          </Button>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
-        {ROLES.map((role) => (
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+        {ROLES.filter(r => staffByRole[r.value] > 0).map((role) => (
           <Card key={role.value}>
             <CardContent className="p-4 text-center">
-              <p className="text-2xl font-bold">{staffByRole[role.value] || 0}</p>
+              <p className="text-2xl font-bold">{staffByRole[role.value]}</p>
               <p className="text-xs text-muted-foreground">{role.label}s</p>
             </CardContent>
           </Card>

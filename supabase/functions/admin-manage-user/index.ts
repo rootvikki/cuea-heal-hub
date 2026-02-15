@@ -67,6 +67,19 @@ Deno.serve(async (req) => {
           await supabaseAdmin.auth.admin.updateUserById(userId, { email });
         }
 
+        // Update payroll number on staff table if provided
+        const { payrollNumber } = body;
+        if (payrollNumber !== undefined) {
+          const { error: staffError } = await supabaseAdmin
+            .from("staff")
+            .update({ payroll_number: payrollNumber })
+            .eq("user_id", userId);
+          // Ignore if no staff record exists (e.g., patient)
+          if (staffError && !staffError.message.includes("0 rows")) {
+            console.warn("Staff payroll update note:", staffError.message);
+          }
+        }
+
         result.message = "Profile updated successfully";
         break;
       }
