@@ -38,6 +38,23 @@ const Auth = () => {
 
       if (error) throw error;
 
+      // Check if user is suspended
+      const { data: profileData } = await supabase
+        .from("profiles")
+        .select("status")
+        .eq("user_id", data.user.id)
+        .maybeSingle();
+
+      if (profileData?.status === "suspended") {
+        await supabase.auth.signOut();
+        toast({
+          title: "Account Suspended",
+          description: "Your account has been suspended. Please contact your administrator.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       toast({
         title: "Welcome back!",
         description: "You have successfully signed in.",
