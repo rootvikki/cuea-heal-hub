@@ -98,7 +98,7 @@ const Pharmacy = () => {
   const handleDispense = async (prescription: any) => {
     const { id: prescriptionId, medication_name: medicationName, quantity, patient_id: patientId, encounter_id: encounterId } = prescription;
     
-    const inventoryItem = inventory.find((item) => item.drug_name.toLowerCase() === medicationName.toLowerCase());
+    const inventoryItem = inventory.find((item) => item.drug_name.toLowerCase().includes(medicationName.toLowerCase()) || medicationName.toLowerCase().includes(item.drug_name.toLowerCase()));
     if (!inventoryItem) {
       toast({ title: "Not found", description: "Medication not in inventory", variant: "destructive" });
       return;

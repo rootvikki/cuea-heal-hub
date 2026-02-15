@@ -86,6 +86,15 @@ interface Prescription {
   instructions: string;
 }
 
+interface InventoryItem {
+  id: string;
+  drug_name: string;
+  generic_name: string | null;
+  strength_size: string | null;
+  quantity: number;
+  unit_price: number;
+}
+
 const Consultation = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -96,6 +105,8 @@ const Consultation = () => {
   const [labTests, setLabTests] = useState<LabTest[]>([]);
   const [imagingItems, setImagingItems] = useState<ImagingItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [pharmacyInventory, setPharmacyInventory] = useState<InventoryItem[]>([]);
+  const [drugSearchTerm, setDrugSearchTerm] = useState("");
   const [savingEncounter, setSavingEncounter] = useState(false);
   const [isLive, setIsLive] = useState(false);
   const [showReferralForm, setShowReferralForm] = useState(false);
@@ -137,6 +148,7 @@ const Consultation = () => {
     fetchQueue();
     fetchLabTests();
     fetchImagingCatalog();
+    fetchPharmacyInventory();
 
     const channel = supabase
       .channel("consultation-queue")
@@ -206,6 +218,15 @@ const Consultation = () => {
     setImagingItems(data || []);
   };
 
+  const fetchPharmacyInventory = async () => {
+    const { data } = await supabase
+      .from("pharmacy_inventory")
+      .select("id, drug_name, generic_name, strength_size, quantity, unit_price")
+      .gt("quantity", 0)
+      .order("drug_name");
+    setPharmacyInventory(data || []);
+  };
+
   const selectPatient = (ticket: Ticket) => {
     setSelectedTicket(ticket);
     setEncounter({
@@ -239,6 +260,7 @@ const Consultation = () => {
     if (currentPrescription.medication_name && currentPrescription.dosage) {
       setPrescriptions([...prescriptions, currentPrescription]);
       setCurrentPrescription({ medication_name: "", dosage: "", frequency: "", duration: "", quantity: 1, instructions: "" });
+      setDrugSearchTerm("");
       setShowPrescriptionDialog(false);
     }
   };
@@ -829,7 +851,60 @@ const Consultation = () => {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Medication Name *</Label>
-              <Input value={currentPrescription.medication_name} onChange={(e) => setCurrentPrescription({ ...currentPrescription, medication_name: e.target.value })} placeholder="e.g., Amoxicillin 500mg" />
+              <Input 
+                value={drugSearchTerm} 
+                onChange={(e) => {
+                  setDrugSearchTerm(e.target.value);
+                  if (!e.target.value) {
+                    setCurrentPrescription({ ...currentPrescription, medication_name: "" });
+                  }
+                }} 
+                placeholder="Search pharmacy inventory..." 
+              />
+              {drugSearchTerm && !currentPrescription.medication_name && (
+                <div className="border rounded-md max-h-40 overflow-auto">
+                  {pharmacyInventory
+                    .filter(item => 
+                      item.drug_name.toLowerCase().includes(drugSearchTerm.toLowerCase()) ||
+                      (item.generic_name || "").toLowerCase().includes(drugSearchTerm.toLowerCase())
+                    )
+                    .slice(0, 10)
+                    .map(item => (
+                      <div
+                        key={item.id}
+                        className="p-2 hover:bg-muted cursor-pointer border-b last:border-b-0 text-sm"
+                        onClick={() => {
+                          const fullName = item.strength_size 
+                            ? `${item.drug_name} ${item.strength_size}` 
+                            : item.drug_name;
+                          setCurrentPrescription({ ...currentPrescription, medication_name: fullName });
+                          setDrugSearchTerm(fullName);
+                        }}
+                      >
+                        <div className="flex justify-between">
+                          <span className="font-medium">{item.drug_name}</span>
+                          <Badge variant={item.quantity <= 10 ? "destructive" : "outline"} className="text-xs">
+                            Stock: {item.quantity}
+                          </Badge>
+                        </div>
+                        <div className="text-xs text-muted-foreground">
+                          {item.generic_name && <span>{item.generic_name} • </span>}
+                          {item.strength_size && <span>{item.strength_size} • </span>}
+                          KES {item.unit_price}
+                        </div>
+                      </div>
+                    ))}
+                  {pharmacyInventory.filter(item => 
+                    item.drug_name.toLowerCase().includes(drugSearchTerm.toLowerCase()) ||
+                    (item.generic_name || "").toLowerCase().includes(drugSearchTerm.toLowerCase())
+                  ).length === 0 && (
+                    <p className="p-2 text-sm text-muted-foreground">No matching drugs in inventory</p>
+                  )}
+                </div>
+              )}
+              {currentPrescription.medication_name && (
+                <p className="text-xs text-green-600">✓ Selected: {currentPrescription.medication_name}</p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">

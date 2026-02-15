@@ -11,7 +11,6 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { 
   Calendar, 
-  FileText, 
   TestTube, 
   CreditCard, 
   Clock,
@@ -20,7 +19,6 @@ import {
   AlertCircle,
   Loader2,
   User,
-  Stethoscope,
   Pill
 } from "lucide-react";
 import {
@@ -51,16 +49,6 @@ interface Appointment {
     specialization: string | null;
     profile?: { full_name: string } | null;
   } | null;
-}
-
-interface Encounter {
-  id: string;
-  encounter_date: string;
-  chief_complaint: string | null;
-  assessment: string | null;
-  plan: string | null;
-  diagnosis: string[] | null;
-  department: { name: string } | null;
 }
 
 interface LabResult {
@@ -97,7 +85,7 @@ const PatientPortal = () => {
   const [loading, setLoading] = useState(true);
   const [patient, setPatient] = useState<PatientData | null>(null);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [encounters, setEncounters] = useState<Encounter[]>([]);
+  
   const [labResults, setLabResults] = useState<LabResult[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [prescriptions, setPrescriptions] = useState<Prescription[]>([]);
@@ -131,7 +119,7 @@ const PatientPortal = () => {
       setPatient(patientData);
 
       // Fetch all patient data in parallel
-      const [appointmentsRes, encountersRes, labResultsRes, invoicesRes, prescriptionsRes] = await Promise.all([
+      const [appointmentsRes, labResultsRes, invoicesRes, prescriptionsRes] = await Promise.all([
         supabase
           .from("appointments")
           .select(`
@@ -141,15 +129,6 @@ const PatientPortal = () => {
           `)
           .eq("patient_id", patientData.id)
           .order("appointment_date", { ascending: false }),
-        
-        supabase
-          .from("encounters")
-          .select(`
-            *,
-            department:departments(name)
-          `)
-          .eq("patient_id", patientData.id)
-          .order("encounter_date", { ascending: false }),
         
         supabase
           .from("lab_orders")
@@ -174,7 +153,6 @@ const PatientPortal = () => {
       ]);
 
       if (appointmentsRes.data) setAppointments(appointmentsRes.data);
-      if (encountersRes.data) setEncounters(encountersRes.data);
       if (labResultsRes.data) setLabResults(labResultsRes.data);
       if (invoicesRes.data) setInvoices(invoicesRes.data);
       if (prescriptionsRes.data) setPrescriptions(prescriptionsRes.data);
@@ -278,14 +256,10 @@ const PatientPortal = () => {
           </div>
 
           <Tabs defaultValue="appointments" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5">
+            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
               <TabsTrigger value="appointments" className="gap-2">
                 <Calendar className="h-4 w-4" />
                 <span className="hidden sm:inline">Appointments</span>
-              </TabsTrigger>
-              <TabsTrigger value="history" className="gap-2">
-                <FileText className="h-4 w-4" />
-                <span className="hidden sm:inline">Medical History</span>
               </TabsTrigger>
               <TabsTrigger value="labs" className="gap-2">
                 <TestTube className="h-4 w-4" />
@@ -347,64 +321,6 @@ const PatientPortal = () => {
               </Card>
             </TabsContent>
 
-            {/* Medical History Tab */}
-            <TabsContent value="history">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Medical History</CardTitle>
-                  <CardDescription>View your past consultations and diagnoses</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ScrollArea className="h-[500px]">
-                    {encounters.length === 0 ? (
-                      <div className="text-center py-8 text-muted-foreground">
-                        <Stethoscope className="h-12 w-12 mx-auto mb-4 opacity-50" />
-                        <p>No medical records found</p>
-                      </div>
-                    ) : (
-                      <div className="space-y-4">
-                        {encounters.map((enc) => (
-                          <Card key={enc.id}>
-                            <CardContent className="p-4">
-                              <div className="flex justify-between items-start mb-2">
-                                <p className="font-medium">
-                                  {format(new Date(enc.encounter_date || ""), "MMMM d, yyyy")}
-                                </p>
-                                {enc.department && (
-                                  <Badge variant="outline">{enc.department.name}</Badge>
-                                )}
-                              </div>
-                              {enc.chief_complaint && (
-                                <div className="mb-2">
-                                  <p className="text-sm font-medium">Chief Complaint</p>
-                                  <p className="text-sm text-muted-foreground">{enc.chief_complaint}</p>
-                                </div>
-                              )}
-                              {enc.diagnosis && enc.diagnosis.length > 0 && (
-                                <div className="mb-2">
-                                  <p className="text-sm font-medium">Diagnosis</p>
-                                  <div className="flex flex-wrap gap-1 mt-1">
-                                    {enc.diagnosis.map((d, i) => (
-                                      <Badge key={i} variant="secondary">{d}</Badge>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-                              {enc.plan && (
-                                <div>
-                                  <p className="text-sm font-medium">Treatment Plan</p>
-                                  <p className="text-sm text-muted-foreground">{enc.plan}</p>
-                                </div>
-                              )}
-                            </CardContent>
-                          </Card>
-                        ))}
-                      </div>
-                    )}
-                  </ScrollArea>
-                </CardContent>
-              </Card>
-            </TabsContent>
 
             {/* Lab Results Tab */}
             <TabsContent value="labs">

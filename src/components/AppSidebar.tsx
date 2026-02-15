@@ -51,7 +51,7 @@ export function AppSidebar() {
     { title: "Consultation", url: "/consultation", icon: Stethoscope, roles: ["admin", "super_admin", "doctor", "clinical_officer"] },
     { title: "Nursing/Triage", url: "/vitals", icon: Activity, roles: ["admin", "super_admin", "doctor", "nurse"] },
     { title: "Dental", url: "/dental", icon: Stethoscope, roles: ["admin", "super_admin", "doctor", "clinical_officer"] },
-    { title: "Medical Records", url: "/records", icon: FileText, roles: ["admin", "super_admin", "doctor", "nurse", "records_officer"] },
+    { title: "Medical Records", url: "/records", icon: FileText, roles: ["admin", "super_admin", "doctor", "clinical_officer"] },
     { title: "Inpatient", url: "/inpatient", icon: Bed, roles: ["admin", "super_admin", "doctor", "nurse", "ward_manager"] },
   ];
 
@@ -74,7 +74,7 @@ export function AppSidebar() {
     { title: "Audit Logs", url: "/admin/audit-logs", icon: FileSearch, roles: ["admin", "super_admin"] },
     { title: "Reports", url: "/reports", icon: BarChart3, roles: ["admin", "super_admin", "finance_officer"] },
     { title: "My Profile", url: "/profile", icon: UserCircle, roles: ["all"] },
-    { title: "Settings", url: "/settings", icon: Settings, roles: ["all"] },
+    { title: "Settings", url: "/settings", icon: Settings, roles: ["admin", "super_admin", "system_admin"] },
   ];
 
   const filterItems = (items: typeof clinicalItems) =>
