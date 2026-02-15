@@ -5,9 +5,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Receipt, Loader2 } from "lucide-react";
+import { Receipt, Loader2, Smartphone } from "lucide-react";
 import { logAuditEvent } from "@/lib/auditLog";
 
 interface InterimPaymentProps {
@@ -22,6 +21,7 @@ export function InterimPayment({ ticketId, patientId }: InterimPaymentProps) {
   const [existingPayments, setExistingPayments] = useState(0);
   const [amount, setAmount] = useState("");
   const [method, setMethod] = useState("cash");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [processing, setProcessing] = useState(false);
 
   useEffect(() => {
@@ -73,6 +73,32 @@ export function InterimPayment({ ticketId, patientId }: InterimPaymentProps) {
         invoiceId = newInv!.id;
       }
 
+      if (method === "mpesa") {
+        // For M-Pesa: trigger STK push only, callback handles payment recording
+        const { error } = await supabase.functions.invoke("mpesa-stk-push", {
+          body: {
+            phoneNumber,
+            amount: payAmount,
+            invoiceId,
+            accountReference: `INTERIM-${ticketId.slice(0, 8)}`,
+          },
+        });
+        if (error) throw error;
+
+        await logAuditEvent({
+          action: "INTERIM_MPESA_STK_PUSH",
+          module: "billing",
+          details: { ticket_id: ticketId, amount: payAmount, phone: phoneNumber, patient_id: patientId },
+        });
+
+        toast({ title: "STK Push sent", description: "Check phone to complete M-Pesa payment" });
+        setOpen(false);
+        setAmount("");
+        setPhoneNumber("");
+        return;
+      }
+
+      // For non-M-Pesa methods: record payment directly
       await supabase.from("payments").insert({
         patient_id: patientId,
         invoice_id: invoiceId,
@@ -151,13 +177,26 @@ export function InterimPayment({ ticketId, patientId }: InterimPaymentProps) {
                 </SelectContent>
               </Select>
             </div>
+            {method === "mpesa" && (
+              <div className="space-y-2">
+                <Label>Phone Number</Label>
+                <Input type="tel" placeholder="254712345678" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} />
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            <Button onClick={handlePay} disabled={processing || !amount}>
-              {processing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-              Record Payment
-            </Button>
+            {method === "mpesa" ? (
+              <Button onClick={handlePay} disabled={processing || !amount || !phoneNumber} className="bg-green-600 hover:bg-green-700 text-white">
+                {processing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Smartphone className="h-4 w-4 mr-2" />}
+                Send STK Push
+              </Button>
+            ) : (
+              <Button onClick={handlePay} disabled={processing || !amount}>
+                {processing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Record Payment
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
