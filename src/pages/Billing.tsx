@@ -131,24 +131,30 @@ const Billing = () => {
 
     try {
       if (paymentMethod === "mpesa") {
-        await supabase.functions.invoke("mpesa-stk-push", {
+        // For M-Pesa: only trigger STK push. The callback handles payment recording.
+        const { data, error } = await supabase.functions.invoke("mpesa-stk-push", {
           body: {
-            phone_number: paymentPhone,
+            phoneNumber: paymentPhone,
             amount: selectedInvoice.balance,
-            invoice_id: selectedInvoice.id,
-            account_reference: selectedInvoice.invoice_number,
+            invoiceId: selectedInvoice.id,
+            accountReference: selectedInvoice.invoice_number,
           },
         });
-        toast({ title: "STK Push sent", description: "Check phone to complete payment" });
+        if (error) throw error;
+        toast({ title: "STK Push sent", description: "Check phone to complete M-Pesa payment" });
+        logAuditEvent({ action: "mpesa_stk_push_sent", module: "billing", details: { invoice: selectedInvoice.invoice_number, phone: paymentPhone, amount: selectedInvoice.balance } });
+        setPaymentDialogOpen(false);
+        setPaymentPhone("");
+        return;
       }
 
-      // Record payment
+      // For non-M-Pesa: record payment directly
       const { error: payError } = await supabase.from("payments").insert({
         invoice_id: selectedInvoice.id,
         patient_id: selectedInvoice.patient_id,
         amount: selectedInvoice.balance,
         payment_method: paymentMethod as any,
-        transaction_ref: paymentMethod === "mpesa" ? `MPE${Date.now().toString().slice(-10)}` : `${paymentMethod.toUpperCase()}-${Date.now().toString().slice(-8)}`,
+        transaction_ref: `${paymentMethod.toUpperCase()}-${Date.now().toString().slice(-8)}`,
         status: "completed",
       });
 
@@ -366,9 +372,15 @@ const Billing = () => {
 
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setPaymentDialogOpen(false)}>Cancel</Button>
-              <Button onClick={handlePayment} disabled={processingPayment || (paymentMethod === "mpesa" && !paymentPhone)}>
-                {processingPayment ? "Processing..." : "Complete Payment"}
-              </Button>
+              {paymentMethod === "mpesa" ? (
+                <Button onClick={handlePayment} disabled={processingPayment || !paymentPhone} className="bg-green-600 hover:bg-green-700 text-white">
+                  <Smartphone className="h-4 w-4 mr-1" /> {processingPayment ? "Sending..." : "Send STK Push"}
+                </Button>
+              ) : (
+                <Button onClick={handlePayment} disabled={processingPayment}>
+                  {processingPayment ? "Processing..." : "Complete Payment"}
+                </Button>
+              )}
             </div>
           </div>
         </DialogContent>

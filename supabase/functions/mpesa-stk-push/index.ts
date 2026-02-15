@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 interface STKPushRequest {
@@ -14,9 +14,8 @@ interface STKPushRequest {
 }
 
 serve(async (req) => {
-  // Handle CORS preflight requests
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
@@ -24,10 +23,22 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const consumerKey = Deno.env.get("MPESA_CONSUMER_KEY");
-    const consumerSecret = Deno.env.get("MPESA_CONSUMER_SECRET");
-    const shortCode = Deno.env.get("MPESA_SHORTCODE");
-    const passkey = Deno.env.get("MPESA_PASSKEY");
+    // Read credentials from system_settings first, fallback to env secrets
+    const { data: settings } = await supabase
+      .from("system_settings")
+      .select("key, value")
+      .in("key", ["mpesa_consumer_key", "mpesa_consumer_secret", "mpesa_shortcode", "mpesa_passkey", "mpesa_environment"]);
+
+    const settingsMap: Record<string, string> = {};
+    for (const s of settings || []) {
+      if (s.value) settingsMap[s.key] = s.value;
+    }
+
+    const consumerKey = settingsMap["mpesa_consumer_key"] || Deno.env.get("MPESA_CONSUMER_KEY");
+    const consumerSecret = settingsMap["mpesa_consumer_secret"] || Deno.env.get("MPESA_CONSUMER_SECRET");
+    const shortCode = settingsMap["mpesa_shortcode"] || Deno.env.get("MPESA_SHORTCODE");
+    const passkey = settingsMap["mpesa_passkey"] || Deno.env.get("MPESA_PASSKEY");
+    const environment = settingsMap["mpesa_environment"] || "sandbox";
 
     if (!consumerKey || !consumerSecret || !shortCode || !passkey) {
       throw new Error("M-Pesa credentials not configured");
@@ -35,7 +46,6 @@ serve(async (req) => {
 
     const { phoneNumber, amount, invoiceId, accountReference }: STKPushRequest = await req.json();
 
-    // Validate inputs
     if (!phoneNumber || !amount || !invoiceId) {
       throw new Error("Missing required fields: phoneNumber, amount, invoiceId");
     }
@@ -46,17 +56,20 @@ serve(async (req) => {
       formattedPhone = "254" + formattedPhone;
     }
 
-    console.log(`Initiating STK Push for ${formattedPhone}, amount: ${amount}`);
+    console.log(`Initiating STK Push for ${formattedPhone}, amount: ${amount}, env: ${environment}`);
+
+    // Determine base URL based on environment
+    const baseUrl = environment === "production"
+      ? "https://api.safaricom.co.ke"
+      : "https://sandbox.safaricom.co.ke";
 
     // Get OAuth token
     const auth = btoa(`${consumerKey}:${consumerSecret}`);
     const tokenResponse = await fetch(
-      "https://sandbox.safaricom.co.ke/oauth/v1/generate?grant_type=client_credentials",
+      `${baseUrl}/oauth/v1/generate?grant_type=client_credentials`,
       {
         method: "GET",
-        headers: {
-          Authorization: `Basic ${auth}`,
-        },
+        headers: { Authorization: `Basic ${auth}` },
       }
     );
 
@@ -78,12 +91,12 @@ serve(async (req) => {
     // Generate password
     const password = btoa(`${shortCode}${passkey}${timestamp}`);
 
-    // Callback URL - using the Supabase function URL
+    // Callback URL
     const callbackUrl = `${supabaseUrl}/functions/v1/mpesa-callback`;
 
     // Initiate STK Push
     const stkPushResponse = await fetch(
-      "https://sandbox.safaricom.co.ke/mpesa/stkpush/v1/processrequest",
+      `${baseUrl}/mpesa/stkpush/v1/processrequest`,
       {
         method: "POST",
         headers: {
@@ -107,11 +120,9 @@ serve(async (req) => {
     );
 
     const stkPushData = await stkPushResponse.json();
-
     console.log("STK Push Response:", JSON.stringify(stkPushData));
 
     if (stkPushData.ResponseCode === "0") {
-      // Store the transaction record
       const { error: insertError } = await supabase.from("mpesa_transactions").insert({
         phone_number: formattedPhone,
         amount: amount,
@@ -132,10 +143,7 @@ serve(async (req) => {
           checkoutRequestId: stkPushData.CheckoutRequestID,
           merchantRequestId: stkPushData.MerchantRequestID,
         }),
-        {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-          status: 200,
-        }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 }
       );
     } else {
       throw new Error(stkPushData.errorMessage || "STK Push failed");
@@ -144,14 +152,8 @@ serve(async (req) => {
     const errorMessage = error instanceof Error ? error.message : "Unknown error";
     console.error("M-Pesa STK Push Error:", error);
     return new Response(
-      JSON.stringify({
-        success: false,
-        error: errorMessage,
-      }),
-      {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-        status: 400,
-      }
+      JSON.stringify({ success: false, error: errorMessage }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 }
     );
   }
 });
