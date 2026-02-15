@@ -27,6 +27,13 @@ const Dashboard = () => {
   const [statsLoading, setStatsLoading] = useState(true);
 
   const userName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split("@")[0] || "User";
+
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good morning";
+    if (hour < 17) return "Good afternoon";
+    return "Good evening";
+  };
   const hasRole = roles.length > 0;
 
   // Determine primary role
@@ -127,9 +134,9 @@ const Dashboard = () => {
           </CardHeader>
           <CardContent className="space-y-2">
             <PatientRegistrationDialog />
-            <QuickActionButton label="Create Appointment" desc="Schedule a new appointment" onClick={() => navigate("/appointments")} />
-            <QuickActionButton label="Check-in Patient" desc="Generate queue ticket" onClick={() => navigate("/queue")} />
-            <QuickActionButton label="Manage Users" desc="User accounts & roles" onClick={() => navigate("/admin/users")} />
+            <QuickActionButton label="Create Appointment" desc="Schedule a new appointment" onClick={() => navigate("/appointments")} icon={Calendar} />
+            <QuickActionButton label="Check-in Patient" desc="Generate queue ticket" onClick={() => navigate("/queue")} icon={ClipboardList} />
+            <QuickActionButton label="Manage Users" desc="User accounts & roles" onClick={() => navigate("/admin/users")} icon={Users} />
           </CardContent>
         </Card>
         <Card>
@@ -170,9 +177,9 @@ const Dashboard = () => {
         <Card>
           <CardHeader><CardTitle className="flex items-center gap-2"><Stethoscope className="h-5 w-5" />Quick Actions</CardTitle></CardHeader>
           <CardContent className="space-y-2">
-            <QuickActionButton label="Start Consultation" desc="Open consultation workspace" onClick={() => navigate("/consultation")} />
-            <QuickActionButton label="View Lab Results" desc="Check lab orders" onClick={() => navigate("/laboratory")} />
-            <QuickActionButton label="View Imaging" desc="Check imaging results" onClick={() => navigate("/imaging")} />
+            <QuickActionButton label="Start Consultation" desc="Open consultation workspace" onClick={() => navigate("/consultation")} icon={Stethoscope} />
+            <QuickActionButton label="View Lab Results" desc="Check lab orders" onClick={() => navigate("/laboratory")} icon={TestTube} />
+            <QuickActionButton label="View Imaging" desc="Check imaging results" onClick={() => navigate("/imaging")} icon={Camera} />
           </CardContent>
         </Card>
       </div>
@@ -188,8 +195,8 @@ const Dashboard = () => {
       <Card>
         <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
         <CardContent className="space-y-2">
-          <QuickActionButton label="Start Triage" desc="Record vitals & procedures" onClick={() => navigate("/vitals")} />
-          <QuickActionButton label="Inpatient Ward" desc="Nursing notes & bed management" onClick={() => navigate("/inpatient")} />
+          <QuickActionButton label="Start Triage" desc="Record vitals & procedures" onClick={() => navigate("/vitals")} icon={Activity} />
+          <QuickActionButton label="Inpatient Ward" desc="Nursing notes & bed management" onClick={() => navigate("/inpatient")} icon={Heart} />
         </CardContent>
       </Card>
     </>
@@ -204,7 +211,7 @@ const Dashboard = () => {
       <Card>
         <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
         <CardContent className="space-y-2">
-          <QuickActionButton label="Enter Lab Results" desc="Process pending orders" onClick={() => navigate("/laboratory")} />
+          <QuickActionButton label="Enter Lab Results" desc="Process pending orders" onClick={() => navigate("/laboratory")} icon={TestTube} />
         </CardContent>
       </Card>
     </>
@@ -219,7 +226,7 @@ const Dashboard = () => {
       <Card>
         <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
         <CardContent className="space-y-2">
-          <QuickActionButton label="Dispense Medications" desc="Process prescriptions" onClick={() => navigate("/pharmacy")} />
+          <QuickActionButton label="Dispense Medications" desc="Process prescriptions" onClick={() => navigate("/pharmacy")} icon={Pill} />
         </CardContent>
       </Card>
     </>
@@ -234,7 +241,7 @@ const Dashboard = () => {
       <Card>
         <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
         <CardContent className="space-y-2">
-          <QuickActionButton label="Imaging Worklist" desc="Process pending orders" onClick={() => navigate("/imaging")} />
+          <QuickActionButton label="Imaging Worklist" desc="Process pending orders" onClick={() => navigate("/imaging")} icon={Camera} />
         </CardContent>
       </Card>
     </>
@@ -249,8 +256,8 @@ const Dashboard = () => {
       <Card>
         <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
         <CardContent className="space-y-2">
-          <QuickActionButton label="Process Payments" desc="Billing & invoices" onClick={() => navigate("/billing")} />
-          <QuickActionButton label="Insurance Claims" desc="Manage claims" onClick={() => navigate("/insurance")} />
+          <QuickActionButton label="Process Payments" desc="Billing & invoices" onClick={() => navigate("/billing")} icon={Receipt} />
+          <QuickActionButton label="Insurance Claims" desc="Manage claims" onClick={() => navigate("/insurance")} icon={Shield} />
         </CardContent>
       </Card>
     </>
@@ -268,8 +275,8 @@ const Dashboard = () => {
         <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
         <CardContent className="space-y-2">
           <PatientRegistrationDialog />
-          <QuickActionButton label="Check-in Patient" desc="Generate queue ticket" onClick={() => navigate("/queue")} />
-          <QuickActionButton label="Appointments" desc="View & manage appointments" onClick={() => navigate("/appointments")} />
+          <QuickActionButton label="Check-in Patient" desc="Generate queue ticket" onClick={() => navigate("/queue")} icon={ClipboardList} />
+          <QuickActionButton label="Appointments" desc="View & manage appointments" onClick={() => navigate("/appointments")} icon={Calendar} />
         </CardContent>
       </Card>
     </>
@@ -310,7 +317,7 @@ const Dashboard = () => {
       <div className="space-y-2">
         <div className="flex items-center justify-between flex-wrap gap-4">
           <div>
-            <h1 className="text-3xl lg:text-4xl font-bold">Welcome back, {userName}!</h1>
+            <h1 className="text-3xl lg:text-4xl font-bold">{getGreeting()}, {userName}!</h1>
             <div className="flex items-center gap-2 mt-1">
               <p className="text-muted-foreground text-lg">Here's your dashboard overview</p>
               <Badge variant="secondary" className="text-xs">{roleLabel}</Badge>
@@ -330,10 +337,12 @@ const Dashboard = () => {
 const StatCard = ({ title, value, icon: Icon, description, color }: {
   title: string; value: number | undefined; icon: any; description: string; color: string;
 }) => (
-  <Card className="hover:shadow-lg transition-shadow">
+  <Card className="hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-default">
     <CardHeader className="flex flex-row items-center justify-between pb-2">
       <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
-      <Icon className={`h-5 w-5 ${color}`} />
+      <div className="p-2 rounded-full bg-muted">
+        <Icon className={`h-5 w-5 ${color}`} />
+      </div>
     </CardHeader>
     <CardContent>
       <div className="text-3xl font-bold">{value ?? 0}</div>
@@ -343,10 +352,17 @@ const StatCard = ({ title, value, icon: Icon, description, color }: {
 );
 
 // Quick action button
-const QuickActionButton = ({ label, desc, onClick }: { label: string; desc: string; onClick: () => void }) => (
-  <button className="w-full p-3 text-left rounded-lg bg-muted/50 hover:bg-muted transition-colors" onClick={onClick}>
-    <div className="font-medium">{label}</div>
-    <div className="text-sm text-muted-foreground">{desc}</div>
+const QuickActionButton = ({ label, desc, onClick, icon: Icon }: { label: string; desc: string; onClick: () => void; icon?: any }) => (
+  <button className="w-full p-3 text-left rounded-lg bg-muted/50 hover:bg-muted transition-all duration-150 hover:translate-x-1 flex items-center gap-3" onClick={onClick}>
+    {Icon && (
+      <div className="p-2 rounded-lg bg-primary/10 shrink-0">
+        <Icon className="h-4 w-4 text-primary" />
+      </div>
+    )}
+    <div>
+      <div className="font-medium">{label}</div>
+      <div className="text-sm text-muted-foreground">{desc}</div>
+    </div>
   </button>
 );
 

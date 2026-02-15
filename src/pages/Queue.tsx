@@ -299,7 +299,11 @@ const Queue = () => {
           {loading ? (
             <p className="text-center py-8 text-muted-foreground">Loading queue...</p>
           ) : tickets.length === 0 ? (
-            <p className="text-center py-8 text-muted-foreground">No patients in queue</p>
+            <div className="text-center py-12 text-muted-foreground">
+              <ClipboardList className="h-12 w-12 mx-auto mb-3 opacity-40" />
+              <p className="font-medium">No patients in queue</p>
+              <p className="text-sm mt-1">Check in a patient to get started</p>
+            </div>
           ) : (
             <div className="space-y-3">
               {tickets.map((ticket: any) => (
@@ -313,6 +317,7 @@ const Queue = () => {
                       <p className="font-medium">{ticket.patient?.profile?.full_name}</p>
                       <p className="text-sm text-muted-foreground">{ticket.patient?.patient_id} • {ticket.department?.name}</p>
                       <p className="text-xs text-muted-foreground">Checked in: {new Date(ticket.checked_in_at).toLocaleString()}</p>
+                      <WaitTimeBadge checkedInAt={ticket.checked_in_at} />
                     </div>
                     <Badge className={getStatusColor(ticket.status)}>{ticket.status.replace(/_/g, " ")}</Badge>
                   </div>
@@ -339,6 +344,17 @@ const Queue = () => {
         </CardContent>
       </Card>
     </div>
+  );
+};
+
+const WaitTimeBadge = ({ checkedInAt }: { checkedInAt: string }) => {
+  const mins = Math.floor((Date.now() - new Date(checkedInAt).getTime()) / 60000);
+  const color = mins >= 60 ? "bg-destructive text-destructive-foreground" : mins >= 30 ? "bg-warning text-warning-foreground" : "bg-muted text-muted-foreground";
+  const label = mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
+  return (
+    <Badge className={`${color} text-xs mt-1`}>
+      ⏱ Waiting: {label}
+    </Badge>
   );
 };
 

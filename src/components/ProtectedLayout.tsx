@@ -1,11 +1,12 @@
 import { useEffect } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { Loader2 } from "lucide-react";
-import { SidebarProvider } from "@/components/ui/sidebar";
+import { Loader2, Menu } from "lucide-react";
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { useUser } from "@/contexts/UserContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { PageBreadcrumb } from "@/components/PageBreadcrumb";
 
 interface ProtectedLayoutProps {
   children: React.ReactNode;
@@ -61,7 +62,15 @@ const ProtectedLayout = ({ children, allowedRoles }: ProtectedLayoutProps) => {
     <SidebarProvider>
       <div className="flex min-h-screen w-full">
         <AppSidebar />
-        <main className="flex-1">{children}</main>
+        <div className="flex-1 flex flex-col min-w-0">
+          <header className="h-12 flex items-center border-b bg-background px-4 lg:hidden sticky top-0 z-30">
+            <SidebarTrigger>
+              <Menu className="h-5 w-5" />
+            </SidebarTrigger>
+            <span className="ml-3 font-semibold text-sm">CUEA Infirmary</span>
+          </header>
+          <main className="flex-1">{children}</main>
+        </div>
       </div>
     </SidebarProvider>
   );

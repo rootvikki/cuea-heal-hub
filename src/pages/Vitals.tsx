@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { StationQueue } from "@/components/StationQueue";
 import { NursingProcedures, type SelectedProcedure } from "@/components/NursingProcedures";
@@ -153,6 +154,18 @@ const Vitals = () => {
                     <div className="space-y-1.5">
                       <Label>BMI</Label>
                       <Input readOnly value={bmi || ""} className="bg-muted font-semibold" />
+                      {bmi && (
+                        <Badge className={`text-xs ${
+                          parseFloat(bmi) < 18.5 ? "bg-warning text-warning-foreground" :
+                          parseFloat(bmi) < 25 ? "bg-success text-success-foreground" :
+                          parseFloat(bmi) < 30 ? "bg-warning text-warning-foreground" :
+                          "bg-destructive text-destructive-foreground"
+                        }`}>
+                          {parseFloat(bmi) < 18.5 ? "Underweight" :
+                           parseFloat(bmi) < 25 ? "Normal" :
+                           parseFloat(bmi) < 30 ? "Overweight" : "Obese"}
+                        </Badge>
+                      )}
                     </div>
                     <div className="space-y-1.5">
                       <Label>Blood Pressure</Label>
