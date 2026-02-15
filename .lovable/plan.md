@@ -1,106 +1,237 @@
 
-# User Management Module -- Complete Audit and Fix Plan
 
-## Current State
+# System-Wide Usability and Polish Plan
 
-The user management module spans 4 pages and 2 edge functions, covering user creation, role assignment, profile editing, password management, suspension, and deletion. After thorough review, here are the issues and improvements needed.
-
----
-
-## Issues Found
-
-### 1. StaffManagement.tsx -- Severe N+1 Query Problem
-The Staff page (`/staff`) calls `get_all_users_with_roles` RPC **once per staff member** inside a loop (line 110). For 50 staff members, this fires 50 identical heavy RPC calls, making the page extremely slow.
-
-**Fix**: Fetch profiles, roles, and user data in bulk instead of per-member loops.
-
-### 2. StaffManagement.tsx -- Missing Roles in ROLES List
-The `ROLES` constant (line 39) only lists 8 roles, missing `super_admin`, `system_admin`, `clinical_officer`, `ward_manager`, `cashier`, `accountant`, `hr_admin`, `records_officer`, `auditor`, and `patient`. This means the stats cards at the top are incomplete and staff with those roles show incorrect counts.
-
-**Fix**: Use the full 18-role list consistent with the rest of the system.
-
-### 3. AdminUserManagement.tsx -- Missing Roles in ALL_ROLES List
-The `ALL_ROLES` constant (line 45) is missing `system_admin`, `cashier`, `accountant`, `hr_admin`, and `auditor`. When creating users or managing roles from this page, these 5 roles cannot be assigned.
-
-**Fix**: Add the missing 5 roles to the `ALL_ROLES` list.
-
-### 4. StaffManagement.tsx -- No "Add Staff" Button
-The page has an `addStaffOpen` state and a `newStaff` form state defined but no dialog or button to add staff. The "Add User" button exists on AdminUserManagement and StaffOnboarding, but Staff Management itself has no creation flow -- just a read-only view with department reassignment.
-
-**Fix**: Remove the unused state variables (dead code cleanup) and add a navigation button to StaffOnboarding for adding new staff.
-
-### 5. AdminUserManagement -- Payroll Number Not Editable
-When editing a user profile, payroll number cannot be changed -- the edit dialog has no payroll number field, and the edge function doesn't handle it either.
-
-**Fix**: Add payroll number field to the edit profile dialog and update the edge function to handle payroll number updates on the staff table.
-
-### 6. AdminUserManagement -- No Audit Logging for Role Changes
-When roles are updated via `handleUpdateRoles` (line 170), no audit log entry is created. Password changes, suspensions, and deletions all happen via the edge function which could log, but role changes happen client-side with no audit trail.
-
-**Fix**: Add `logAuditEvent` calls for role changes and profile edits.
-
-### 7. StaffManagement -- Staff Table RLS Blocks Non-Admin Updates
-The staff table has no UPDATE policy for admin roles. Only the ALL policy check would apply. Need to verify the RLS allows admin updates.
-
-### 8. Auth Page -- No Suspended User Check
-When a suspended user logs in, the auth succeeds but they can't access data due to the ban. The login page doesn't show a clear "Your account is suspended" message -- the user just sees broken/empty pages.
-
-**Fix**: After successful login, check profile status and show a clear suspension message if applicable, then sign them out.
+After a thorough review of every major page, component, and workflow in the system, here is a prioritized plan to make the CUEA Infirmary HMS the easiest and smoothest system to use for all staff and patients.
 
 ---
 
-## Remediation Plan
+## 1. Global UX Improvements
 
-### Phase 1: Fix AdminUserManagement.tsx
-- Add the 5 missing roles to `ALL_ROLES`: `system_admin`, `cashier`, `accountant`, `hr_admin`, `auditor`
-- Add payroll number field to the edit profile dialog
-- Add audit logging for role changes and profile edits using `logAuditEvent`
+### Breadcrumb Navigation
+- Add a breadcrumb bar at the top of every page inside `ProtectedLayout` showing the current location (e.g., "Dashboard > Patient Queue")
+- Helps users orient themselves, especially new staff
 
-### Phase 2: Fix StaffManagement.tsx -- Performance and Completeness
-- Replace the N+1 query pattern: fetch `get_all_users_with_roles` once, then join with staff data in memory
-- Update the `ROLES` list to include all 18 roles (matching the system-wide list)
-- Remove dead `addStaffOpen` / `newStaff` state
-- Add a "Add Staff" button that navigates to `/admin/onboard-staff`
+### Consistent Page Headers
+- Standardize all page headers with the same structure: icon + title + subtitle + action buttons aligned right
+- Currently some pages use `p-6`, others `p-8` -- normalize all to `p-6 lg:p-8`
 
-### Phase 3: Update admin-manage-user Edge Function
-- Add `update_payroll` case (or extend `update_profile`) to allow updating the payroll number in the `staff` table
+### Loading States
+- Replace plain text "Loading..." in tables with skeleton rows (animated placeholder rows)
+- Already have a `PageSkeleton` component but it is only used on Dashboard; extend usage to all pages
 
-### Phase 4: Auth.tsx -- Suspended User Handling
-- After `signInWithPassword` succeeds, query the user's profile status
-- If status is `suspended`, show a toast "Your account has been suspended. Contact your administrator.", sign them out, and prevent navigation to dashboard
+### Empty States
+- Add friendly illustrations or icons with helpful messages when tables are empty (e.g., "No patients in queue yet. Check in a patient to get started.")
+- Add a call-to-action button in empty states pointing to the relevant action
 
-### Phase 5: Audit Logging Gap
-- Import `logAuditEvent` in AdminUserManagement
-- Call it after successful role updates with action `UPDATE_ROLES`, module `user_management`
-- Call it after successful profile edits with action `UPDATE_PROFILE`, module `user_management`
+### Toast Notifications
+- Standardize all success/error toasts with consistent wording
+- Add a subtle sound/vibration cue for critical notifications (e.g., emergency queue additions)
 
 ---
 
-## Technical Details
+## 2. Sidebar Improvements
 
-### File: `src/pages/AdminUserManagement.tsx`
-- Line 45: Add missing roles to `ALL_ROLES` array -- add `system_admin`, `cashier`, `accountant`, `hr_admin`, `auditor` with proper labels
-- Line 89: Add `payrollNumber` to `editForm` state
-- Lines 188-196: When opening edit dialog, populate payroll number from user data
-- Lines 199-224: In `handleEditProfile`, include payroll number in the request body
-- Lines 170-186: In `handleUpdateRoles`, add `logAuditEvent` call after success
-- Import `logAuditEvent` from `@/lib/auditLog`
+### Current User Display
+- Show the logged-in user's name and role badge in the sidebar header (below the logo)
+- Currently users have no visual confirmation of who they are logged in as while navigating
 
-### File: `src/pages/StaffManagement.tsx`
-- Lines 39-48: Replace 8-role `ROLES` list with complete 18-role list
-- Lines 94-119: Replace N+1 loop with single `get_all_users_with_roles` call + memory join
-- Lines 56-68: Remove unused `addStaffOpen`, `newStaff` state
-- Add "Onboard Staff" navigation button in header
+### Active Section Highlighting
+- The current active item highlighting works but the entire section group should subtly expand/highlight
+- Add a small colored left-border indicator on the active item for better visibility on the maroon background
 
-### File: `supabase/functions/admin-manage-user/index.ts`
-- In the `update_profile` case, add handling for `payrollNumber` -- update the `staff` table's `payroll_number` column
+### Collapsible Sidebar on Mobile
+- Ensure the sidebar auto-collapses on mobile and opens as an overlay
+- Add a hamburger menu button in the top-left of the main content area on mobile
 
-### File: `src/pages/Auth.tsx`
-- After successful sign-in (line 38-45), query `profiles` table for status
-- If status is `suspended`, toast error message, call `supabase.auth.signOut()`, return early
+---
+
+## 3. Dashboard Enhancements
+
+### Greeting with Time of Day
+- Change "Welcome back" to "Good morning/afternoon/evening" based on time of day
+- Small touch that makes the system feel personal
+
+### Stat Cards Animation
+- Add a count-up animation on stat card numbers when they load
+- Add subtle hover scale effect (already have `hover:shadow-lg`, enhance with `hover:scale-[1.02]`)
+
+### Quick Action Cards Enhancement
+- Add icons to each quick action button
+- Add keyboard shortcuts for top 3 actions (show shortcut hint in the button)
+
+---
+
+## 4. Patient Queue Page
+
+### Visual Queue Board
+- Add color-coded status columns (like a Kanban board view) as an alternative to the list view
+- Toggle between "List View" and "Board View"
+- Board columns: Checked In | Triage | Waiting for Doctor | In Consult | Lab/Imaging | Pharmacy | Billing | Done
+
+### Patient Wait Time Display
+- Show elapsed wait time since check-in on each ticket (e.g., "Waiting: 23 min")
+- Highlight tickets waiting longer than 30 minutes in amber, 60+ minutes in red
+
+### Sound Alert for New Check-ins
+- Play a subtle notification sound when a new patient is checked in (configurable in settings)
+
+---
+
+## 5. Consultation Page
+
+### Split-Panel Layout Polish
+- The left queue panel is good; enhance with patient photo/avatar placeholder
+- Add patient age, gender, and allergies badge directly in the queue card for quick reference
+
+### Auto-Save Draft
+- Auto-save encounter form data to localStorage every 30 seconds
+- Show a "Draft saved" indicator
+- Restore draft when returning to the same patient
+
+### Clinical Templates
+- Add quick-fill templates for common presentations (e.g., "Upper Respiratory Infection", "Malaria", "UTI")
+- Pre-fill chief complaint, assessment, and common prescriptions
+
+### Diagnosis Autocomplete
+- Add ICD-10 code search/autocomplete for the diagnosis field
+- Currently it is free-text which makes reporting inconsistent
+
+---
+
+## 6. Vitals / Triage Page
+
+### Visual Vital Signs Dashboard
+- Show vitals on a visual body-map or gauge-style indicators
+- Color-code out-of-range values automatically (e.g., BP > 140 shows red)
+- The BMI calculation is good; add a visual BMI category indicator (underweight/normal/overweight/obese)
+
+### Quick Input Mode
+- Allow tab-through of all vital fields in order for fast data entry
+- Auto-advance to next field on Enter key
+
+---
+
+## 7. Pharmacy Page
+
+### Prescription Queue Enhancement
+- Group prescriptions by patient (currently individual rows)
+- Show all medications for one patient together with a single "Dispense All" button
+- Add a confirmation dialog showing what will be deducted from inventory before dispensing
+
+### Low Stock Visual Alert
+- Add a persistent banner at the top of the Pharmacy page when any items are below reorder level
+- Color-code inventory rows: green (adequate), amber (approaching reorder), red (below reorder)
+
+---
+
+## 8. Laboratory Page
+
+### Sample Tracking
+- Add visual status badges for sample lifecycle: Ordered > Collected > Processing > Completed
+- Show estimated turnaround time
+
+### Result Entry Improvement
+- The structured result fields are excellent; add auto-flagging (H/L/Critical) based on reference ranges
+- Already partially implemented but ensure consistency across all test types
+
+---
+
+## 9. Billing Page
+
+### Invoice Summary Dashboard
+- Add summary cards at the top: Total Outstanding, Collected Today, Pending M-Pesa
+- Visual pie chart of payment methods breakdown
+
+### One-Click Receipt
+- After payment, show a "Print Receipt" button that generates a clean PDF receipt
+- Include hospital logo, patient details, itemized charges, and payment confirmation
+
+---
+
+## 10. Patient Portal
+
+### Welcome Dashboard
+- Add a welcome card with patient name and upcoming appointment reminder
+- Show a simple timeline of recent visits
+
+### Mobile-First Design
+- Ensure all portal tabs work perfectly on mobile (patients will primarily use phones)
+- Large touch-friendly buttons and cards
+
+---
+
+## 11. Settings Page
+
+### Organized Settings Sections
+- Group settings into clear categories with icons: General, M-Pesa, Notifications, System
+- Add visual confirmation when settings are saved (checkmark animation)
+
+---
+
+## Technical Implementation Details
+
+### File Changes
+
+**New Component: `src/components/Breadcrumb.tsx`**
+- Simple breadcrumb component using react-router location
+- Maps route paths to human-readable names
+
+**Edit: `src/components/ProtectedLayout.tsx`**
+- Add breadcrumb component above the main content
+- Add current user name/role display in the sidebar header area
+- Normalize padding
+
+**Edit: `src/components/AppSidebar.tsx`**
+- Add user info section (name + primary role badge) below the logo
+- Add left-border active indicator styling
+
+**Edit: `src/pages/Dashboard.tsx`**
+- Add time-of-day greeting
+- Add icons to QuickActionButton
+- Add hover scale animation to StatCard
+
+**Edit: `src/pages/Queue.tsx`**
+- Add wait time display (calculate from `checked_in_at`)
+- Add color-coded wait time warnings
+- Add Kanban board view toggle
+
+**Edit: `src/pages/Consultation.tsx`**
+- Add auto-save to localStorage
+- Add patient demographics (age, gender, allergies) in queue cards
+- Add common diagnosis templates
+
+**Edit: `src/pages/Vitals.tsx`**
+- Add visual BMI category indicator
+- Color-code out-of-range vital values
+- Add tab-through navigation
+
+**Edit: `src/pages/Pharmacy.tsx`**
+- Group prescriptions by patient
+- Add inventory color-coding for stock levels
+- Add low-stock banner
+
+**Edit: `src/pages/Billing.tsx`**
+- Add summary stat cards at the top
+- Improve invoice table with better status badges
+
+**Edit: `src/pages/PatientPortal.tsx`**
+- Add welcome card with next appointment
+- Improve mobile responsiveness of tabs
+
+**Edit: `src/index.css`**
+- Add smooth transition utilities
+- Add count-up animation keyframes
 
 ### Execution Order
-1. AdminUserManagement.tsx (missing roles, payroll edit, audit logging)
-2. StaffManagement.tsx (N+1 fix, complete roles, cleanup)
-3. admin-manage-user edge function (payroll number update)
-4. Auth.tsx (suspended user handling)
+1. Global: Breadcrumb + ProtectedLayout padding normalization
+2. AppSidebar: User info display + active indicator
+3. Dashboard: Time greeting + stat card animations + quick action icons
+4. Queue: Wait time display + color warnings
+5. Consultation: Auto-save + patient info in queue cards
+6. Vitals: Visual indicators + keyboard navigation
+7. Pharmacy: Group by patient + stock level coloring
+8. Billing: Summary cards
+9. PatientPortal: Welcome card + mobile polish
+10. Settings: Section grouping
+
