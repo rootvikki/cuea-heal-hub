@@ -26,7 +26,7 @@ export function AppSidebar() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
-  const { roles: userRoles, isAdmin: hasAdminAccess } = useUser();
+  const { roles: userRoles, isAdmin: hasAdminAccess, profile } = useUser();
 
   const handleLogout = async () => {
     const { error } = await supabase.auth.signOut();
@@ -95,9 +95,15 @@ export function AppSidebar() {
           />
           <div className="flex flex-col">
             <span className="font-bold text-lg">CUEA Infirmary</span>
-            <span className="text-xs text-muted-foreground">Hospital MS</span>
+            <span className="text-xs opacity-80">Hospital MS</span>
           </div>
         </div>
+        {profile && (
+          <div className="mt-3 pt-3 border-t border-sidebar-border">
+            <p className="text-sm font-medium truncate">{profile.full_name}</p>
+            <p className="text-xs opacity-70 capitalize">{userRoles[0]?.replace(/_/g, " ") || "User"}</p>
+          </div>
+        )}
       </SidebarHeader>
 
       <SidebarContent>
@@ -113,7 +119,7 @@ export function AppSidebar() {
                       <SidebarMenuItem key={item.title}>
                         <SidebarMenuButton
                           onClick={() => navigate(item.url)}
-                          className={isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""}
+                          className={isActive ? "bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary" : "border-l-2 border-transparent"}
                         >
                           <item.icon className="h-4 w-4" />
                           <span>{item.title}</span>
@@ -137,7 +143,7 @@ export function AppSidebar() {
                       <SidebarMenuItem key={item.title}>
                         <SidebarMenuButton
                           onClick={() => navigate(item.url)}
-                          className={isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""}
+                          className={isActive ? "bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary" : "border-l-2 border-transparent"}
                         >
                           <item.icon className="h-4 w-4" />
                           <span>{item.title}</span>
@@ -161,7 +167,7 @@ export function AppSidebar() {
                       <SidebarMenuItem key={item.title}>
                         <SidebarMenuButton
                           onClick={() => navigate(item.url)}
-                          className={isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""}
+                          className={isActive ? "bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary" : "border-l-2 border-transparent"}
                         >
                           <item.icon className="h-4 w-4" />
                           <span>{item.title}</span>
@@ -185,7 +191,7 @@ export function AppSidebar() {
                       <SidebarMenuItem key={item.title}>
                         <SidebarMenuButton
                           onClick={() => navigate(item.url)}
-                          className={isActive ? "bg-sidebar-accent text-sidebar-accent-foreground" : ""}
+                          className={isActive ? "bg-sidebar-accent text-sidebar-accent-foreground border-l-2 border-sidebar-primary" : "border-l-2 border-transparent"}
                         >
                           <item.icon className="h-4 w-4" />
                           <span>{item.title}</span>
