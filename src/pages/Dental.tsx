@@ -194,9 +194,9 @@ const Dental = () => {
                   </>
                 )}
 
-                <div className="max-w-xs space-y-1.5">
-                  <Label className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> Next Visit</Label>
-                  <Input type="date" value={nextVisit} onChange={(e) => setNextVisit(e.target.value)} />
+                <div className="max-w-sm space-y-2">
+                  <Label className="flex items-center gap-1 text-sm font-semibold"><Calendar className="h-3.5 w-3.5" /> Next Visit</Label>
+                  <Input type="date" value={nextVisit} onChange={(e) => setNextVisit(e.target.value)} className="h-12 text-base" />
                 </div>
               </CardContent>
             </Card>
