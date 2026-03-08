@@ -1021,7 +1021,7 @@ const Consultation = () => {
                                     value={encounter.physicalExamGeneral}
                                     onChange={(e) => setEncounter({ ...encounter, physicalExamGeneral: e.target.value })}
                                     placeholder="General appearance, nutritional status, hydration, pallor, jaundice, cyanosis..."
-                                    rows={3} className="text-sm resize-y"
+                                    rows={4} className="text-base resize-y"
                                   />
                                 </Field>
                                 <Field label="Systemic Examination" hint="CVS, RS, GIT, CNS findings">
