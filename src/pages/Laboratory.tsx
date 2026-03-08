@@ -16,6 +16,7 @@ import { StationQueue } from "@/components/StationQueue";
 import { TestTube, Search } from "lucide-react";
 import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
+import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 
 // Structured result field definitions per test type
 const STRUCTURED_FIELDS: Record<string, { name: string; unit?: string; ref?: string; refMale?: string; refFemale?: string }[]> = {
@@ -291,9 +292,10 @@ const Laboratory = () => {
           </div>
           <div className="flex gap-2 items-center">
             {selectedTicket && <InterimPayment ticketId={selectedTicket.id} patientId={selectedTicket.patient_id} />}
+            {selectedTicket && <WorkflowTimeline currentStage={selectedTicket.workflow_stage || selectedTicket.status} />}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search by patient, test..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 w-64" />
+              <Input placeholder="Search by patient, test..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 w-64 h-12 text-base" />
             </div>
           </div>
         </div>
@@ -436,7 +438,7 @@ const Laboratory = () => {
                           <TableCell className="font-medium">{field.name}</TableCell>
                           <TableCell>
                             <Input
-                              className="h-8 w-28"
+                              className="h-11 w-32 text-sm"
                               value={resultFields[field.name] || ""}
                               onChange={(e) => setResultFields({ ...resultFields, [field.name]: e.target.value })}
                               disabled={selectedOrder.status === "completed"}
@@ -459,12 +461,13 @@ const Laboratory = () => {
               </div>
             ) : (
               <div className="space-y-2">
-                <Label>Result Value *</Label>
+                <Label className="text-sm font-semibold">Result Value *</Label>
                 <Input
                   value={resultValue}
                   onChange={(e) => setResultValue(e.target.value)}
                   placeholder="e.g., Positive, 5.2 mmol/L"
                   disabled={selectedOrder?.status === "completed"}
+                  className="h-12 text-base"
                 />
                 {selectedOrder?.test?.normal_range && (
                   <p className="text-sm text-muted-foreground">Normal Range: {selectedOrder.test.normal_range}</p>
@@ -473,13 +476,14 @@ const Laboratory = () => {
             )}
 
             <div className="space-y-2">
-              <Label>Notes</Label>
+              <Label className="text-sm font-semibold">Notes</Label>
               <Textarea
                 value={resultNotes}
                 onChange={(e) => setResultNotes(e.target.value)}
                 placeholder="Additional observations..."
-                rows={2}
+                rows={4}
                 disabled={selectedOrder?.status === "completed"}
+                className="text-base"
               />
             </div>
 

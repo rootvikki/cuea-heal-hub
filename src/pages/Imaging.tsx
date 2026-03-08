@@ -15,6 +15,7 @@ import { StationQueue } from "@/components/StationQueue";
 import { Camera, Search, Clock, CheckCircle, AlertCircle, FileImage } from "lucide-react";
 import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
+import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 
 const Imaging = () => {
   const { toast } = useToast();
@@ -157,9 +158,10 @@ const Imaging = () => {
           </div>
           <div className="flex gap-2 items-center">
             {selectedTicket && <InterimPayment ticketId={selectedTicket.id} patientId={selectedTicket.patient_id} />}
+            {selectedTicket && <WorkflowTimeline currentStage={selectedTicket.workflow_stage || selectedTicket.status} />}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 w-64" />
+              <Input placeholder="Search..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 w-64 h-12 text-base" />
             </div>
           </div>
         </div>
@@ -288,24 +290,24 @@ const Imaging = () => {
 
       {/* Results Dialog */}
       <Dialog open={resultDialogOpen} onOpenChange={setResultDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Enter Radiology Results</DialogTitle>
           </DialogHeader>
           {selectedOrder && (
-            <div className="space-y-4">
-              <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
+            <div className="space-y-5">
+              <div className="p-4 bg-muted rounded-lg text-sm space-y-1">
                 <p><strong>Patient:</strong> {selectedOrder.patient?.profiles?.full_name}</p>
                 <p><strong>Study:</strong> {selectedOrder.imaging_catalog?.name} ({selectedOrder.imaging_catalog?.modality})</p>
                 <p><strong>Clinical Indication:</strong> {selectedOrder.clinical_indication || "Not specified"}</p>
               </div>
               <div className="space-y-2">
-                <Label>Findings *</Label>
-                <Textarea value={findings} onChange={(e) => setFindings(e.target.value)} placeholder="Describe radiological findings..." rows={4} />
+                <Label className="text-sm font-semibold">Findings *</Label>
+                <Textarea value={findings} onChange={(e) => setFindings(e.target.value)} placeholder="Describe radiological findings..." rows={5} className="text-base" />
               </div>
               <div className="space-y-2">
-                <Label>Impression *</Label>
-                <Textarea value={impression} onChange={(e) => setImpression(e.target.value)} placeholder="Radiological impression / conclusion..." rows={3} />
+                <Label className="text-sm font-semibold">Impression *</Label>
+                <Textarea value={impression} onChange={(e) => setImpression(e.target.value)} placeholder="Radiological impression / conclusion..." rows={4} className="text-base" />
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setResultDialogOpen(false)}>Cancel</Button>

@@ -23,6 +23,7 @@ import { ReferralForm } from "@/components/ReferralForm";
 import { InterimPayment } from "@/components/InterimPayment";
 import { PatientJourney } from "@/components/PatientJourney";
 import { logAuditEvent } from "@/lib/auditLog";
+import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import {
   Stethoscope, User, AlertTriangle, Activity, Pill, TestTube,
   Camera, FileText, Plus, X, Phone, Heart, Radio, ClipboardList,
@@ -894,6 +895,7 @@ const Consultation = () => {
                       </Button>
                     </div>
                   </div>
+                  <WorkflowTimeline currentStage={selectedTicket.workflow_stage || selectedTicket.status} />
 
                   {/* Allergy banner */}
                   {selectedTicket.patient?.allergies && selectedTicket.patient.allergies.length > 0 && (

@@ -24,6 +24,7 @@ import { StationQueue } from "@/components/StationQueue";
 import { Pill, Plus, Package, AlertTriangle, Search, ClipboardList } from "lucide-react";
 import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
+import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 
 const Pharmacy = () => {
   const { toast } = useToast();
@@ -194,35 +195,36 @@ const Pharmacy = () => {
           </div>
           <div className="flex gap-2 items-center">
             {selectedTicket && <InterimPayment ticketId={selectedTicket.id} patientId={selectedTicket.patient_id} />}
+            {selectedTicket && <WorkflowTimeline currentStage={selectedTicket.workflow_stage || selectedTicket.status} />}
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search drugs..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 w-64" />
+              <Input placeholder="Search drugs..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 w-64 h-12 text-base" />
             </div>
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
                 <Button className="gap-2"><Plus className="h-4 w-4" /> Add Drug</Button>
               </DialogTrigger>
-              <DialogContent className="max-w-lg">
+              <DialogContent className="max-w-2xl">
                 <DialogHeader><DialogTitle>Add Medication to Inventory</DialogTitle></DialogHeader>
-                <form onSubmit={handleAddInventory} className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2"><Label>Drug Name *</Label><Input value={formData.drugName} onChange={(e) => setFormData({ ...formData, drugName: e.target.value })} required /></div>
-                    <div className="space-y-2"><Label>Generic Name</Label><Input value={formData.genericName} onChange={(e) => setFormData({ ...formData, genericName: e.target.value })} /></div>
+                <form onSubmit={handleAddInventory} className="space-y-5">
+                  <div className="grid grid-cols-2 gap-5">
+                    <div className="space-y-2"><Label className="text-sm font-semibold">Drug Name *</Label><Input value={formData.drugName} onChange={(e) => setFormData({ ...formData, drugName: e.target.value })} required className="h-12 text-base" /></div>
+                    <div className="space-y-2"><Label className="text-sm font-semibold">Generic Name</Label><Input value={formData.genericName} onChange={(e) => setFormData({ ...formData, genericName: e.target.value })} className="h-12 text-base" /></div>
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2"><Label>Strength/Size</Label><Input value={formData.strengthSize} onChange={(e) => setFormData({ ...formData, strengthSize: e.target.value })} placeholder="e.g., 500mg" /></div>
-                    <div className="space-y-2"><Label>Package</Label><Input value={formData.packageType} onChange={(e) => setFormData({ ...formData, packageType: e.target.value })} placeholder="e.g., Box/100" /></div>
-                    <div className="space-y-2"><Label>Batch #</Label><Input value={formData.batchNumber} onChange={(e) => setFormData({ ...formData, batchNumber: e.target.value })} /></div>
+                  <div className="grid grid-cols-3 gap-5">
+                    <div className="space-y-2"><Label className="text-sm font-semibold">Strength/Size</Label><Input value={formData.strengthSize} onChange={(e) => setFormData({ ...formData, strengthSize: e.target.value })} placeholder="e.g., 500mg" className="h-12 text-base" /></div>
+                    <div className="space-y-2"><Label className="text-sm font-semibold">Package</Label><Input value={formData.packageType} onChange={(e) => setFormData({ ...formData, packageType: e.target.value })} placeholder="e.g., Box/100" className="h-12 text-base" /></div>
+                    <div className="space-y-2"><Label className="text-sm font-semibold">Batch #</Label><Input value={formData.batchNumber} onChange={(e) => setFormData({ ...formData, batchNumber: e.target.value })} className="h-12 text-base" /></div>
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2"><Label>Quantity *</Label><Input type="number" value={formData.quantity} onChange={(e) => setFormData({ ...formData, quantity: e.target.value })} required /></div>
-                    <div className="space-y-2"><Label>Unit Price (KES) *</Label><Input type="number" step="0.01" value={formData.unitPrice} onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value })} required /></div>
-                    <div className="space-y-2"><Label>Expiry Date</Label><Input type="date" value={formData.expiryDate} onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })} /></div>
+                  <div className="grid grid-cols-3 gap-5">
+                    <div className="space-y-2"><Label className="text-sm font-semibold">Quantity *</Label><Input type="number" value={formData.quantity} onChange={(e) => setFormData({ ...formData, quantity: e.target.value })} required className="h-12 text-base" /></div>
+                    <div className="space-y-2"><Label className="text-sm font-semibold">Unit Price (KES) *</Label><Input type="number" step="0.01" value={formData.unitPrice} onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value })} required className="h-12 text-base" /></div>
+                    <div className="space-y-2"><Label className="text-sm font-semibold">Expiry Date</Label><Input type="date" value={formData.expiryDate} onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })} className="h-12 text-base" /></div>
                   </div>
-                  <div className="grid grid-cols-3 gap-4">
-                    <div className="space-y-2"><Label>Min Stock</Label><Input type="number" value={formData.minimumStock} onChange={(e) => setFormData({ ...formData, minimumStock: e.target.value })} /></div>
-                    <div className="space-y-2"><Label>Max Stock</Label><Input type="number" value={formData.maximumStock} onChange={(e) => setFormData({ ...formData, maximumStock: e.target.value })} /></div>
-                    <div className="space-y-2"><Label>Reorder Level</Label><Input type="number" value={formData.reorderLevel} onChange={(e) => setFormData({ ...formData, reorderLevel: e.target.value })} /></div>
+                  <div className="grid grid-cols-3 gap-5">
+                    <div className="space-y-2"><Label className="text-sm font-semibold">Min Stock</Label><Input type="number" value={formData.minimumStock} onChange={(e) => setFormData({ ...formData, minimumStock: e.target.value })} className="h-12 text-base" /></div>
+                    <div className="space-y-2"><Label className="text-sm font-semibold">Max Stock</Label><Input type="number" value={formData.maximumStock} onChange={(e) => setFormData({ ...formData, maximumStock: e.target.value })} className="h-12 text-base" /></div>
+                    <div className="space-y-2"><Label className="text-sm font-semibold">Reorder Level</Label><Input type="number" value={formData.reorderLevel} onChange={(e) => setFormData({ ...formData, reorderLevel: e.target.value })} className="h-12 text-base" /></div>
                   </div>
                   <div className="flex justify-end gap-2">
                     <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>

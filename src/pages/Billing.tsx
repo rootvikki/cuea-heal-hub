@@ -15,6 +15,7 @@ import { useQueueTransition } from "@/hooks/useQueueTransition";
 import { StationQueue } from "@/components/StationQueue";
 import { Receipt, CreditCard, Smartphone, FileText, DollarSign } from "lucide-react";
 import { logAuditEvent } from "@/lib/auditLog";
+import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 
 const Billing = () => {
   const { toast } = useToast();
@@ -218,6 +219,7 @@ const Billing = () => {
             <h1 className="text-3xl font-bold flex items-center gap-2"><Receipt className="h-7 w-7 text-primary" /> Billing & Payments</h1>
             <p className="text-muted-foreground mt-1">Service charge accumulation & payment processing</p>
           </div>
+          {selectedTicket && <WorkflowTimeline currentStage={selectedTicket.workflow_stage || selectedTicket.status} />}
         </div>
 
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
@@ -281,7 +283,7 @@ const Billing = () => {
 
       {/* Charge Sheet Dialog */}
       <Dialog open={chargeSheetOpen} onOpenChange={setChargeSheetOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> CUEA Infirmary Charge Sheet</DialogTitle>
             <DialogDescription>TO CREDIT CONTROLLER</DialogDescription>
@@ -352,9 +354,9 @@ const Billing = () => {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Payment Method</Label>
+              <Label className="text-sm font-semibold">Payment Method</Label>
               <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-12 text-base"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="mpesa">M-Pesa</SelectItem>
                   <SelectItem value="cash">Cash</SelectItem>
@@ -365,8 +367,8 @@ const Billing = () => {
 
             {paymentMethod === "mpesa" && (
               <div className="space-y-2">
-                <Label>Phone Number</Label>
-                <Input type="tel" placeholder="254712345678" value={paymentPhone} onChange={(e) => setPaymentPhone(e.target.value)} />
+                <Label className="text-sm font-semibold">Phone Number</Label>
+                <Input type="tel" placeholder="254712345678" value={paymentPhone} onChange={(e) => setPaymentPhone(e.target.value)} className="h-12 text-base" />
               </div>
             )}
 

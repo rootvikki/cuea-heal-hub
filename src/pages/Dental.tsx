@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { StationQueue } from "@/components/StationQueue";
 import { InterimPayment } from "@/components/InterimPayment";
 import { Plus, X, Send, Calendar } from "lucide-react";
+import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 
 const DENTAL_PROCEDURES = [
   { name: "Dental Examination", price: 500 },
@@ -139,13 +140,16 @@ const Dental = () => {
               </CardContent>
             </Card>
 
+            {/* Workflow Timeline */}
+            <WorkflowTimeline currentStage={selectedTicket.workflow_stage || selectedTicket.status} />
+
             {/* Add Procedures */}
             <Card>
               <CardHeader><CardTitle className="text-lg">Add Procedures</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-1.5">
-                    <Label>Procedure</Label>
+              <CardContent className="space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Procedure</Label>
                     <Select value={selectedProc} onValueChange={setSelectedProc}>
                       <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                       <SelectContent>
@@ -155,15 +159,15 @@ const Dental = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label>Tooth #</Label>
-                    <Input value={toothNum} onChange={(e) => setToothNum(e.target.value)} placeholder="e.g. 14" />
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Tooth #</Label>
+                    <Input value={toothNum} onChange={(e) => setToothNum(e.target.value)} placeholder="e.g. 14" className="h-12 text-base" />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label>Notes</Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Notes</Label>
                     <div className="flex gap-2">
-                      <Input value={procNotes} onChange={(e) => setProcNotes(e.target.value)} />
-                      <Button onClick={addEntry} disabled={!selectedProc} size="icon"><Plus className="h-4 w-4" /></Button>
+                      <Input value={procNotes} onChange={(e) => setProcNotes(e.target.value)} className="h-12 text-base" />
+                      <Button onClick={addEntry} disabled={!selectedProc} size="icon" className="h-12 w-12"><Plus className="h-4 w-4" /></Button>
                     </div>
                   </div>
                 </div>
@@ -190,9 +194,9 @@ const Dental = () => {
                   </>
                 )}
 
-                <div className="max-w-xs space-y-1.5">
-                  <Label className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> Next Visit</Label>
-                  <Input type="date" value={nextVisit} onChange={(e) => setNextVisit(e.target.value)} />
+                <div className="max-w-sm space-y-2">
+                  <Label className="flex items-center gap-1 text-sm font-semibold"><Calendar className="h-3.5 w-3.5" /> Next Visit</Label>
+                  <Input type="date" value={nextVisit} onChange={(e) => setNextVisit(e.target.value)} className="h-12 text-base" />
                 </div>
               </CardContent>
             </Card>
