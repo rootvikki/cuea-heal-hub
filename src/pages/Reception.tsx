@@ -232,10 +232,18 @@ const Reception = () => {
     return p.patient_id?.toLowerCase().includes(s) || p.profile?.full_name?.toLowerCase().includes(s);
   });
 
-  // After patient registration, auto-open check-in
-  const handlePatientRegistered = () => {
+  // After patient registration, auto-open check-in dialog
+  const handlePatientRegistered = (data: { patientRecordId: string; patientId: string; visitReason: string; existing: boolean; fullName: string }) => {
     queryClient.invalidateQueries({ queryKey: ["reception-patients"] });
-    toast({ title: "Patient registered", description: "You can now search and check them in." });
+    // Auto-open check-in dialog with the newly registered patient
+    setSelectedPatientForCheckIn({
+      id: data.patientRecordId,
+      patient_id: data.patientId,
+      visit_reason: data.visitReason,
+      profile: { full_name: data.fullName },
+    });
+    setCheckInForm({ departmentId: "", priority: "1" });
+    setCheckInDialogOpen(true);
   };
 
   const waitMins = (checkedInAt: string) => Math.floor((Date.now() - new Date(checkedInAt).getTime()) / 60000);

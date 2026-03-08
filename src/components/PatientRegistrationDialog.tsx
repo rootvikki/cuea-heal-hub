@@ -30,7 +30,15 @@ const SectionHeader = ({ icon: Icon, title, filled, total }: { icon: React.Eleme
   </div>
 );
 
-export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: () => void }) => {
+interface RegistrationResult {
+  patientRecordId: string;
+  patientId: string;
+  visitReason: string;
+  existing: boolean;
+  fullName: string;
+}
+
+export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: RegistrationResult) => void }) => {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -132,6 +140,13 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: () => voi
         description: result?.message || `OPD No: ${result.patientId}`,
       });
       setOpen(false);
+      const registrationData: RegistrationResult = {
+        patientRecordId: result.patientRecordId,
+        patientId: result.patientId,
+        visitReason: result.visitReason || formData.visitReason || "outpatient",
+        existing: !!result.existing,
+        fullName: formData.fullName,
+      };
       setFormData({
         fullName: "", phone: "", email: "", password: "", dateOfBirth: "", gender: "",
         nationalId: "", nationality: "Kenyan", postalAddress: "", address: "",
@@ -139,7 +154,7 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: () => voi
         insuranceProvider: "", insuranceNumber: "",
         nextOfKinName: "", nextOfKinRelationship: "", nextOfKinPhone: "",
       });
-      onSuccess?.();
+      onSuccess?.(registrationData);
     } catch (error: any) {
       toast({ title: "Registration failed", description: error.message, variant: "destructive" });
     } finally {

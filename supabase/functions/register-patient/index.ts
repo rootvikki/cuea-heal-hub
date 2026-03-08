@@ -145,10 +145,19 @@ Deno.serve(async (req) => {
         details: { patient_id: existingPatientRecord.patient_id, registered_email: email },
       });
 
+      // Fetch visit_reason for routing
+      const { data: existingFull } = await supabase
+        .from("patients")
+        .select("visit_reason")
+        .eq("id", existingPatientRecord.id)
+        .single();
+
       return new Response(
         JSON.stringify({
           success: true,
           patientId: existingPatientRecord.patient_id,
+          patientRecordId: existingPatientRecord.id,
+          visitReason: existingFull?.visit_reason || "outpatient",
           userId,
           existing: true,
           message: "Patient already existed. Existing record loaded.",
@@ -163,7 +172,7 @@ Deno.serve(async (req) => {
     const patientId = opdData as string;
 
     // Create patient record
-    const { error: patientError } = await supabase.from("patients").insert({
+    const { data: patientRecord, error: patientError } = await supabase.from("patients").insert({
       user_id: userId,
       patient_id: patientId,
       patient_type: patientType || "outsider",
@@ -179,10 +188,9 @@ Deno.serve(async (req) => {
       next_of_kin_name: nextOfKinName || null,
       next_of_kin_relationship: nextOfKinRelationship || null,
       next_of_kin_phone: nextOfKinPhone || null,
-    });
+    }).select("id").single();
 
     if (patientError) throw patientError;
-
     // Assign patient role
     await supabase.from("user_roles").upsert(
       { user_id: userId, role: "patient" },
@@ -198,7 +206,7 @@ Deno.serve(async (req) => {
     });
 
     return new Response(
-      JSON.stringify({ success: true, patientId, userId }),
+      JSON.stringify({ success: true, patientId, userId, patientRecordId: patientRecord.id, visitReason: visitReason || "outpatient" }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {
