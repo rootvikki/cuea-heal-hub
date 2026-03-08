@@ -30,7 +30,7 @@ import {
   Clock, CheckCircle2, CircleDot, Thermometer, Droplets, Wind,
   Scale, Ruler, Shield, Save, ChevronRight, Search, Info,
   History, Brain, Clipboard, Syringe, Eye, ChevronDown,
-  ChevronsUpDown, DollarSign, ArrowRight, MapPin
+  ChevronsUpDown, DollarSign, ArrowRight, MapPin, ChevronLeft
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────
