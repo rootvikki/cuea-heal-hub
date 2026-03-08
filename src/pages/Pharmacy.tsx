@@ -260,6 +260,8 @@ const Pharmacy = () => {
             <TabsTrigger value="stockcard">Stock Card</TabsTrigger>
           </TabsList>
 
+          {selectedTicket && <PatientSummaryCard patientId={selectedTicket.patient_id} ticketId={selectedTicket.id} />}
+
           <TabsContent value="prescriptions">
             <Card>
               <CardHeader>
