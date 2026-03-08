@@ -1566,7 +1566,7 @@ const Consultation = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Duration" hint="Click for quick fill">
-                  <Input value={currentPrescription.duration} onChange={(e) => setCurrentPrescription({ ...currentPrescription, duration: e.target.value })} placeholder="e.g., 7 days" className="text-xs h-9" />
+                  <Input value={currentPrescription.duration} onChange={(e) => setCurrentPrescription({ ...currentPrescription, duration: e.target.value })} placeholder="e.g., 7 days" className="text-sm h-11" />
                   <div className="flex gap-1 mt-1.5">
                     {["3 days", "5 days", "7 days", "14 days", "30 days"].map(d => (
                       <Button
