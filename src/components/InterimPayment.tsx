@@ -61,7 +61,7 @@ export function InterimPayment({ ticketId, patientId }: InterimPaymentProps) {
         invoiceId = existingInvoice.id;
       } else {
         const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}`;
-        const { data: newInv } = await supabase.from("invoices").insert({
+        const { data: newInv, error: invError } = await supabase.from("invoices").insert({
           patient_id: patientId,
           invoice_number: invoiceNumber,
           total_amount: totalCharges,
@@ -70,7 +70,8 @@ export function InterimPayment({ ticketId, patientId }: InterimPaymentProps) {
           balance: totalCharges,
           status: "pending",
         }).select("id").single();
-        invoiceId = newInv!.id;
+        if (invError || !newInv) throw new Error(invError?.message || "Failed to create invoice — check your permissions");
+        invoiceId = newInv.id;
       }
 
       if (method === "mpesa") {
