@@ -68,6 +68,7 @@ const App = () => (
           <Route path="/dashboard" element={<ProtectedLayout><Dashboard /></ProtectedLayout>} />
 
           {/* Reception & Queue */}
+          <Route path="/reception" element={<ProtectedLayout allowedRoles={[...RECEPTION_ROLES, ...ADMIN_ROLES]}><Reception /></ProtectedLayout>} />
           <Route path="/patients" element={<ProtectedLayout allowedRoles={[...CLINICAL_ROLES, ...RECEPTION_ROLES, ...FINANCE_ROLES]}><Patients /></ProtectedLayout>} />
           <Route path="/appointments" element={<ProtectedLayout allowedRoles={[...CLINICAL_ROLES, ...RECEPTION_ROLES]}><Appointments /></ProtectedLayout>} />
           <Route path="/queue" element={<ProtectedLayout allowedRoles={[...CLINICAL_ROLES, ...RECEPTION_ROLES]}><Queue /></ProtectedLayout>} />

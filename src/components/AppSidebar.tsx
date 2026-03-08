@@ -44,9 +44,10 @@ export function AppSidebar() {
   const clinicalItems = [
     { title: "Dashboard", url: "/dashboard", icon: Home, roles: ["all"] },
     { title: "My Portal", url: "/portal", icon: UserCircle, roles: ["patient"] },
+    { title: "Reception", url: "/reception", icon: ClipboardList, roles: ["admin", "super_admin", "receptionist"] },
     { title: "Patients", url: "/patients", icon: Users, roles: ["admin", "super_admin", "doctor", "nurse", "receptionist"] },
-    { title: "Appointments", url: "/appointments", icon: Calendar, roles: ["all"] },
-    { title: "Patient Queue", url: "/queue", icon: ClipboardList, roles: ["admin", "super_admin", "doctor", "nurse", "receptionist"] },
+    { title: "Appointments", url: "/appointments", icon: Calendar, roles: ["doctor", "nurse", "clinical_officer"] },
+    { title: "Patient Queue", url: "/queue", icon: ClipboardList, roles: ["admin", "super_admin", "doctor", "nurse"] },
     { title: "Queue Display", url: "/queue-display", icon: Monitor, roles: ["admin", "super_admin", "receptionist"], isExternal: true },
     { title: "Consultation", url: "/consultation", icon: Stethoscope, roles: ["admin", "super_admin", "doctor", "clinical_officer"] },
     { title: "Nursing/Triage", url: "/vitals", icon: Activity, roles: ["admin", "super_admin", "doctor", "nurse"] },
