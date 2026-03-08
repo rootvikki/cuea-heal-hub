@@ -127,7 +127,10 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: () => voi
         throw new Error(msg);
       }
       if (result?.error) throw new Error(result.error);
-      toast({ title: "Patient registered", description: `OPD No: ${result.patientId}` });
+      toast({
+        title: result?.existing ? "Patient already exists" : "Patient registered",
+        description: result?.message || `OPD No: ${result.patientId}`,
+      });
       setOpen(false);
       setFormData({
         fullName: "", phone: "", email: "", password: "", dateOfBirth: "", gender: "",
