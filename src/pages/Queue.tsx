@@ -13,6 +13,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { ClipboardList, Plus, ArrowRight, Radio, Search, User } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
+import { inferPathFromStage, WorkflowTimeline } from "@/components/WorkflowTimeline";
 
 async function fetchQueueTickets() {
   const { data, error } = await supabase
