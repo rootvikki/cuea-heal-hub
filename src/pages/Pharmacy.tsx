@@ -7,6 +7,16 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { useQueueTransition } from "@/hooks/useQueueTransition";
@@ -26,6 +36,7 @@ const Pharmacy = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [stockCardItem, setStockCardItem] = useState<any>(null);
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [dispenseConfirm, setDispenseConfirm] = useState<any>(null);
   const [formData, setFormData] = useState({
     drugName: "", genericName: "", batchNumber: "", quantity: "", unitPrice: "",
     expiryDate: "", reorderLevel: "50", strengthSize: "", packageType: "",
@@ -271,7 +282,10 @@ const Pharmacy = () => {
                           <TableCell>{presc.quantity}</TableCell>
                           <TableCell className="max-w-xs truncate">{presc.instructions || "-"}</TableCell>
                           <TableCell>
-                            <Button size="sm" onClick={() => handleDispense(presc)}>Dispense</Button>
+                            <Button size="sm" onClick={() => {
+                              const inventoryItem = inventory.find((item) => item.drug_name.toLowerCase().includes(presc.medication_name.toLowerCase()) || presc.medication_name.toLowerCase().includes(item.drug_name.toLowerCase()));
+                              setDispenseConfirm({ prescription: presc, inventoryItem });
+                            }}>Dispense</Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -382,6 +396,43 @@ const Pharmacy = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Dispense Confirmation Dialog */}
+      <AlertDialog open={!!dispenseConfirm} onOpenChange={(open) => !open && setDispenseConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Dispensing</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>Are you sure you want to dispense this medication? This action will deduct stock and cannot be undone.</p>
+                {dispenseConfirm && (
+                  <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
+                    <p><strong>Medication:</strong> {dispenseConfirm.prescription?.medication_name}</p>
+                    <p><strong>Patient:</strong> {dispenseConfirm.prescription?.patient?.profile?.full_name}</p>
+                    <p><strong>Quantity to dispense:</strong> {dispenseConfirm.prescription?.quantity}</p>
+                    {dispenseConfirm.inventoryItem ? (
+                      <p><strong>Current stock:</strong> {dispenseConfirm.inventoryItem.quantity} → {dispenseConfirm.inventoryItem.quantity - dispenseConfirm.prescription?.quantity} after dispensing</p>
+                    ) : (
+                      <p className="text-destructive font-medium">⚠ Medication not found in inventory</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (dispenseConfirm?.prescription) {
+                handleDispense(dispenseConfirm.prescription);
+              }
+              setDispenseConfirm(null);
+            }}>
+              Confirm Dispense
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };

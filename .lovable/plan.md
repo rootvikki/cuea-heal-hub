@@ -1,150 +1,237 @@
 
 
-# Full System Audit -- Role Visibility, Forms UX, and Workflow Fixes
+# System-Wide Usability and Polish Plan
 
-## Issues Found
-
-### CRITICAL: N+1 Query Patterns
-
-**Appointments.tsx** (lines 60-103): Fires 2 DB queries per appointment (patient + department) in a loop. For 20 appointments = 40+ queries. Also `fetchPatients` (line 113-128) fires 1 query per patient.
-
-**Records.tsx** (lines 43-99): Fires 3 DB queries per encounter (patient, profile, department) in a loop. Same N+1 in `fetchPatients`.
-
-**Fix**: Replace loops with single queries using Supabase joins, matching the pattern already used in Queue.tsx and Consultation.tsx.
-
-### CRITICAL: Appointments.tsx Missing `patient_id` in SELECT
-
-Line 60: `select("id, appointment_date, status, reason, department_id")` omits `patient_id`, so the N+1 workaround for patient data breaks silently. Need to add `patient_id` or use a proper join.
-
-### MODERATE: Vitals -- Nursing Notes Not Saved
-
-The `nursingNotes` field exists in the form (line 235) but is never included in the `vitals.insert()` call (lines 58-68). The vitals table has no `nursing_notes` column. These notes are silently lost.
-
-**Fix**: Since the vitals table lacks the column, save nursing notes as a nursing_procedure entry of type "nursing_notes" or add a notes field.
-
-### MODERATE: Dental -- No Encounter Record Created
-
-Dental procedures are saved but no `encounter` record is created. This means dental visits have no SOAP notes, no clinical record, and the patient journey view in Consultation won't show dental history.
-
-**Fix**: Create a minimal encounter record when dental procedures are saved, linking to the ticket.
-
-### MODERATE: PatientPortal -- M-Pesa Param Mismatch
-
-PatientPortal (line 174) sends `phone_number` and `account_reference`, while Billing.tsx sends `phoneNumber` and `accountReference`. The edge function likely expects one format -- this could cause silent payment failures from the portal.
-
-**Fix**: Standardize to match the edge function's expected parameters.
-
-### MODERATE: Records.tsx -- Bypasses Workflow
-
-The Records page lets doctors create standalone encounters without a ticket, bypassing the triage > consult > billing workflow. No service charges, no ticket advancement.
-
-**Fix**: Remove the standalone "New Encounter" button from Records. Encounters should only be created via the Consultation workflow. Records page becomes read-only history.
-
-### LOW: clinical_officer Missing from RLS Policies
-
-The `clinical_officer` role is defined in routes but missing from:
-- `vitals` table RLS (only allows doctor, nurse, admin, super_admin)
-- `encounters` table (needs checking)
-
-Clinical officers can access the Vitals and Consultation pages via routes but their DB operations may fail silently.
-
-### LOW: Forms UX Improvements Needed
-
-- **Appointments form**: No patient search -- dumps all patients in a raw dropdown. Should add search like Queue check-in does.
-- **Records form**: Same issue -- no search in patient dropdown.
-- **Consultation encounter form**: Has many empty textareas with no guided structure beyond placeholders. Add field-level help text.
-- **Pharmacy dispensing**: No confirmation dialog before dispensing (irreversible stock deduction).
-
-### LOW: PatientPortal Layout Inconsistency
-
-PatientPortal wraps itself in its own `SidebarProvider` + `AppSidebar` instead of using `ProtectedLayout`. This means no breadcrumb, no standardized mobile header, no suspension guard from ProtectedLayout.
+After a thorough review of every major page, component, and workflow in the system, here is a prioritized plan to make the CUEA Infirmary HMS the easiest and smoothest system to use for all staff and patients.
 
 ---
 
-## Remediation Plan
+## 1. Global UX Improvements
 
-### Phase 1: Fix N+1 Queries (Appointments + Records)
+### Breadcrumb Navigation
+- Add a breadcrumb bar at the top of every page inside `ProtectedLayout` showing the current location (e.g., "Dashboard > Patient Queue")
+- Helps users orient themselves, especially new staff
 
-**Appointments.tsx**:
-- Replace `fetchAppointments` with single query using joins: `select("*, patients!inner(patient_id, user_id, profiles!inner(full_name)), departments!inner(name)")`
-- Replace `fetchPatients` with joined query: `select("id, patient_id, user_id, profiles!inner(full_name)")`
-- Add patient search Input to the "New Appointment" dialog (same pattern as Queue check-in)
+### Consistent Page Headers
+- Standardize all page headers with the same structure: icon + title + subtitle + action buttons aligned right
+- Currently some pages use `p-6`, others `p-8` -- normalize all to `p-6 lg:p-8`
 
-**Records.tsx**:
-- Replace `fetchEncounters` with single query using joins
-- Replace `fetchPatients` with joined query
-- Remove "New Encounter" button -- make page read-only (encounters only via Consultation)
-- Add patient search to view encounters by patient
+### Loading States
+- Replace plain text "Loading..." in tables with skeleton rows (animated placeholder rows)
+- Already have a `PageSkeleton` component but it is only used on Dashboard; extend usage to all pages
 
-### Phase 2: Fix Data Integrity Issues
+### Empty States
+- Add friendly illustrations or icons with helpful messages when tables are empty (e.g., "No patients in queue yet. Check in a patient to get started.")
+- Add a call-to-action button in empty states pointing to the relevant action
 
-**Vitals.tsx**:
-- Save `nursingNotes` as a nursing_procedure of type "nursing_notes" when non-empty
-
-**Dental.tsx**:
-- Create a minimal encounter record (`chief_complaint: "Dental Visit"`, `assessment: procedures list`) when saving dental procedures
-- Link encounter_id to dental_procedures records
-
-**PatientPortal.tsx**:
-- Fix M-Pesa params to use `phoneNumber` and `accountReference` (matching edge function)
-
-### Phase 3: RLS Policy Fix
-
-- Add `clinical_officer` to vitals table RLS policy (DB migration)
-- Verify encounters table includes `clinical_officer`
-
-### Phase 4: Forms UX Polish
-
-**Appointments.tsx** -- New Appointment dialog:
-- Add search Input above patient Select (same pattern as Queue check-in dialog)
-- Filter patients by search term
-
-**Pharmacy.tsx** -- Add confirmation dialog before dispensing:
-- Show medication name, quantity to deduct, remaining stock
-- Require explicit "Confirm Dispense" click
-
-**PatientPortal.tsx** -- Layout:
-- Switch from own SidebarProvider to ProtectedLayout pattern for consistency
-- Or at minimum, ensure the mobile header and suspension guard are present
-
-### Phase 5: Consultation Form Enhancements
-
-- Add field-level descriptions/hints below key textareas (e.g., "Include onset, duration, aggravating/relieving factors" under HPI)
-- Add visual section headers with icons to match the Vitals form pattern
-- Add auto-save to localStorage (draft indicator)
+### Toast Notifications
+- Standardize all success/error toasts with consistent wording
+- Add a subtle sound/vibration cue for critical notifications (e.g., emergency queue additions)
 
 ---
 
-## Technical Details
+## 2. Sidebar Improvements
 
-### Appointments.tsx
-- Lines 54-106: Replace entire `fetchAppointments` with single join query
-- Lines 113-128: Replace `fetchPatients` with `patients.select("id, patient_id, user_id, profiles!inner(full_name)")`
-- Lines 241-300: Add search Input to dialog, filter patients in Select
+### Current User Display
+- Show the logged-in user's name and role badge in the sidebar header (below the logo)
+- Currently users have no visual confirmation of who they are logged in as while navigating
 
-### Records.tsx
-- Lines 43-82: Replace with single join query
-- Lines 84-99: Replace with single join query
-- Lines 173-287: Remove DialogTrigger + Dialog for new encounters (read-only page)
+### Active Section Highlighting
+- The current active item highlighting works but the entire section group should subtly expand/highlight
+- Add a small colored left-border indicator on the active item for better visibility on the maroon background
 
-### Vitals.tsx
-- Lines 67-68: After vitals insert, if `form.nursingNotes` is non-empty, insert a nursing_procedure
+### Collapsible Sidebar on Mobile
+- Ensure the sidebar auto-collapses on mobile and opens as an overlay
+- Add a hamburger menu button in the top-left of the main content area on mobile
 
-### Dental.tsx
-- Lines 65-91: Before inserting dental_procedures, create an encounter record, use its ID
+---
 
-### PatientPortal.tsx
-- Lines 173-179: Change `phone_number` to `phoneNumber`, `account_reference` to `accountReference`
+## 3. Dashboard Enhancements
 
-### DB Migration
-- Add `clinical_officer` to vitals RLS policy
+### Greeting with Time of Day
+- Change "Welcome back" to "Good morning/afternoon/evening" based on time of day
+- Small touch that makes the system feel personal
+
+### Stat Cards Animation
+- Add a count-up animation on stat card numbers when they load
+- Add subtle hover scale effect (already have `hover:shadow-lg`, enhance with `hover:scale-[1.02]`)
+
+### Quick Action Cards Enhancement
+- Add icons to each quick action button
+- Add keyboard shortcuts for top 3 actions (show shortcut hint in the button)
+
+---
+
+## 4. Patient Queue Page
+
+### Visual Queue Board
+- Add color-coded status columns (like a Kanban board view) as an alternative to the list view
+- Toggle between "List View" and "Board View"
+- Board columns: Checked In | Triage | Waiting for Doctor | In Consult | Lab/Imaging | Pharmacy | Billing | Done
+
+### Patient Wait Time Display
+- Show elapsed wait time since check-in on each ticket (e.g., "Waiting: 23 min")
+- Highlight tickets waiting longer than 30 minutes in amber, 60+ minutes in red
+
+### Sound Alert for New Check-ins
+- Play a subtle notification sound when a new patient is checked in (configurable in settings)
+
+---
+
+## 5. Consultation Page
+
+### Split-Panel Layout Polish
+- The left queue panel is good; enhance with patient photo/avatar placeholder
+- Add patient age, gender, and allergies badge directly in the queue card for quick reference
+
+### Auto-Save Draft
+- Auto-save encounter form data to localStorage every 30 seconds
+- Show a "Draft saved" indicator
+- Restore draft when returning to the same patient
+
+### Clinical Templates
+- Add quick-fill templates for common presentations (e.g., "Upper Respiratory Infection", "Malaria", "UTI")
+- Pre-fill chief complaint, assessment, and common prescriptions
+
+### Diagnosis Autocomplete
+- Add ICD-10 code search/autocomplete for the diagnosis field
+- Currently it is free-text which makes reporting inconsistent
+
+---
+
+## 6. Vitals / Triage Page
+
+### Visual Vital Signs Dashboard
+- Show vitals on a visual body-map or gauge-style indicators
+- Color-code out-of-range values automatically (e.g., BP > 140 shows red)
+- The BMI calculation is good; add a visual BMI category indicator (underweight/normal/overweight/obese)
+
+### Quick Input Mode
+- Allow tab-through of all vital fields in order for fast data entry
+- Auto-advance to next field on Enter key
+
+---
+
+## 7. Pharmacy Page
+
+### Prescription Queue Enhancement
+- Group prescriptions by patient (currently individual rows)
+- Show all medications for one patient together with a single "Dispense All" button
+- Add a confirmation dialog showing what will be deducted from inventory before dispensing
+
+### Low Stock Visual Alert
+- Add a persistent banner at the top of the Pharmacy page when any items are below reorder level
+- Color-code inventory rows: green (adequate), amber (approaching reorder), red (below reorder)
+
+---
+
+## 8. Laboratory Page
+
+### Sample Tracking
+- Add visual status badges for sample lifecycle: Ordered > Collected > Processing > Completed
+- Show estimated turnaround time
+
+### Result Entry Improvement
+- The structured result fields are excellent; add auto-flagging (H/L/Critical) based on reference ranges
+- Already partially implemented but ensure consistency across all test types
+
+---
+
+## 9. Billing Page
+
+### Invoice Summary Dashboard
+- Add summary cards at the top: Total Outstanding, Collected Today, Pending M-Pesa
+- Visual pie chart of payment methods breakdown
+
+### One-Click Receipt
+- After payment, show a "Print Receipt" button that generates a clean PDF receipt
+- Include hospital logo, patient details, itemized charges, and payment confirmation
+
+---
+
+## 10. Patient Portal
+
+### Welcome Dashboard
+- Add a welcome card with patient name and upcoming appointment reminder
+- Show a simple timeline of recent visits
+
+### Mobile-First Design
+- Ensure all portal tabs work perfectly on mobile (patients will primarily use phones)
+- Large touch-friendly buttons and cards
+
+---
+
+## 11. Settings Page
+
+### Organized Settings Sections
+- Group settings into clear categories with icons: General, M-Pesa, Notifications, System
+- Add visual confirmation when settings are saved (checkmark animation)
+
+---
+
+## Technical Implementation Details
+
+### File Changes
+
+**New Component: `src/components/Breadcrumb.tsx`**
+- Simple breadcrumb component using react-router location
+- Maps route paths to human-readable names
+
+**Edit: `src/components/ProtectedLayout.tsx`**
+- Add breadcrumb component above the main content
+- Add current user name/role display in the sidebar header area
+- Normalize padding
+
+**Edit: `src/components/AppSidebar.tsx`**
+- Add user info section (name + primary role badge) below the logo
+- Add left-border active indicator styling
+
+**Edit: `src/pages/Dashboard.tsx`**
+- Add time-of-day greeting
+- Add icons to QuickActionButton
+- Add hover scale animation to StatCard
+
+**Edit: `src/pages/Queue.tsx`**
+- Add wait time display (calculate from `checked_in_at`)
+- Add color-coded wait time warnings
+- Add Kanban board view toggle
+
+**Edit: `src/pages/Consultation.tsx`**
+- Add auto-save to localStorage
+- Add patient demographics (age, gender, allergies) in queue cards
+- Add common diagnosis templates
+
+**Edit: `src/pages/Vitals.tsx`**
+- Add visual BMI category indicator
+- Color-code out-of-range vital values
+- Add tab-through navigation
+
+**Edit: `src/pages/Pharmacy.tsx`**
+- Group prescriptions by patient
+- Add inventory color-coding for stock levels
+- Add low-stock banner
+
+**Edit: `src/pages/Billing.tsx`**
+- Add summary stat cards at the top
+- Improve invoice table with better status badges
+
+**Edit: `src/pages/PatientPortal.tsx`**
+- Add welcome card with next appointment
+- Improve mobile responsiveness of tabs
+
+**Edit: `src/index.css`**
+- Add smooth transition utilities
+- Add count-up animation keyframes
 
 ### Execution Order
-1. Appointments.tsx (N+1 fix + patient search in form)
-2. Records.tsx (N+1 fix + make read-only)
-3. Vitals.tsx (save nursing notes)
-4. Dental.tsx (create encounter record)
-5. PatientPortal.tsx (fix M-Pesa params)
-6. Pharmacy.tsx (dispense confirmation)
-7. DB migration (clinical_officer RLS)
+1. Global: Breadcrumb + ProtectedLayout padding normalization
+2. AppSidebar: User info display + active indicator
+3. Dashboard: Time greeting + stat card animations + quick action icons
+4. Queue: Wait time display + color warnings
+5. Consultation: Auto-save + patient info in queue cards
+6. Vitals: Visual indicators + keyboard navigation
+7. Pharmacy: Group by patient + stock level coloring
+8. Billing: Summary cards
+9. PatientPortal: Welcome card + mobile polish
+10. Settings: Section grouping
 

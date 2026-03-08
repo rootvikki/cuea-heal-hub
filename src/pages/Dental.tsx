@@ -67,15 +67,33 @@ const Dental = () => {
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
+      const { data: staff } = await supabase.from("staff").select("id").eq("user_id", user?.id).single();
+      const { data: dept } = await supabase.from("departments").select("id").eq("name", "Dental").maybeSingle();
+
+      // Create a minimal encounter record for the dental visit
+      const { data: encounterData } = await supabase.from("encounters").insert({
+        patient_id: selectedTicket.patient_id,
+        ticket_id: selectedTicket.id,
+        doctor_id: staff?.id ?? user?.id ?? "",
+        department_id: dept?.id ?? selectedTicket.department_id ?? "",
+        chief_complaint: "Dental Visit",
+        assessment: entries.map((e) => e.procedure).join(", "),
+        plan: nextVisit ? `Next visit: ${nextVisit}` : null,
+      }).select().single();
+
+      const encounterId = encounterData?.id || null;
+
       for (const entry of entries) {
         await supabase.from("dental_procedures").insert({
           patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id,
-          dentist_id: user?.id || "", procedure_name: entry.procedure,
+          dentist_id: staff?.id ?? user?.id ?? "",
+          procedure_name: entry.procedure, encounter_id: encounterId,
           tooth_number: entry.toothNumber || null, notes: entry.notes || null,
           price: entry.price, next_visit: nextVisit || null,
         });
         await supabase.from("service_charges").insert({
           patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id,
+          encounter_id: encounterId,
           service_type: "dental", description: entry.procedure, amount: entry.price, billing_stage: "dental",
         });
       }
