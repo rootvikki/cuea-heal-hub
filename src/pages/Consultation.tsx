@@ -1029,7 +1029,7 @@ const Consultation = () => {
                                     value={encounter.physicalExamSystemic}
                                     onChange={(e) => setEncounter({ ...encounter, physicalExamSystemic: e.target.value })}
                                     placeholder="CVS: S1 S2 heard, no murmurs&#10;RS: Equal air entry, clear&#10;GIT: Soft, non-tender&#10;CNS: GCS 15/15"
-                                    rows={3} className="text-sm resize-y"
+                                    rows={4} className="text-base resize-y"
                                   />
                                 </Field>
                               </div>
