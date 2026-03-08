@@ -1088,7 +1088,7 @@ const Consultation = () => {
                                   value={encounter.plan}
                                   onChange={(e) => setEncounter({ ...encounter, plan: e.target.value })}
                                   placeholder="1. Investigations: CBC, RBS&#10;2. Treatment: Amoxicillin 500mg TDS × 7 days&#10;3. Follow-up in 2 weeks"
-                                  rows={4} className="text-sm resize-y"
+                                  rows={5} className="text-base resize-y"
                                 />
                               </Field>
 
