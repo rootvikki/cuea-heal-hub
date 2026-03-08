@@ -35,6 +35,7 @@ import PatientPortal from "./pages/PatientPortal";
 import Dental from "./pages/Dental";
 import NotFound from "./pages/NotFound";
 import AuditLogs from "./pages/AuditLogs";
+import Reception from "./pages/Reception";
 
 const queryClient = new QueryClient();
 
