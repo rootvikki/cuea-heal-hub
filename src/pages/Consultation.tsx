@@ -24,6 +24,7 @@ import { InterimPayment } from "@/components/InterimPayment";
 import { PatientJourney } from "@/components/PatientJourney";
 import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline, deriveVisitPath } from "@/components/WorkflowTimeline";
+import { PatientSummaryCard } from "@/components/PatientSummaryCard";
 import {
   Stethoscope, User, AlertTriangle, Activity, Pill, TestTube,
   Camera, FileText, Plus, X, Phone, Heart, Radio, ClipboardList,
@@ -930,6 +931,8 @@ const Consultation = () => {
                       hasPrescriptions: prescriptions.length > 0,
                     })}
                   />
+
+                  <PatientSummaryCard patientId={selectedTicket.patient.id} ticketId={selectedTicket.id} />
 
                   {/* Allergy banner */}
                   {selectedTicket.patient?.allergies && selectedTicket.patient.allergies.length > 0 && (

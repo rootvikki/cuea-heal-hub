@@ -16,6 +16,7 @@ import { Camera, Search, Clock, CheckCircle, AlertCircle, FileImage } from "luci
 import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
+import { PatientSummaryCard } from "@/components/PatientSummaryCard";
 
 const Imaging = () => {
   const { toast } = useToast();
@@ -172,6 +173,8 @@ const Imaging = () => {
             </div>
           </div>
         </div>
+
+        {selectedTicket && <PatientSummaryCard patientId={selectedTicket.patient_id} ticketId={selectedTicket.id} />}
 
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card><CardContent className="p-4 flex items-center gap-4"><div className="p-3 rounded-full bg-yellow-100"><Clock className="h-6 w-6 text-yellow-600" /></div><div><p className="text-sm text-muted-foreground">Pending</p><p className="text-2xl font-bold">{pendingOrders.filter(o => o.status === "pending").length}</p></div></CardContent></Card>

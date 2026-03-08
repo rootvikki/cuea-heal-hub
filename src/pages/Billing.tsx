@@ -16,6 +16,7 @@ import { StationQueue } from "@/components/StationQueue";
 import { Receipt, CreditCard, Smartphone, FileText, DollarSign } from "lucide-react";
 import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
+import { PatientSummaryCard } from "@/components/PatientSummaryCard";
 
 const Billing = () => {
   const { toast } = useToast();
@@ -228,6 +229,8 @@ const Billing = () => {
           </div>
           {selectedTicket && <WorkflowTimeline currentStage={selectedTicket.workflow_stage || selectedTicket.status} />}
         </div>
+
+        {selectedTicket && <PatientSummaryCard patientId={selectedTicket.patient_id} ticketId={selectedTicket.id} />}
 
         <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           <Card><CardContent className="p-4 flex items-center gap-4"><div className="p-3 rounded-full bg-green-100"><DollarSign className="h-6 w-6 text-green-600" /></div><div><p className="text-sm text-muted-foreground">Total Revenue</p><p className="text-2xl font-bold">KES {invoices.reduce((s, i) => s + parseFloat(i.amount_paid || 0), 0).toLocaleString()}</p></div></CardContent></Card>
