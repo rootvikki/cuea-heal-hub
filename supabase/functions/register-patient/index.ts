@@ -68,6 +68,18 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Check if a user with this email already exists
+    const { data: existingUsers } = await supabase.auth.admin.listUsers();
+    const emailExists = existingUsers?.users?.some(
+      (u: any) => u.email?.toLowerCase() === email.toLowerCase()
+    );
+    if (emailExists) {
+      return new Response(
+        JSON.stringify({ error: "A patient with this email address is already registered. Please use a different email or search for the existing patient." }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
     // Create auth user via admin API (does NOT affect caller session)
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
