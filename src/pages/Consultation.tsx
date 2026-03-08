@@ -1011,7 +1011,7 @@ const Consultation = () => {
                                   value={encounter.subjective}
                                   onChange={(e) => setEncounter({ ...encounter, subjective: e.target.value })}
                                   placeholder="Additional subjective findings, review of systems..."
-                                  rows={2} className="text-sm resize-y"
+                                  rows={3} className="text-base resize-y"
                                 />
                               </Field>
 
