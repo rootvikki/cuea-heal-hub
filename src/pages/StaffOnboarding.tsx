@@ -443,13 +443,13 @@ export default function StaffOnboarding() {
           {currentStep === 3 && (
             <div className="space-y-6">
               <div className="space-y-2">
-                <Label>Working Days</Label>
+                <Label className="text-sm font-semibold">Working Days</Label>
                 <div className="flex flex-wrap gap-2">
                   {WORKING_DAYS.map(day => (
                     <Badge
                       key={day}
                       variant={formData.workingDays.includes(day) ? "default" : "outline"}
-                      className="cursor-pointer"
+                      className="cursor-pointer py-2 px-4 text-sm"
                       onClick={() => toggleWorkingDay(day)}
                     >
                       {day}
@@ -459,12 +459,12 @@ export default function StaffOnboarding() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="shift">Shift Preference</Label>
+                <Label htmlFor="shift" className="text-sm font-semibold">Shift Preference</Label>
                 <Select
                   value={formData.shiftPreference}
                   onValueChange={value => updateFormData("shiftPreference", value)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-12 text-base">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
