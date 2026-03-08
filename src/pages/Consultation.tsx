@@ -883,6 +883,9 @@ const Consultation = () => {
                         <Progress value={completionPct} className="w-20 h-1.5" />
                         <span className="text-[10px] font-bold">{completionPct}%</span>
                       </div>
+                      {selectedTicket.patient?.id && (
+                        <InterimPayment ticketId={selectedTicket.id} patientId={selectedTicket.patient.id} />
+                      )}
                       <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setShowReferralForm(true)}>
                         <FileText className="h-3.5 w-3.5 mr-1" /> Referral
                       </Button>

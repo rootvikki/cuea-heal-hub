@@ -119,6 +119,13 @@ const Vitals = () => {
         });
       }
 
+      // Auto-add triage fee service charge
+      const TRIAGE_FEE = 200;
+      await supabase.from("service_charges").insert({
+        patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id,
+        service_type: "triage", description: "Triage / Vitals Assessment Fee", amount: TRIAGE_FEE, billing_stage: "triage",
+      });
+
       for (const proc of procedures) {
         await supabase.from("nursing_procedures").insert({
           patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id,
