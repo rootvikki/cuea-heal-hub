@@ -357,14 +357,14 @@ export default function StaffOnboarding() {
           {/* Step 2: Role & Department */}
           {currentStep === 2 && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
-                  <Label htmlFor="primaryRole">Primary Role *</Label>
+                  <Label htmlFor="primaryRole" className="text-sm font-semibold">Primary Role *</Label>
                   <Select
                     value={formData.primaryRole}
                     onValueChange={value => updateFormData("primaryRole", value)}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-12 text-base">
                       <SelectValue placeholder="Select primary role" />
                     </SelectTrigger>
                     <SelectContent>
@@ -377,12 +377,12 @@ export default function StaffOnboarding() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="department">Department *</Label>
+                  <Label htmlFor="department" className="text-sm font-semibold">Department *</Label>
                   <Select
                     value={formData.departmentId}
                     onValueChange={value => updateFormData("departmentId", value)}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-12 text-base">
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                     <SelectContent>
@@ -397,13 +397,14 @@ export default function StaffOnboarding() {
               </div>
 
               <div className="space-y-2">
-                <Label>Secondary Roles (Optional)</Label>
+                <Label className="text-sm font-semibold">Secondary Roles (Optional)</Label>
+                <p className="text-xs text-muted-foreground">Click to toggle additional roles</p>
                 <div className="flex flex-wrap gap-2">
                   {ROLES.filter(r => r.value !== formData.primaryRole).map(role => (
                     <Badge
                       key={role.value}
                       variant={formData.secondaryRoles.includes(role.value) ? "default" : "outline"}
-                      className="cursor-pointer"
+                      className="cursor-pointer py-1.5 px-3 text-sm"
                       onClick={() => toggleSecondaryRole(role.value)}
                     >
                       {role.label}
@@ -412,24 +413,27 @@ export default function StaffOnboarding() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
-                  <Label htmlFor="specialization">Specialization</Label>
+                  <Label htmlFor="specialization" className="text-sm font-semibold">Specialization</Label>
                   <Input
                     id="specialization"
                     placeholder="e.g., Cardiology, Pediatrics"
                     value={formData.specialization}
                     onChange={e => updateFormData("specialization", e.target.value)}
+                    className="h-12 text-base"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="licenseNumber">License Number</Label>
+                  <Label htmlFor="licenseNumber" className="text-sm font-semibold">License Number</Label>
                   <Input
                     id="licenseNumber"
                     placeholder="Medical license number"
                     value={formData.licenseNumber}
                     onChange={e => updateFormData("licenseNumber", e.target.value)}
+                    className="h-12 text-base"
                   />
+                  <p className="text-xs text-muted-foreground">Required for clinical staff</p>
                 </div>
               </div>
             </div>
