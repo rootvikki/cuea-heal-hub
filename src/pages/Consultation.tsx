@@ -20,6 +20,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
 import { ReferralForm } from "@/components/ReferralForm";
+import { InterimPayment } from "@/components/InterimPayment";
 import { PatientJourney } from "@/components/PatientJourney";
 import { logAuditEvent } from "@/lib/auditLog";
 import {
@@ -882,6 +883,9 @@ const Consultation = () => {
                         <Progress value={completionPct} className="w-20 h-1.5" />
                         <span className="text-[10px] font-bold">{completionPct}%</span>
                       </div>
+                      {selectedTicket.patient?.id && (
+                        <InterimPayment ticketId={selectedTicket.id} patientId={selectedTicket.patient.id} />
+                      )}
                       <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setShowReferralForm(true)}>
                         <FileText className="h-3.5 w-3.5 mr-1" /> Referral
                       </Button>
