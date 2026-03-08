@@ -5,13 +5,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { useToast } from "@/hooks/use-toast";
-import { ClipboardList, Plus, ArrowRight, Radio, Search } from "lucide-react";
+import { ClipboardList, Plus, ArrowRight, Radio, Search, User } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 
 async function fetchQueueTickets() {
@@ -48,6 +48,12 @@ async function fetchAllPatients() {
     profile: { full_name: p.profiles?.full_name },
   }));
 }
+
+const PRIORITY_OPTIONS = [
+  { value: "1", label: "Normal", color: "bg-muted border-border text-foreground", description: "Standard queue priority" },
+  { value: "2", label: "High", color: "bg-warning/15 border-[hsl(var(--warning))] text-[hsl(var(--warning))]", description: "Prioritized in queue" },
+  { value: "3", label: "Emergency", color: "bg-destructive/15 border-destructive text-destructive", description: "Immediate attention" },
+];
 
 const Queue = () => {
   const { toast } = useToast();
@@ -158,20 +164,6 @@ const Queue = () => {
 
   type TicketStatus = "checked_in" | "triage" | "waiting_for_doctor" | "in_consult" | "at_pharmacy" | "at_billing" | "checked_out" | "order_placed_lab" | "order_placed_imaging" | "at_lab" | "at_imaging";
 
-  const updateTicketStatus = async (ticketId: string, newStatus: TicketStatus) => {
-    const { error } = await supabase
-      .from("tickets")
-      .update({ status: newStatus, workflow_stage: newStatus })
-      .eq("id", ticketId);
-
-    if (error) {
-      toast({ title: "Error updating ticket", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Ticket updated", description: "Status changed successfully" });
-      queryClient.invalidateQueries({ queryKey: ["queue-tickets"] });
-    }
-  };
-
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
       checked_in: "bg-muted", triage: "bg-warning", waiting_for_doctor: "bg-status-pending",
@@ -220,47 +212,50 @@ const Queue = () => {
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="gap-2"><Plus className="h-4 w-4" /> Check-in Patient</Button>
+            <Button className="gap-2 h-12 px-6 text-base"><Plus className="h-5 w-5" /> Check-in Patient</Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-lg">
             <DialogHeader>
-              <DialogTitle>Check-in Patient</DialogTitle>
+              <DialogTitle className="text-lg">Check-in Patient</DialogTitle>
               <DialogDescription>Generate a queue ticket for the patient</DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleCheckIn} className="space-y-4">
+            <form onSubmit={handleCheckIn} className="space-y-5">
               <div className="space-y-2">
-                <Label>Search Patient</Label>
+                <Label className="text-sm font-semibold">Search Patient</Label>
                 <div className="relative">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search by name or ID..."
+                    placeholder="Search by name or OPD number..."
                     value={patientSearch}
                     onChange={(e) => setPatientSearch(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 h-12 text-base"
                   />
                 </div>
               </div>
               <div className="space-y-2">
-                <Label>Patient</Label>
+                <Label className="text-sm font-semibold">Patient *</Label>
                 <Select
                   value={formData.patientId}
                   onValueChange={(value) => setFormData({ ...formData, patientId: value })}
                   required
                 >
-                  <SelectTrigger><SelectValue placeholder="Select patient" /></SelectTrigger>
+                  <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Select patient" /></SelectTrigger>
                   <SelectContent>
                     {filteredPatients.slice(0, 50).map((patient: any) => (
                       <SelectItem key={patient.id} value={patient.id}>
-                        {patient.patient_id} - {patient.profile?.full_name}
+                        <div className="flex items-center gap-2">
+                          <User className="h-3.5 w-3.5 text-muted-foreground" />
+                          {patient.patient_id} — {patient.profile?.full_name}
+                        </div>
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Department</Label>
+                <Label className="text-sm font-semibold">Department *</Label>
                 <Select value={formData.departmentId} onValueChange={(value) => setFormData({ ...formData, departmentId: value })} required>
-                  <SelectTrigger><SelectValue placeholder="Select department" /></SelectTrigger>
+                  <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Select department" /></SelectTrigger>
                   <SelectContent>
                     {departments.map((dept: any) => (
                       <SelectItem key={dept.id} value={dept.id}>{dept.name}</SelectItem>
@@ -269,19 +264,28 @@ const Queue = () => {
                 </Select>
               </div>
               <div className="space-y-2">
-                <Label>Priority</Label>
-                <Select value={formData.priority} onValueChange={(value) => setFormData({ ...formData, priority: value })}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1">Normal</SelectItem>
-                    <SelectItem value="2">High</SelectItem>
-                    <SelectItem value="3">Emergency</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Label className="text-sm font-semibold">Priority</Label>
+                <div className="grid grid-cols-3 gap-2">
+                  {PRIORITY_OPTIONS.map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setFormData({ ...formData, priority: opt.value })}
+                      className={`p-3 rounded-lg border-2 text-center transition-all ${
+                        formData.priority === opt.value
+                          ? `${opt.color} ring-2 ring-offset-1 ring-current font-bold`
+                          : "border-border bg-background hover:bg-muted/50 text-muted-foreground"
+                      }`}
+                    >
+                      <p className="text-sm font-semibold">{opt.label}</p>
+                      <p className="text-[10px] mt-0.5 opacity-70">{opt.description}</p>
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-                <Button type="submit">Check-in</Button>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="h-11 px-5">Cancel</Button>
+                <Button type="submit" className="h-11 px-6">Check-in</Button>
               </div>
             </form>
           </DialogContent>

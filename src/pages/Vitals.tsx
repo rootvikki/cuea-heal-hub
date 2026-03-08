@@ -6,12 +6,55 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
+import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { StationQueue } from "@/components/StationQueue";
 import { NursingProcedures, type SelectedProcedure } from "@/components/NursingProcedures";
 import { InterimPayment } from "@/components/InterimPayment";
-import { Activity, Send, Calendar, Thermometer, HeartPulse, Weight, Ruler } from "lucide-react";
+import { Activity, Send, Calendar, Thermometer, HeartPulse, Weight, Ruler, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { logAuditEvent } from "@/lib/auditLog";
+
+// ─── Vital range helpers ─────────────────────────────────────────
+const getBPClass = (sys: string, dia: string) => {
+  const s = parseInt(sys), d = parseInt(dia);
+  if (!s || !d) return "";
+  if (s >= 180 || d >= 120) return "border-destructive ring-1 ring-destructive/30 bg-destructive/5";
+  if (s >= 140 || d >= 90) return "border-[hsl(var(--warning))] ring-1 ring-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5";
+  if (s >= 90 && s <= 130 && d >= 60 && d <= 85) return "border-[hsl(var(--success))] ring-1 ring-[hsl(var(--success))]/30 bg-[hsl(var(--success))]/5";
+  return "";
+};
+
+const getTempClass = (val: string) => {
+  const t = parseFloat(val);
+  if (!t) return "";
+  if (t >= 39) return "border-destructive ring-1 ring-destructive/30 bg-destructive/5";
+  if (t >= 37.5 || t < 36) return "border-[hsl(var(--warning))] ring-1 ring-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5";
+  return "border-[hsl(var(--success))] ring-1 ring-[hsl(var(--success))]/30 bg-[hsl(var(--success))]/5";
+};
+
+const getPulseClass = (val: string) => {
+  const p = parseInt(val);
+  if (!p) return "";
+  if (p > 120 || p < 50) return "border-destructive ring-1 ring-destructive/30 bg-destructive/5";
+  if (p > 100 || p < 60) return "border-[hsl(var(--warning))] ring-1 ring-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5";
+  return "border-[hsl(var(--success))] ring-1 ring-[hsl(var(--success))]/30 bg-[hsl(var(--success))]/5";
+};
+
+const getSpo2Class = (val: string) => {
+  const s = parseFloat(val);
+  if (!s) return "";
+  if (s < 90) return "border-destructive ring-1 ring-destructive/30 bg-destructive/5";
+  if (s < 95) return "border-[hsl(var(--warning))] ring-1 ring-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5";
+  return "border-[hsl(var(--success))] ring-1 ring-[hsl(var(--success))]/30 bg-[hsl(var(--success))]/5";
+};
+
+const getRRClass = (val: string) => {
+  const r = parseInt(val);
+  if (!r) return "";
+  if (r > 25 || r < 10) return "border-destructive ring-1 ring-destructive/30 bg-destructive/5";
+  if (r > 20 || r < 12) return "border-[hsl(var(--warning))] ring-1 ring-[hsl(var(--warning))]/30 bg-[hsl(var(--warning))]/5";
+  return "border-[hsl(var(--success))] ring-1 ring-[hsl(var(--success))]/30 bg-[hsl(var(--success))]/5";
+};
 
 const Vitals = () => {
   const { toast } = useToast();
@@ -68,7 +111,6 @@ const Vitals = () => {
       });
       if (vitErr) throw vitErr;
 
-      // Save nursing notes as a nursing_procedure record if non-empty
       if (form.nursingNotes.trim()) {
         await supabase.from("nursing_procedures").insert({
           patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id,
@@ -103,6 +145,38 @@ const Vitals = () => {
   };
 
   const u = (field: string, value: string) => setForm((prev) => ({ ...prev, [field]: value }));
+
+  // Summary card data
+  const summaryItems = useMemo(() => {
+    const items: { label: string; value: string; status?: "normal" | "warning" | "critical" }[] = [];
+    if (form.bpSystolic && form.bpDiastolic) {
+      const s = parseInt(form.bpSystolic), d = parseInt(form.bpDiastolic);
+      const st = (s >= 180 || d >= 120) ? "critical" : (s >= 140 || d >= 90) ? "warning" : "normal";
+      items.push({ label: "BP", value: `${form.bpSystolic}/${form.bpDiastolic} mmHg`, status: st });
+    }
+    if (form.pulseRate) {
+      const p = parseInt(form.pulseRate);
+      items.push({ label: "Pulse", value: `${form.pulseRate} bpm`, status: (p > 120 || p < 50) ? "critical" : (p > 100 || p < 60) ? "warning" : "normal" });
+    }
+    if (form.temperature) {
+      const t = parseFloat(form.temperature);
+      items.push({ label: "Temp", value: `${form.temperature} °C`, status: t >= 39 ? "critical" : (t >= 37.5 || t < 36) ? "warning" : "normal" });
+    }
+    if (form.spo2) {
+      const s = parseFloat(form.spo2);
+      items.push({ label: "SpO₂", value: `${form.spo2}%`, status: s < 90 ? "critical" : s < 95 ? "warning" : "normal" });
+    }
+    if (form.respiratoryRate) {
+      const r = parseInt(form.respiratoryRate);
+      items.push({ label: "RR", value: `${form.respiratoryRate}/min`, status: (r > 25 || r < 10) ? "critical" : (r > 20 || r < 12) ? "warning" : "normal" });
+    }
+    if (form.weight) items.push({ label: "Weight", value: `${form.weight} kg` });
+    if (bmi) {
+      const b = parseFloat(bmi);
+      items.push({ label: "BMI", value: bmi, status: (b < 18.5 || b >= 30) ? "warning" : "normal" });
+    }
+    return items;
+  }, [form, bmi]);
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -145,24 +219,25 @@ const Vitals = () => {
                   <Thermometer className="h-5 w-5 text-primary" /> Triage Vitals
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-6">
+              <CardContent className="space-y-8">
                 {/* Row 1: Anthropometric */}
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                    <Weight className="h-3.5 w-3.5" /> Anthropometric
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                    <Weight className="h-4 w-4" /> Anthropometric
                   </p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="space-y-1.5">
-                      <Label>Weight (kg)</Label>
-                      <Input type="number" step="0.1" value={form.weight} onChange={(e) => u("weight", e.target.value)} />
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Weight (kg)</Label>
+                      <Input type="number" step="0.1" value={form.weight} onChange={(e) => u("weight", e.target.value)} className="h-12 text-base" placeholder="e.g. 72.5" />
                     </div>
-                    <div className="space-y-1.5">
-                      <Label>Height (m)</Label>
-                      <Input type="number" step="0.01" value={form.height} onChange={(e) => u("height", e.target.value)} placeholder="e.g. 1.70" />
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Height (m)</Label>
+                      <Input type="number" step="0.01" value={form.height} onChange={(e) => u("height", e.target.value)} placeholder="e.g. 1.70" className="h-12 text-base" />
+                      <p className="text-xs text-muted-foreground">Enter in meters</p>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label>BMI</Label>
-                      <Input readOnly value={bmi || ""} className="bg-muted font-semibold" />
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">BMI</Label>
+                      <Input readOnly value={bmi || ""} className="bg-muted font-bold h-12 text-base" />
                       {bmi && (
                         <Badge className={`text-xs ${
                           parseFloat(bmi) < 18.5 ? "bg-warning text-warning-foreground" :
@@ -176,53 +251,67 @@ const Vitals = () => {
                         </Badge>
                       )}
                     </div>
-                    <div className="space-y-1.5">
-                      <Label>Blood Pressure</Label>
-                      <div className="flex gap-1 items-center">
-                        <Input type="number" placeholder="120" value={form.bpSystolic} onChange={(e) => u("bpSystolic", e.target.value)} />
-                        <span className="text-muted-foreground font-bold">/</span>
-                        <Input type="number" placeholder="80" value={form.bpDiastolic} onChange={(e) => u("bpDiastolic", e.target.value)} />
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Blood Pressure</Label>
+                      <div className="flex gap-1.5 items-center">
+                        <Input type="number" placeholder="120" value={form.bpSystolic} onChange={(e) => u("bpSystolic", e.target.value)} className={`h-12 text-base text-center ${getBPClass(form.bpSystolic, form.bpDiastolic)}`} />
+                        <span className="text-muted-foreground font-bold text-lg">/</span>
+                        <Input type="number" placeholder="80" value={form.bpDiastolic} onChange={(e) => u("bpDiastolic", e.target.value)} className={`h-12 text-base text-center ${getBPClass(form.bpSystolic, form.bpDiastolic)}`} />
                       </div>
+                      <p className="text-xs text-muted-foreground">Systolic / Diastolic mmHg</p>
                     </div>
                   </div>
                 </div>
+
                 {/* Row 2: Cardiorespiratory */}
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                    <HeartPulse className="h-3.5 w-3.5" /> Cardiorespiratory
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                    <HeartPulse className="h-4 w-4" /> Cardiorespiratory
                   </p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    <div className="space-y-1.5">
-                      <Label>Pulse Rate (bpm)</Label>
-                      <Input type="number" value={form.pulseRate} onChange={(e) => u("pulseRate", e.target.value)} />
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Pulse Rate (bpm)</Label>
+                      <Input type="number" value={form.pulseRate} onChange={(e) => u("pulseRate", e.target.value)} className={`h-12 text-base ${getPulseClass(form.pulseRate)}`} placeholder="60-100" />
+                      <p className="text-xs text-muted-foreground">Normal: 60–100 bpm</p>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label>Temperature (°C)</Label>
-                      <Input type="number" step="0.1" value={form.temperature} onChange={(e) => u("temperature", e.target.value)} />
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Temperature (°C)</Label>
+                      <Input type="number" step="0.1" value={form.temperature} onChange={(e) => u("temperature", e.target.value)} className={`h-12 text-base ${getTempClass(form.temperature)}`} placeholder="36.0-37.5" />
+                      <p className="text-xs text-muted-foreground">Normal: 36.0–37.5°C</p>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label>Respiratory Rate (/min)</Label>
-                      <Input type="number" value={form.respiratoryRate} onChange={(e) => u("respiratoryRate", e.target.value)} />
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Respiratory Rate (/min)</Label>
+                      <Input type="number" value={form.respiratoryRate} onChange={(e) => u("respiratoryRate", e.target.value)} className={`h-12 text-base ${getRRClass(form.respiratoryRate)}`} placeholder="12-20" />
+                      <p className="text-xs text-muted-foreground">Normal: 12–20/min</p>
                     </div>
-                    <div className="space-y-1.5">
-                      <Label>SPO₂ (%)</Label>
-                      <Input type="number" step="0.1" value={form.spo2} onChange={(e) => u("spo2", e.target.value)} />
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">SPO₂ (%)</Label>
+                      <Input type="number" step="0.1" value={form.spo2} onChange={(e) => u("spo2", e.target.value)} className={`h-12 text-base ${getSpo2Class(form.spo2)}`} placeholder="95-100" />
+                      <p className="text-xs text-muted-foreground">Normal: ≥ 95%</p>
                     </div>
                   </div>
                 </div>
+
                 {/* Clinical */}
                 <div>
-                  <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5">
-                    <Ruler className="h-3.5 w-3.5" /> Clinical Assessment
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                    <Ruler className="h-4 w-4" /> Clinical Assessment
                   </p>
-                  <div className="space-y-4">
-                    <div className="space-y-1.5">
-                      <Label>Allergies</Label>
-                      <Input value={form.allergies} onChange={(e) => u("allergies", e.target.value)} placeholder="Known allergies..." />
+                  <div className="space-y-5">
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Allergies</Label>
+                      <Input value={form.allergies} onChange={(e) => u("allergies", e.target.value)} placeholder="Known allergies — type NKDA if none known" className="h-12 text-base" />
                     </div>
-                    <div className="space-y-1.5">
-                      <Label>Presenting Complaint</Label>
-                      <Textarea rows={3} value={form.presentingComplaint} onChange={(e) => u("presentingComplaint", e.target.value)} />
+                    <div className="space-y-2">
+                      <Label className="text-sm font-semibold">Presenting Complaint *</Label>
+                      <Textarea
+                        rows={5}
+                        value={form.presentingComplaint}
+                        onChange={(e) => u("presentingComplaint", e.target.value)}
+                        placeholder="Describe the patient's main complaint and symptoms in detail. Include onset, duration, severity, and any associated symptoms..."
+                        className="text-base leading-relaxed"
+                      />
+                      <p className="text-xs text-muted-foreground">This will be shared with the consulting doctor</p>
                     </div>
                   </div>
                 </div>
@@ -238,17 +327,62 @@ const Vitals = () => {
 
             {/* Nursing Notes & TCA */}
             <Card>
-              <CardContent className="pt-6 space-y-4">
-                <div className="space-y-1.5">
-                  <Label>Nursing Notes</Label>
-                  <Textarea rows={3} value={form.nursingNotes} onChange={(e) => u("nursingNotes", e.target.value)} />
+              <CardContent className="pt-6 space-y-5">
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Nursing Notes</Label>
+                  <Textarea
+                    rows={4}
+                    value={form.nursingNotes}
+                    onChange={(e) => u("nursingNotes", e.target.value)}
+                    placeholder="Additional observations, care plan notes, patient education delivered..."
+                    className="text-base leading-relaxed"
+                  />
                 </div>
-                <div className="space-y-1.5 max-w-xs">
-                  <Label className="flex items-center gap-1"><Calendar className="h-3.5 w-3.5" /> Next Visit (TCA)</Label>
-                  <Input type="date" value={form.nextVisit} onChange={(e) => u("nextVisit", e.target.value)} />
+                <div className="space-y-2 max-w-xs">
+                  <Label className="flex items-center gap-1.5 text-sm font-semibold"><Calendar className="h-4 w-4" /> Next Visit (TCA)</Label>
+                  <Input type="date" value={form.nextVisit} onChange={(e) => u("nextVisit", e.target.value)} className="h-12 text-base" />
                 </div>
               </CardContent>
             </Card>
+
+            {/* Vitals Summary Card */}
+            {summaryItems.length > 0 && (
+              <Card className="border-primary/20 bg-primary/5">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
+                    <CheckCircle2 className="h-4 w-4 text-primary" /> Vitals Summary — Review Before Saving
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                    {summaryItems.map((item) => (
+                      <div
+                        key={item.label}
+                        className={`p-3 rounded-lg border text-center transition-colors ${
+                          item.status === "critical" ? "border-destructive bg-destructive/10" :
+                          item.status === "warning" ? "border-[hsl(var(--warning))] bg-[hsl(var(--warning))]/10" :
+                          "border-border bg-background"
+                        }`}
+                      >
+                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{item.label}</p>
+                        <p className={`text-sm font-bold mt-1 ${
+                          item.status === "critical" ? "text-destructive" :
+                          item.status === "warning" ? "text-[hsl(var(--warning))]" : "text-foreground"
+                        }`}>{item.value}</p>
+                        {item.status === "critical" && (
+                          <AlertTriangle className="h-3 w-3 text-destructive mx-auto mt-1" />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                  {summaryItems.some(i => i.status === "critical") && (
+                    <div className="mt-3 flex items-center gap-2 text-destructive text-xs font-medium">
+                      <AlertTriangle className="h-3.5 w-3.5" /> Critical values detected — please verify readings
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Previous Vitals */}
             {previousVitals.length > 0 && (
@@ -258,8 +392,8 @@ const Vitals = () => {
                   <div className="overflow-x-auto">
                     <div className="space-y-2 min-w-[600px]">
                       {previousVitals.map((v) => (
-                        <div key={v.id} className="text-xs grid grid-cols-7 gap-2 p-2 border rounded">
-                          <span>{new Date(v.recorded_at).toLocaleDateString()}</span>
+                        <div key={v.id} className="text-xs grid grid-cols-7 gap-2 p-2.5 border rounded-lg">
+                          <span className="font-medium">{new Date(v.recorded_at).toLocaleDateString()}</span>
                           <span>T: {v.temperature || "-"}°C</span>
                           <span>BP: {v.blood_pressure_systolic || "-"}/{v.blood_pressure_diastolic || "-"}</span>
                           <span>P: {v.pulse_rate || "-"}</span>
@@ -276,8 +410,8 @@ const Vitals = () => {
 
             {/* Save & Advance */}
             <div className="flex justify-end pb-6">
-              <Button size="lg" onClick={handleSaveAndAdvance} disabled={saving} className="gap-2">
-                <Send className="h-4 w-4" />
+              <Button size="lg" onClick={handleSaveAndAdvance} disabled={saving} className="gap-2 h-12 px-8 text-base">
+                <Send className="h-5 w-5" />
                 {saving ? "Saving..." : "Save & Send to Doctor"}
               </Button>
             </div>
