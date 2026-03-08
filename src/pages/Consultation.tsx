@@ -895,7 +895,14 @@ const Consultation = () => {
                       </Button>
                     </div>
                   </div>
-                  <WorkflowTimeline currentStage={selectedTicket.workflow_stage || selectedTicket.status} />
+                  <WorkflowTimeline
+                    currentStage={selectedTicket.workflow_stage || selectedTicket.status}
+                    visitPath={deriveVisitPath(selectedTicket.workflow_stage || selectedTicket.status, {
+                      hasLabOrders: selectedLabTests.length > 0,
+                      hasImagingOrders: selectedImaging.length > 0,
+                      hasPrescriptions: prescriptions.length > 0,
+                    })}
+                  />
 
                   {/* Allergy banner */}
                   {selectedTicket.patient?.allergies && selectedTicket.patient.allergies.length > 0 && (
