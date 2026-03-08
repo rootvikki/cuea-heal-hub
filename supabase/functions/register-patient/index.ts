@@ -119,17 +119,20 @@ Deno.serve(async (req) => {
       userId = authData.user.id;
     }
 
-    // Create/update profile
-    await supabase.from("profiles").upsert({
-      user_id: userId,
-      full_name: fullName,
-      phone: phone || null,
-      email,
-      date_of_birth: dateOfBirth || null,
-      gender: gender || null,
-      address: address || null,
-      country: nationality || "Kenya",
-    });
+    // Create/update profile — use onConflict to ensure upsert works on user_id
+    await supabase.from("profiles").upsert(
+      {
+        user_id: userId,
+        full_name: fullName,
+        phone: phone || null,
+        email,
+        date_of_birth: dateOfBirth || null,
+        gender: gender || null,
+        address: address || null,
+        country: nationality || "Kenya",
+      },
+      { onConflict: "user_id" }
+    );
 
     // Existing auth account + existing patient record => return success instead of error
     if (existingPatientRecord) {
