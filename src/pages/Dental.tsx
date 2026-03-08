@@ -12,7 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { StationQueue } from "@/components/StationQueue";
 import { InterimPayment } from "@/components/InterimPayment";
 import { Plus, X, Send, Calendar } from "lucide-react";
-import { WorkflowTimeline } from "@/components/WorkflowTimeline";
+import { WorkflowTimeline, deriveVisitPath } from "@/components/WorkflowTimeline";
 
 const DENTAL_PROCEDURES = [
   { name: "Dental Examination", price: 500 },
@@ -141,7 +141,10 @@ const Dental = () => {
             </Card>
 
             {/* Workflow Timeline */}
-            <WorkflowTimeline currentStage={selectedTicket.workflow_stage || selectedTicket.status} />
+            <WorkflowTimeline
+              currentStage={selectedTicket.workflow_stage || selectedTicket.status}
+              visitPath={deriveVisitPath(selectedTicket.workflow_stage || selectedTicket.status, { isDental: true, hasPrescriptions: entries.length > 0 })}
+            />
 
             {/* Add Procedures */}
             <Card>

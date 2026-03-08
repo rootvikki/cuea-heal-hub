@@ -1,16 +1,17 @@
 import { CheckCircle2, Circle, CircleDot } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const WORKFLOW_STEPS = [
-  { key: "checked_in", label: "Check-in" },
-  { key: "triage", label: "Triage" },
-  { key: "waiting_for_doctor", label: "Consultation" },
-  { key: "at_lab", label: "Laboratory" },
-  { key: "at_imaging", label: "Imaging" },
-  { key: "at_dental", label: "Dental" },
-  { key: "at_pharmacy", label: "Pharmacy" },
-  { key: "at_billing", label: "Billing" },
-];
+// All possible steps with labels
+const STEP_LABELS: Record<string, string> = {
+  checked_in: "Check-in",
+  triage: "Triage",
+  waiting_for_doctor: "Consultation",
+  at_lab: "Laboratory",
+  at_imaging: "Imaging",
+  at_dental: "Dental",
+  at_pharmacy: "Pharmacy",
+  at_billing: "Billing",
+};
 
 // Map aliases to canonical keys
 const STAGE_ALIASES: Record<string, string> = {
@@ -23,13 +24,78 @@ const STAGE_ALIASES: Record<string, string> = {
   at_dental: "at_dental",
   at_pharmacy: "at_pharmacy",
   at_billing: "at_billing",
-  checked_out: "checked_out",
+  checked_out: "at_billing",
 };
 
-function getStepStatus(stepKey: string, currentStage: string) {
+export interface DerivePathOptions {
+  isDental?: boolean;
+  hasLabOrders?: boolean;
+  hasImagingOrders?: boolean;
+  hasPrescriptions?: boolean;
+}
+
+/**
+ * Build the actual visit path based on what the patient needs.
+ * Only shows steps the patient will actually go through.
+ */
+export function deriveVisitPath(
+  currentStage: string,
+  options: DerivePathOptions = {}
+): string[] {
   const canonical = STAGE_ALIASES[currentStage] || currentStage;
-  const stepIndex = WORKFLOW_STEPS.findIndex((s) => s.key === stepKey);
-  const currentIndex = WORKFLOW_STEPS.findIndex((s) => s.key === canonical);
+  const { isDental, hasLabOrders, hasImagingOrders, hasPrescriptions } = options;
+
+  // Dental flow: Check-in → Dental → (Pharmacy if prescriptions) → Billing
+  if (isDental || canonical === "at_dental") {
+    const path = ["checked_in", "at_dental"];
+    if (hasPrescriptions || canonical === "at_pharmacy") path.push("at_pharmacy");
+    path.push("at_billing");
+    return path;
+  }
+
+  // General flow
+  const path: string[] = ["checked_in", "triage", "waiting_for_doctor"];
+
+  // Add lab/imaging based on actual orders or if patient is currently there
+  if (hasLabOrders || canonical === "at_lab") path.push("at_lab");
+  if (hasImagingOrders || canonical === "at_imaging") path.push("at_imaging");
+
+  // Add pharmacy only if there are prescriptions or patient is there
+  if (hasPrescriptions || canonical === "at_pharmacy") path.push("at_pharmacy");
+
+  path.push("at_billing");
+  return path;
+}
+
+/**
+ * Infer path from current stage alone (heuristic for queue view where we don't have order data).
+ * Shows steps up to and including the current stage, plus billing.
+ */
+export function inferPathFromStage(currentStage: string): string[] {
+  const canonical = STAGE_ALIASES[currentStage] || currentStage;
+
+  if (canonical === "at_dental") {
+    return ["checked_in", "at_dental", "at_pharmacy", "at_billing"];
+  }
+
+  const allSteps = ["checked_in", "triage", "waiting_for_doctor", "at_lab", "at_imaging", "at_pharmacy", "at_billing"];
+  const currentIdx = allSteps.indexOf(canonical);
+
+  if (currentIdx < 0) {
+    // Unknown stage, show minimal
+    return ["checked_in", "triage", "waiting_for_doctor", "at_billing"];
+  }
+
+  // Include all steps up to current, plus billing at the end
+  const path = allSteps.slice(0, currentIdx + 1);
+  if (!path.includes("at_billing")) path.push("at_billing");
+  return path;
+}
+
+function getStepStatus(stepKey: string, currentStage: string, visitPath: string[]) {
+  const canonical = STAGE_ALIASES[currentStage] || currentStage;
+  const stepIndex = visitPath.indexOf(stepKey);
+  const currentIndex = visitPath.indexOf(canonical);
 
   if (stepIndex < 0 || currentIndex < 0) return "future";
   if (stepIndex < currentIndex) return "completed";
@@ -39,32 +105,21 @@ function getStepStatus(stepKey: string, currentStage: string) {
 
 interface WorkflowTimelineProps {
   currentStage: string;
+  /** Explicit visit path; if not provided, inferred from stage */
+  visitPath?: string[];
   className?: string;
 }
 
-export const WorkflowTimeline = ({ currentStage, className }: WorkflowTimelineProps) => {
-  // Filter out unused branches: only show dental if patient is at/past dental, etc.
-  const canonical = STAGE_ALIASES[currentStage] || currentStage;
-  const isDental = canonical === "at_dental";
-  const isLab = canonical === "at_lab" || canonical === "at_imaging";
-
-  const steps = WORKFLOW_STEPS.filter((step) => {
-    // Always show check-in, triage, consultation, pharmacy, billing
-    if (["checked_in", "triage", "waiting_for_doctor", "at_pharmacy", "at_billing"].includes(step.key)) return true;
-    // Show dental only if patient is in dental flow
-    if (step.key === "at_dental") return isDental;
-    // Show lab/imaging if patient went through them or is currently there
-    if (step.key === "at_lab") return !isDental;
-    if (step.key === "at_imaging") return !isDental;
-    return true;
-  });
+export const WorkflowTimeline = ({ currentStage, visitPath, className }: WorkflowTimelineProps) => {
+  const path = visitPath || inferPathFromStage(currentStage);
 
   return (
     <div className={cn("flex items-center gap-1 overflow-x-auto py-2", className)}>
-      {steps.map((step, idx) => {
-        const status = getStepStatus(step.key, currentStage);
+      {path.map((stepKey, idx) => {
+        const status = getStepStatus(stepKey, currentStage, path);
+        const label = STEP_LABELS[stepKey] || stepKey.replace(/_/g, " ");
         return (
-          <div key={step.key} className="flex items-center gap-1 shrink-0">
+          <div key={stepKey} className="flex items-center gap-1 shrink-0">
             {idx > 0 && (
               <div
                 className={cn(
@@ -87,7 +142,7 @@ export const WorkflowTimeline = ({ currentStage, className }: WorkflowTimelinePr
                   status === "completed" ? "text-primary" : status === "current" ? "text-foreground font-semibold" : "text-muted-foreground/50"
                 )}
               >
-                {step.label}
+                {label}
               </span>
             </div>
           </div>

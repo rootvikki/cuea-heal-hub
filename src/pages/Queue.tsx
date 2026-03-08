@@ -13,6 +13,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { ClipboardList, Plus, ArrowRight, Radio, Search, User } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
+import { inferPathFromStage, WorkflowTimeline } from "@/components/WorkflowTimeline";
 
 async function fetchQueueTickets() {
   const { data, error } = await supabase
@@ -181,19 +182,9 @@ const Queue = () => {
     return <Badge variant="outline">Normal</Badge>;
   };
 
-  const statusFlow: TicketStatus[] = ["checked_in", "triage", "waiting_for_doctor", "in_consult", "at_pharmacy", "at_billing", "checked_out"];
-
   const getDisplayFlow = (ticket: any): string[] => {
     const stage = ticket.workflow_stage || ticket.status;
-    if (stage === "at_dental") {
-      return ["checked_in", "triage", "at_dental", "at_pharmacy", "at_billing", "checked_out"];
-    }
-    const base = [...statusFlow] as string[];
-    if (["at_lab", "at_imaging"].includes(stage)) {
-      const idx = base.indexOf("in_consult");
-      base.splice(idx + 1, 0, stage);
-    }
-    return base;
+    return inferPathFromStage(stage);
   };
 
   return (
@@ -325,22 +316,10 @@ const Queue = () => {
                     </div>
                     <Badge className={getStatusColor(ticket.status)}>{ticket.status.replace(/_/g, " ")}</Badge>
                   </div>
-                  <div className="flex gap-1 flex-wrap items-center">
-                    {getDisplayFlow(ticket).map((status, idx, arr) => {
-                      const currentStage = ticket.workflow_stage || ticket.status;
-                      const currentIdx = arr.indexOf(currentStage);
-                      const isCompleted = idx < currentIdx;
-                      const isCurrent = idx === currentIdx;
-                      return (
-                        <div key={status} className="flex items-center gap-1">
-                          <div className={`px-2 py-1 rounded text-xs font-medium ${isCurrent ? "bg-primary text-primary-foreground" : isCompleted ? "bg-primary/20 text-primary" : "bg-muted text-muted-foreground"}`}>
-                            {status.replace(/_/g, " ")}
-                          </div>
-                          {idx < arr.length - 1 && <ArrowRight className="h-3 w-3 text-muted-foreground" />}
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <WorkflowTimeline
+                    currentStage={ticket.workflow_stage || ticket.status}
+                    visitPath={getDisplayFlow(ticket)}
+                  />
                 </div>
               ))}
             </div>
