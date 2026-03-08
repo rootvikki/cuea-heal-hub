@@ -1574,7 +1574,7 @@ const Consultation = () => {
                         type="button"
                         variant={currentPrescription.duration === d ? "default" : "outline"}
                         size="sm"
-                        className="h-6 text-[10px] px-2"
+                        className="h-8 text-xs px-2.5"
                         onClick={() => setCurrentPrescription({ ...currentPrescription, duration: d })}
                       >
                         {d.replace(" days", "d")}
