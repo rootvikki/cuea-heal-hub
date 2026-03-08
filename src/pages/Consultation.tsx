@@ -1039,7 +1039,7 @@ const Consultation = () => {
                                   value={encounter.objective}
                                   onChange={(e) => setEncounter({ ...encounter, objective: e.target.value })}
                                   placeholder="Additional objective findings, special tests..."
-                                  rows={2} className="text-sm resize-y"
+                                  rows={3} className="text-base resize-y"
                                 />
                               </Field>
                             </div>
