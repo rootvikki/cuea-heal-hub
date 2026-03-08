@@ -106,6 +106,11 @@ const Laboratory = () => {
   const [resultValue, setResultValue] = useState("");
   const [resultNotes, setResultNotes] = useState("");
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [queueCollapsed, setQueueCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (selectedTicket) setQueueCollapsed(true);
+  }, [selectedTicket]);
 
   useEffect(() => {
     fetchLabOrders();
