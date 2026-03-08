@@ -171,12 +171,12 @@ const Field = ({ label, hint, required, children }: {
   required?: boolean;
   children: React.ReactNode;
 }) => (
-  <div className="space-y-1.5">
-    <Label className="text-xs font-semibold text-foreground/80">
+  <div className="space-y-2">
+    <Label className="text-sm font-semibold text-foreground/80">
       {label}
       {required && <span className="text-destructive ml-1">*</span>}
     </Label>
-    {hint && <p className="text-[11px] text-muted-foreground leading-relaxed -mt-0.5">{hint}</p>}
+    {hint && <p className="text-xs text-muted-foreground leading-relaxed -mt-0.5">{hint}</p>}
     {children}
   </div>
 );
@@ -944,7 +944,7 @@ const Consultation = () => {
                                   value={encounter.chiefComplaint}
                                   onChange={(e) => setEncounter({ ...encounter, chiefComplaint: e.target.value })}
                                   placeholder='e.g., "Severe headache for 3 days"'
-                                  className="text-sm"
+                                  className="h-12 text-base font-medium"
                                 />
                                 {latestVitals?.presenting_complaint && encounter.chiefComplaint === latestVitals.presenting_complaint && (
                                   <p className="text-[11px] text-primary mt-1 flex items-center gap-1">
@@ -958,8 +958,8 @@ const Consultation = () => {
                                   value={encounter.historyOfPresentIllness}
                                   onChange={(e) => setEncounter({ ...encounter, historyOfPresentIllness: e.target.value })}
                                   placeholder="Describe the onset, progression, and character of symptoms..."
-                                  rows={3}
-                                  className="text-sm resize-y"
+                                  rows={4}
+                                  className="text-base resize-y"
                                 />
                               </Field>
 
@@ -969,7 +969,7 @@ const Consultation = () => {
                                     value={encounter.pastMedicalHistory}
                                     onChange={(e) => setEncounter({ ...encounter, pastMedicalHistory: e.target.value })}
                                     placeholder="Known chronic diseases, past hospitalizations..."
-                                    rows={2} className="text-sm resize-y"
+                                    rows={3} className="text-base resize-y"
                                   />
                                 </Field>
                                 <Field label="Past Surgical History" hint="Previous operations, complications">
@@ -977,7 +977,7 @@ const Consultation = () => {
                                     value={encounter.pastSurgicalHistory}
                                     onChange={(e) => setEncounter({ ...encounter, pastSurgicalHistory: e.target.value })}
                                     placeholder="Appendectomy (2019), Tonsillectomy..."
-                                    rows={2} className="text-sm resize-y"
+                                    rows={3} className="text-base resize-y"
                                   />
                                 </Field>
                               </div>
@@ -988,7 +988,7 @@ const Consultation = () => {
                                     value={encounter.medicineHistory}
                                     onChange={(e) => setEncounter({ ...encounter, medicineHistory: e.target.value })}
                                     placeholder="Current medications and dosages..."
-                                    rows={2} className="text-sm resize-y"
+                                    rows={3} className="text-base resize-y"
                                   />
                                 </Field>
                                 <Field label="Social History" hint="Smoking, alcohol, occupation, exercise">
@@ -996,7 +996,7 @@ const Consultation = () => {
                                     value={encounter.socialHistory}
                                     onChange={(e) => setEncounter({ ...encounter, socialHistory: e.target.value })}
                                     placeholder="Smoking status, alcohol use, occupation..."
-                                    rows={2} className="text-sm resize-y"
+                                    rows={3} className="text-base resize-y"
                                   />
                                 </Field>
                               </div>
@@ -1011,7 +1011,7 @@ const Consultation = () => {
                                   value={encounter.subjective}
                                   onChange={(e) => setEncounter({ ...encounter, subjective: e.target.value })}
                                   placeholder="Additional subjective findings, review of systems..."
-                                  rows={2} className="text-sm resize-y"
+                                  rows={3} className="text-base resize-y"
                                 />
                               </Field>
 
@@ -1021,7 +1021,7 @@ const Consultation = () => {
                                     value={encounter.physicalExamGeneral}
                                     onChange={(e) => setEncounter({ ...encounter, physicalExamGeneral: e.target.value })}
                                     placeholder="General appearance, nutritional status, hydration, pallor, jaundice, cyanosis..."
-                                    rows={3} className="text-sm resize-y"
+                                    rows={4} className="text-base resize-y"
                                   />
                                 </Field>
                                 <Field label="Systemic Examination" hint="CVS, RS, GIT, CNS findings">
@@ -1029,7 +1029,7 @@ const Consultation = () => {
                                     value={encounter.physicalExamSystemic}
                                     onChange={(e) => setEncounter({ ...encounter, physicalExamSystemic: e.target.value })}
                                     placeholder="CVS: S1 S2 heard, no murmurs&#10;RS: Equal air entry, clear&#10;GIT: Soft, non-tender&#10;CNS: GCS 15/15"
-                                    rows={3} className="text-sm resize-y"
+                                    rows={4} className="text-base resize-y"
                                   />
                                 </Field>
                               </div>
@@ -1039,7 +1039,7 @@ const Consultation = () => {
                                   value={encounter.objective}
                                   onChange={(e) => setEncounter({ ...encounter, objective: e.target.value })}
                                   placeholder="Additional objective findings, special tests..."
-                                  rows={2} className="text-sm resize-y"
+                                  rows={3} className="text-base resize-y"
                                 />
                               </Field>
                             </div>
@@ -1053,7 +1053,7 @@ const Consultation = () => {
                                   value={encounter.assessment}
                                   onChange={(e) => setEncounter({ ...encounter, assessment: e.target.value })}
                                   placeholder="Clinical impression and reasoning..."
-                                  rows={2} className="text-sm resize-y"
+                                  rows={3} className="text-base resize-y"
                                 />
                               </Field>
 
@@ -1063,7 +1063,7 @@ const Consultation = () => {
                                     value={diagnosisInput}
                                     onChange={(e) => setDiagnosisInput(e.target.value)}
                                     placeholder="e.g., J06.9 — Upper respiratory infection"
-                                    className="text-sm"
+                                    className="h-12 text-base"
                                     onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addDiagnosis())}
                                   />
                                   <Button type="button" variant="outline" size="sm" onClick={addDiagnosis} disabled={!diagnosisInput.trim()}>
@@ -1088,7 +1088,7 @@ const Consultation = () => {
                                   value={encounter.plan}
                                   onChange={(e) => setEncounter({ ...encounter, plan: e.target.value })}
                                   placeholder="1. Investigations: CBC, RBS&#10;2. Treatment: Amoxicillin 500mg TDS × 7 days&#10;3. Follow-up in 2 weeks"
-                                  rows={4} className="text-sm resize-y"
+                                  rows={5} className="text-base resize-y"
                                 />
                               </Field>
 
@@ -1097,7 +1097,7 @@ const Consultation = () => {
                                   type="date"
                                   value={encounter.followUpDate}
                                   onChange={(e) => setEncounter({ ...encounter, followUpDate: e.target.value })}
-                                  className="text-sm max-w-xs"
+                                  className="h-12 text-base max-w-xs"
                                 />
                               </Field>
                             </div>
@@ -1477,7 +1477,7 @@ const Consultation = () => {
             <div className="space-y-4">
               <Field label="Medication Name" required>
                 <div className="relative">
-                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  <Search className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     value={drugSearchTerm}
                     onChange={(e) => {
@@ -1485,7 +1485,7 @@ const Consultation = () => {
                       setCurrentPrescription({ ...currentPrescription, medication_name: e.target.value });
                     }}
                     placeholder="Search pharmacy inventory..."
-                    className="pl-8 text-sm"
+                    className="pl-10 h-12 text-base"
                   />
                 </div>
                 {drugSearchTerm && pharmacyInventory.some(item => {
@@ -1541,7 +1541,7 @@ const Consultation = () => {
               <div className="grid grid-cols-3 gap-3">
                 <Field label="Route">
                   <Select value={currentPrescription.route} onValueChange={(v) => setCurrentPrescription({ ...currentPrescription, route: v })}>
-                    <SelectTrigger className="text-xs h-9"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="text-sm h-11"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {["Oral", "IV", "IM", "SC", "Topical", "Rectal", "Sublingual", "Inhaled", "Nasal", "Ophthalmic", "Otic"].map(r => (
                         <SelectItem key={r} value={r}>{r}</SelectItem>
@@ -1550,11 +1550,11 @@ const Consultation = () => {
                   </Select>
                 </Field>
                 <Field label="Dosage" required>
-                  <Input value={currentPrescription.dosage} onChange={(e) => setCurrentPrescription({ ...currentPrescription, dosage: e.target.value })} placeholder="e.g., 1 tablet" className="text-xs h-9" />
+                  <Input value={currentPrescription.dosage} onChange={(e) => setCurrentPrescription({ ...currentPrescription, dosage: e.target.value })} placeholder="e.g., 1 tablet" className="text-sm h-11" />
                 </Field>
                 <Field label="Frequency">
                   <Select value={currentPrescription.frequency} onValueChange={(v) => setCurrentPrescription({ ...currentPrescription, frequency: v })}>
-                    <SelectTrigger className="text-xs h-9"><SelectValue placeholder="Select" /></SelectTrigger>
+                    <SelectTrigger className="text-sm h-11"><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
                       {["Once daily", "Twice daily", "Three times daily", "Four times daily", "Every 4 hours", "Every 6 hours", "Every 8 hours", "As needed", "At bedtime", "STAT"].map(f => (
                         <SelectItem key={f} value={f}>{f}</SelectItem>
@@ -1566,7 +1566,7 @@ const Consultation = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Duration" hint="Click for quick fill">
-                  <Input value={currentPrescription.duration} onChange={(e) => setCurrentPrescription({ ...currentPrescription, duration: e.target.value })} placeholder="e.g., 7 days" className="text-xs h-9" />
+                  <Input value={currentPrescription.duration} onChange={(e) => setCurrentPrescription({ ...currentPrescription, duration: e.target.value })} placeholder="e.g., 7 days" className="text-sm h-11" />
                   <div className="flex gap-1 mt-1.5">
                     {["3 days", "5 days", "7 days", "14 days", "30 days"].map(d => (
                       <Button
@@ -1574,7 +1574,7 @@ const Consultation = () => {
                         type="button"
                         variant={currentPrescription.duration === d ? "default" : "outline"}
                         size="sm"
-                        className="h-6 text-[10px] px-2"
+                        className="h-8 text-xs px-2.5"
                         onClick={() => setCurrentPrescription({ ...currentPrescription, duration: d })}
                       >
                         {d.replace(" days", "d")}
@@ -1583,12 +1583,12 @@ const Consultation = () => {
                   </div>
                 </Field>
                 <Field label="Quantity">
-                  <Input type="number" value={currentPrescription.quantity} onChange={(e) => setCurrentPrescription({ ...currentPrescription, quantity: parseInt(e.target.value) || 1 })} min="1" className="text-xs h-9" />
+                  <Input type="number" value={currentPrescription.quantity} onChange={(e) => setCurrentPrescription({ ...currentPrescription, quantity: parseInt(e.target.value) || 1 })} min="1" className="text-sm h-11" />
                 </Field>
               </div>
 
               <Field label="Special Instructions">
-                <Textarea value={currentPrescription.instructions} onChange={(e) => setCurrentPrescription({ ...currentPrescription, instructions: e.target.value })} placeholder="e.g., Take with food, avoid dairy" rows={2} className="text-sm" />
+                <Textarea value={currentPrescription.instructions} onChange={(e) => setCurrentPrescription({ ...currentPrescription, instructions: e.target.value })} placeholder="e.g., Take with food, avoid dairy" rows={3} className="text-base" />
               </Field>
 
               <div className="flex justify-end gap-2 pt-1">

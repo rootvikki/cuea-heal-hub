@@ -294,52 +294,60 @@ export default function StaffOnboarding() {
         <CardContent>
           {/* Step 1: Basic Info */}
           {currentStep === 1 && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email Address *</Label>
+                  <Label htmlFor="email" className="text-sm font-semibold">Email Address *</Label>
                   <Input
                     id="email"
                     type="email"
                     placeholder="staff@cuea.edu"
                     value={formData.email}
                     onChange={e => updateFormData("email", e.target.value)}
+                    className="h-12 text-base"
                   />
+                  <p className="text-xs text-muted-foreground">Used for login and notifications</p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="payrollNumber">Payroll Number *</Label>
+                  <Label htmlFor="payrollNumber" className="text-sm font-semibold">Payroll Number *</Label>
                   <Input
                     id="payrollNumber"
                     placeholder="e.g. PAY-0001"
                     value={formData.payrollNumber}
                     onChange={e => updateFormData("payrollNumber", e.target.value)}
+                    className="h-12 text-base"
                   />
+                  <p className="text-xs text-muted-foreground">Unique staff identifier</p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="fullName">Full Name *</Label>
+                  <Label htmlFor="fullName" className="text-sm font-semibold">Full Name *</Label>
                   <Input
                     id="fullName"
                     placeholder="Dr. John Doe"
                     value={formData.fullName}
                     onChange={e => updateFormData("fullName", e.target.value)}
+                    className="h-12 text-base"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
+                  <Label htmlFor="phone" className="text-sm font-semibold">Phone Number</Label>
                   <Input
                     id="phone"
                     placeholder="+254 700 000 000"
                     value={formData.phone}
                     onChange={e => updateFormData("phone", e.target.value)}
+                    className="h-12 text-base"
                   />
+                  <p className="text-xs text-muted-foreground">Format: +254 7XX XXX XXX</p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="nationalId">National ID</Label>
+                  <Label htmlFor="nationalId" className="text-sm font-semibold">National ID</Label>
                   <Input
                     id="nationalId"
                     placeholder="12345678"
                     value={formData.nationalId}
                     onChange={e => updateFormData("nationalId", e.target.value)}
+                    className="h-12 text-base"
                   />
                 </div>
               </div>
@@ -349,14 +357,14 @@ export default function StaffOnboarding() {
           {/* Step 2: Role & Department */}
           {currentStep === 2 && (
             <div className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
-                  <Label htmlFor="primaryRole">Primary Role *</Label>
+                  <Label htmlFor="primaryRole" className="text-sm font-semibold">Primary Role *</Label>
                   <Select
                     value={formData.primaryRole}
                     onValueChange={value => updateFormData("primaryRole", value)}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-12 text-base">
                       <SelectValue placeholder="Select primary role" />
                     </SelectTrigger>
                     <SelectContent>
@@ -369,12 +377,12 @@ export default function StaffOnboarding() {
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="department">Department *</Label>
+                  <Label htmlFor="department" className="text-sm font-semibold">Department *</Label>
                   <Select
                     value={formData.departmentId}
                     onValueChange={value => updateFormData("departmentId", value)}
                   >
-                    <SelectTrigger>
+                    <SelectTrigger className="h-12 text-base">
                       <SelectValue placeholder="Select department" />
                     </SelectTrigger>
                     <SelectContent>
@@ -389,13 +397,14 @@ export default function StaffOnboarding() {
               </div>
 
               <div className="space-y-2">
-                <Label>Secondary Roles (Optional)</Label>
+                <Label className="text-sm font-semibold">Secondary Roles (Optional)</Label>
+                <p className="text-xs text-muted-foreground">Click to toggle additional roles</p>
                 <div className="flex flex-wrap gap-2">
                   {ROLES.filter(r => r.value !== formData.primaryRole).map(role => (
                     <Badge
                       key={role.value}
                       variant={formData.secondaryRoles.includes(role.value) ? "default" : "outline"}
-                      className="cursor-pointer"
+                      className="cursor-pointer py-1.5 px-3 text-sm"
                       onClick={() => toggleSecondaryRole(role.value)}
                     >
                       {role.label}
@@ -404,24 +413,27 @@ export default function StaffOnboarding() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
-                  <Label htmlFor="specialization">Specialization</Label>
+                  <Label htmlFor="specialization" className="text-sm font-semibold">Specialization</Label>
                   <Input
                     id="specialization"
                     placeholder="e.g., Cardiology, Pediatrics"
                     value={formData.specialization}
                     onChange={e => updateFormData("specialization", e.target.value)}
+                    className="h-12 text-base"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="licenseNumber">License Number</Label>
+                  <Label htmlFor="licenseNumber" className="text-sm font-semibold">License Number</Label>
                   <Input
                     id="licenseNumber"
                     placeholder="Medical license number"
                     value={formData.licenseNumber}
                     onChange={e => updateFormData("licenseNumber", e.target.value)}
+                    className="h-12 text-base"
                   />
+                  <p className="text-xs text-muted-foreground">Required for clinical staff</p>
                 </div>
               </div>
             </div>
@@ -431,13 +443,13 @@ export default function StaffOnboarding() {
           {currentStep === 3 && (
             <div className="space-y-6">
               <div className="space-y-2">
-                <Label>Working Days</Label>
+                <Label className="text-sm font-semibold">Working Days</Label>
                 <div className="flex flex-wrap gap-2">
                   {WORKING_DAYS.map(day => (
                     <Badge
                       key={day}
                       variant={formData.workingDays.includes(day) ? "default" : "outline"}
-                      className="cursor-pointer"
+                      className="cursor-pointer py-2 px-4 text-sm"
                       onClick={() => toggleWorkingDay(day)}
                     >
                       {day}
@@ -447,12 +459,12 @@ export default function StaffOnboarding() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="shift">Shift Preference</Label>
+                <Label htmlFor="shift" className="text-sm font-semibold">Shift Preference</Label>
                 <Select
                   value={formData.shiftPreference}
                   onValueChange={value => updateFormData("shiftPreference", value)}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger className="h-12 text-base">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -466,13 +478,14 @@ export default function StaffOnboarding() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="notes">Additional Notes</Label>
+                <Label htmlFor="notes" className="text-sm font-semibold">Additional Notes</Label>
                 <Textarea
                   id="notes"
                   placeholder="Any additional information about the staff member..."
                   value={formData.notes}
                   onChange={e => updateFormData("notes", e.target.value)}
                   rows={4}
+                  className="text-base"
                 />
               </div>
             </div>

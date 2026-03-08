@@ -2,18 +2,14 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar as CalendarIcon, Plus, ClipboardList, Search } from "lucide-react";
+import { Calendar as CalendarIcon, Plus, ClipboardList, Search, User } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
+  Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
@@ -207,36 +203,39 @@ const Appointments = () => {
         </div>
         <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setPatientSearch(""); }}>
           <DialogTrigger asChild>
-            <Button className="gap-2">
-              <Plus className="h-4 w-4" />
+            <Button className="gap-2 h-12 px-6 text-base">
+              <Plus className="h-5 w-5" />
               New Appointment
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-lg">
             <DialogHeader>
-              <DialogTitle>Schedule Appointment</DialogTitle>
+              <DialogTitle className="text-lg">Schedule Appointment</DialogTitle>
               <DialogDescription>Create a new appointment for a patient</DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleCreateAppointment} className="space-y-4">
+            <form onSubmit={handleCreateAppointment} className="space-y-5">
               <div className="space-y-2">
-                <Label>Patient</Label>
+                <Label className="text-sm font-semibold">Patient *</Label>
                 <div className="relative mb-2">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
                     placeholder="Search by name or OPD number..."
                     value={patientSearch}
                     onChange={(e) => setPatientSearch(e.target.value)}
-                    className="pl-10"
+                    className="pl-10 h-12 text-base"
                   />
                 </div>
                 <Select value={formData.patientId} onValueChange={(value) => setFormData({ ...formData, patientId: value })}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-12 text-base">
                     <SelectValue placeholder="Select patient" />
                   </SelectTrigger>
                   <SelectContent>
                     {filteredPatients.map((patient) => (
                       <SelectItem key={patient.id} value={patient.id}>
-                        {patient.patient_id} - {patient.profile?.full_name}
+                        <div className="flex items-center gap-2">
+                          <User className="h-3.5 w-3.5 text-muted-foreground" />
+                          {patient.patient_id} — {patient.profile?.full_name}
+                        </div>
                       </SelectItem>
                     ))}
                     {filteredPatients.length === 0 && (
@@ -247,9 +246,9 @@ const Appointments = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Department</Label>
+                <Label className="text-sm font-semibold">Department *</Label>
                 <Select value={formData.departmentId} onValueChange={(value) => setFormData({ ...formData, departmentId: value })}>
-                  <SelectTrigger>
+                  <SelectTrigger className="h-12 text-base">
                     <SelectValue placeholder="Select department" />
                   </SelectTrigger>
                   <SelectContent>
@@ -263,29 +262,32 @@ const Appointments = () => {
               </div>
 
               <div className="space-y-2">
-                <Label>Date & Time</Label>
+                <Label className="text-sm font-semibold">Date & Time *</Label>
                 <Input
                   type="datetime-local"
                   value={formData.appointmentDate}
                   onChange={(e) => setFormData({ ...formData, appointmentDate: e.target.value })}
                   required
+                  className="h-12 text-base"
                 />
               </div>
 
               <div className="space-y-2">
-                <Label>Reason for Visit</Label>
-                <Input
+                <Label className="text-sm font-semibold">Reason for Visit</Label>
+                <Textarea
                   value={formData.reason}
                   onChange={(e) => setFormData({ ...formData, reason: e.target.value })}
-                  placeholder="e.g., General checkup, Follow-up"
+                  placeholder="e.g., General checkup, Follow-up, Prescription refill..."
+                  rows={3}
+                  className="text-base"
                 />
               </div>
 
-              <div className="flex justify-end gap-2">
-                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setDialogOpen(false)} className="h-11 px-5">
                   Cancel
                 </Button>
-                <Button type="submit">Schedule</Button>
+                <Button type="submit" className="h-11 px-6">Schedule</Button>
               </div>
             </form>
           </DialogContent>
