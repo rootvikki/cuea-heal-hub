@@ -20,7 +20,7 @@ interface StationQueueProps {
 async function fetchStationTickets(stationStages: string[]) {
   const { data, error } = await supabase
     .from("tickets")
-    .select("*, patients!inner(patient_id, user_id, profiles!inner(full_name))")
+    .select("*, patients!inner(id, patient_id, user_id, patient_type, allergies, blood_type, chronic_conditions, insurance_provider, insurance_number, national_id, payroll_number, admission_number, profiles!inner(full_name, phone, date_of_birth, gender))")
     .in("workflow_stage", stationStages)
     .order("priority", { ascending: false })
     .order("created_at", { ascending: true });
@@ -30,9 +30,24 @@ async function fetchStationTickets(stationStages: string[]) {
   return (data || []).map((t: any) => ({
     ...t,
     patient: {
+      id: t.patients?.id,
       patient_id: t.patients?.patient_id,
       user_id: t.patients?.user_id,
-      profile: { full_name: t.patients?.profiles?.full_name },
+      patient_type: t.patients?.patient_type,
+      allergies: t.patients?.allergies,
+      blood_type: t.patients?.blood_type,
+      chronic_conditions: t.patients?.chronic_conditions,
+      insurance_provider: t.patients?.insurance_provider,
+      insurance_number: t.patients?.insurance_number,
+      national_id: t.patients?.national_id,
+      payroll_number: t.patients?.payroll_number,
+      admission_number: t.patients?.admission_number,
+      profile: {
+        full_name: t.patients?.profiles?.full_name,
+        phone: t.patients?.profiles?.phone,
+        date_of_birth: t.patients?.profiles?.date_of_birth,
+        gender: t.patients?.profiles?.gender,
+      },
     },
   }));
 }
