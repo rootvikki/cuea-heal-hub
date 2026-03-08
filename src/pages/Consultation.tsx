@@ -9,11 +9,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Progress } from "@/components/ui/progress";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
 import { ReferralForm } from "@/components/ReferralForm";
@@ -24,7 +27,8 @@ import {
   Camera, FileText, Plus, X, Phone, Heart, Radio, ClipboardList,
   Clock, CheckCircle2, CircleDot, Thermometer, Droplets, Wind,
   Scale, Ruler, Shield, Save, ChevronRight, Search, Info,
-  History, Brain, Clipboard, Syringe, Eye
+  History, Brain, Clipboard, Syringe, Eye, ChevronDown,
+  ChevronsUpDown, DollarSign, ArrowRight, MapPin
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -93,6 +97,7 @@ interface Prescription {
   duration: string;
   quantity: number;
   instructions: string;
+  route: string;
 }
 
 interface InventoryItem {
@@ -104,34 +109,7 @@ interface InventoryItem {
   unit_price: number;
 }
 
-// ─── Helper: section wrapper ─────────────────────────────────────
-const FormSection = ({ icon: Icon, title, hint, children, required }: {
-  icon: React.ElementType;
-  title: string;
-  hint?: string;
-  children: React.ReactNode;
-  required?: boolean;
-}) => (
-  <Card className="border-border/60 shadow-sm hover:shadow-md transition-shadow">
-    <CardHeader className="pb-3 pt-4 px-5">
-      <div className="flex items-start gap-3">
-        <div className="p-2 rounded-lg bg-primary/10 text-primary shrink-0 mt-0.5">
-          <Icon className="h-4 w-4" />
-        </div>
-        <div className="flex-1 min-w-0">
-          <CardTitle className="text-sm font-semibold flex items-center gap-2">
-            {title}
-            {required && <span className="text-destructive text-xs">*Required</span>}
-          </CardTitle>
-          {hint && <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{hint}</p>}
-        </div>
-      </div>
-    </CardHeader>
-    <CardContent className="px-5 pb-4 pt-0">{children}</CardContent>
-  </Card>
-);
-
-// ─── Helper: vitals card ─────────────────────────────────────────
+// ─── Helper: vitals mini card ────────────────────────────────────
 const VitalCard = ({ icon: Icon, label, value, unit, status }: {
   icon: React.ElementType;
   label: string;
@@ -139,27 +117,71 @@ const VitalCard = ({ icon: Icon, label, value, unit, status }: {
   unit?: string;
   status?: "normal" | "warning" | "critical";
 }) => {
-  const statusColors = {
-    normal: "border-l-green-500 bg-green-50/50",
-    warning: "border-l-amber-500 bg-amber-50/50",
-    critical: "border-l-red-500 bg-red-50/50",
-  };
-  const color = status ? statusColors[status] : "border-l-border bg-background";
+  const cls = status === "critical"
+    ? "border-l-destructive bg-destructive/5"
+    : status === "warning"
+    ? "border-l-[hsl(var(--warning))] bg-[hsl(var(--warning))]/5"
+    : "border-l-[hsl(var(--success))] bg-[hsl(var(--success))]/5";
 
   return (
-    <div className={`p-2.5 rounded-lg border border-l-[3px] ${color} transition-colors`}>
+    <div className={`p-2.5 rounded-lg border border-l-[3px] ${cls} transition-colors`}>
       <div className="flex items-center gap-1.5 mb-1">
         <Icon className="h-3 w-3 text-muted-foreground" />
         <span className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">{label}</span>
       </div>
-      <p className="text-base font-bold leading-none">
-        {value ?? "—"}{unit && <span className="text-xs font-normal text-muted-foreground ml-0.5">{unit}</span>}
+      <p className="text-sm font-bold leading-none">
+        {value ?? "—"}{unit && <span className="text-[10px] font-normal text-muted-foreground ml-0.5">{unit}</span>}
       </p>
     </div>
   );
 };
 
-// ─── Helper: wait time ──────────────────────────────────────────
+// ─── Helper: section with accordion ──────────────────────────────
+const SectionGroup = ({ value, icon: Icon, title, badge, children }: {
+  value: string;
+  icon: React.ElementType;
+  title: string;
+  badge?: number;
+  children: React.ReactNode;
+}) => (
+  <AccordionItem value={value} className="border rounded-xl overflow-hidden bg-card shadow-sm">
+    <AccordionTrigger className="px-4 py-3 hover:no-underline hover:bg-muted/30 transition-colors [&[data-state=open]]:bg-muted/20">
+      <div className="flex items-center gap-3">
+        <div className="p-1.5 rounded-lg bg-primary/10 text-primary">
+          <Icon className="h-4 w-4" />
+        </div>
+        <span className="font-semibold text-sm">{title}</span>
+        {badge !== undefined && badge > 0 && (
+          <Badge variant="secondary" className="text-[10px] bg-[hsl(var(--success))]/15 text-[hsl(var(--success))]">
+            <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />{badge} filled
+          </Badge>
+        )}
+      </div>
+    </AccordionTrigger>
+    <AccordionContent className="px-4 pb-4 pt-2">
+      {children}
+    </AccordionContent>
+  </AccordionItem>
+);
+
+// ─── Helper: form field ──────────────────────────────────────────
+const Field = ({ label, hint, required, children }: {
+  label: string;
+  hint?: string;
+  required?: boolean;
+  children: React.ReactNode;
+}) => (
+  <div className="space-y-1.5">
+    <Label className="text-xs font-semibold text-foreground/80">
+      {label}
+      {required && <span className="text-destructive ml-1">*</span>}
+    </Label>
+    {hint && <p className="text-[11px] text-muted-foreground leading-relaxed -mt-0.5">{hint}</p>}
+    {children}
+  </div>
+);
+
+// ─── Wait time helpers ───────────────────────────────────────────
 const getWaitTime = (createdAt: string) => {
   const mins = Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000);
   if (mins < 60) return `${mins}m`;
@@ -168,8 +190,8 @@ const getWaitTime = (createdAt: string) => {
 
 const getWaitColor = (createdAt: string) => {
   const mins = Math.floor((Date.now() - new Date(createdAt).getTime()) / 60000);
-  if (mins > 60) return "text-red-600 bg-red-50";
-  if (mins > 30) return "text-amber-600 bg-amber-50";
+  if (mins > 60) return "text-destructive bg-destructive/10";
+  if (mins > 30) return "text-[hsl(var(--warning))] bg-[hsl(var(--warning))]/10";
   return "text-muted-foreground bg-muted";
 };
 
@@ -180,21 +202,18 @@ const getBPStatus = (sys: number | null, dia: number | null): "normal" | "warnin
   if (sys >= 140 || dia >= 90) return "warning";
   return "normal";
 };
-
 const getTempStatus = (t: number | null): "normal" | "warning" | "critical" => {
   if (!t) return "normal";
   if (t >= 39) return "critical";
   if (t >= 37.5 || t < 36) return "warning";
   return "normal";
 };
-
 const getSpO2Status = (s: number | null): "normal" | "warning" | "critical" => {
   if (!s) return "normal";
   if (s < 90) return "critical";
   if (s < 95) return "warning";
   return "normal";
 };
-
 const getPulseStatus = (p: number | null): "normal" | "warning" | "critical" => {
   if (!p) return "normal";
   if (p > 120 || p < 50) return "critical";
@@ -218,9 +237,11 @@ const Consultation = () => {
   const [savingEncounter, setSavingEncounter] = useState(false);
   const [isLive, setIsLive] = useState(false);
   const [showReferralForm, setShowReferralForm] = useState(false);
+  const [showConfirmSave, setShowConfirmSave] = useState(false);
   const [labSearchTerm, setLabSearchTerm] = useState("");
   const [imagingSearchTerm, setImagingSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("encounter");
+  const [vitalsExpanded, setVitalsExpanded] = useState(false);
 
   const [encounter, setEncounter] = useState({
     chiefComplaint: "",
@@ -244,11 +265,23 @@ const Consultation = () => {
   const [selectedImaging, setSelectedImaging] = useState<string[]>([]);
   const [showPrescriptionDialog, setShowPrescriptionDialog] = useState(false);
   const [currentPrescription, setCurrentPrescription] = useState<Prescription>({
-    medication_name: "", dosage: "", frequency: "", duration: "", quantity: 1, instructions: "",
+    medication_name: "", dosage: "", frequency: "", duration: "", quantity: 1, instructions: "", route: "Oral",
   });
   const [diagnosisInput, setDiagnosisInput] = useState("");
 
-  // ─── Completion progress ──────────────────────────────────────
+  // ─── Completion metrics ───────────────────────────────────────
+  const historyFieldCount = useMemo(() => {
+    return [encounter.chiefComplaint, encounter.historyOfPresentIllness, encounter.pastMedicalHistory, encounter.pastSurgicalHistory, encounter.medicineHistory, encounter.socialHistory].filter(Boolean).length;
+  }, [encounter]);
+
+  const examFieldCount = useMemo(() => {
+    return [encounter.subjective, encounter.physicalExamGeneral, encounter.physicalExamSystemic, encounter.objective].filter(Boolean).length;
+  }, [encounter]);
+
+  const assessPlanCount = useMemo(() => {
+    return [encounter.assessment, encounter.plan, encounter.diagnosis.length > 0 ? "yes" : "", encounter.followUpDate].filter(Boolean).length;
+  }, [encounter]);
+
   const completionPct = useMemo(() => {
     const fields = [
       encounter.chiefComplaint,
@@ -261,6 +294,28 @@ const Consultation = () => {
     const filled = fields.filter(Boolean).length;
     return Math.round((filled / fields.length) * 100);
   }, [encounter]);
+
+  // ─── Cost estimate ────────────────────────────────────────────
+  const costEstimate = useMemo(() => {
+    const consultation = 500;
+    const labs = selectedLabTests.reduce((sum, id) => {
+      const test = labTests.find(t => t.id === id);
+      return sum + (test?.price || 0);
+    }, 0);
+    const imaging = selectedImaging.reduce((sum, id) => {
+      const item = imagingItems.find(i => i.id === id);
+      return sum + (item?.price || 0);
+    }, 0);
+    return { consultation, labs, imaging, total: consultation + labs + imaging };
+  }, [selectedLabTests, selectedImaging, labTests, imagingItems]);
+
+  // ─── Next workflow stage ──────────────────────────────────────
+  const nextStage = useMemo(() => {
+    if (selectedLabTests.length > 0) return "Laboratory";
+    if (selectedImaging.length > 0) return "Imaging";
+    if (prescriptions.length > 0) return "Pharmacy";
+    return "Billing";
+  }, [selectedLabTests, selectedImaging, prescriptions]);
 
   // ─── Auto-save draft to localStorage ──────────────────────────
   useEffect(() => {
@@ -356,7 +411,6 @@ const Consultation = () => {
   // ─── Actions ──────────────────────────────────────────────────
   const selectPatient = (ticket: Ticket) => {
     setSelectedTicket(ticket);
-    // Try to restore draft
     const key = `draft-encounter-${ticket.id}`;
     const draft = localStorage.getItem(key);
     if (draft) {
@@ -368,19 +422,31 @@ const Consultation = () => {
         setSelectedImaging(parsed.selectedImaging || []);
         sonnerToast.info("Draft restored", { description: "Your previous notes were recovered." });
         return;
-      } catch { /* ignore parse errors */ }
+      } catch { /* ignore */ }
     }
-    setEncounter({
+    const resetEncounter = {
       chiefComplaint: "", historyOfPresentIllness: "", pastMedicalHistory: "", pastSurgicalHistory: "",
       medicineHistory: "", socialHistory: "", subjective: "", objective: "",
       physicalExamGeneral: "", physicalExamSystemic: "", assessment: "", plan: "",
-      diagnosis: [], followUpDate: "",
-    });
+      diagnosis: [] as string[], followUpDate: "",
+    };
+    setEncounter(resetEncounter);
     setPrescriptions([]);
     setSelectedLabTests([]);
     setSelectedImaging([]);
     setActiveTab("encounter");
   };
+
+  // ─── Auto-fill chief complaint from triage ────────────────────
+  useEffect(() => {
+    if (patientVitals.length > 0 && !encounter.chiefComplaint && selectedTicket) {
+      const triageComplaint = patientVitals[0]?.presenting_complaint;
+      if (triageComplaint) {
+        setEncounter(prev => ({ ...prev, chiefComplaint: triageComplaint }));
+        sonnerToast.info("Chief complaint auto-filled from triage");
+      }
+    }
+  }, [patientVitals, selectedTicket]);
 
   const startConsultation = async (ticket: Ticket) => {
     await supabase.from("tickets").update({ workflow_stage: "in_consult", status: "in_consult" }).eq("id", ticket.id);
@@ -401,7 +467,7 @@ const Consultation = () => {
   const addPrescription = () => {
     if (currentPrescription.medication_name && currentPrescription.dosage) {
       setPrescriptions([...prescriptions, currentPrescription]);
-      setCurrentPrescription({ medication_name: "", dosage: "", frequency: "", duration: "", quantity: 1, instructions: "" });
+      setCurrentPrescription({ medication_name: "", dosage: "", frequency: "", duration: "", quantity: 1, instructions: "", route: "Oral" });
       setDrugSearchTerm("");
       setShowPrescriptionDialog(false);
       sonnerToast.success("Prescription added");
@@ -536,19 +602,18 @@ const Consultation = () => {
       }
 
       type WorkflowStage = "at_billing" | "at_imaging" | "at_lab" | "at_pharmacy" | "checked_in" | "checked_out" | "in_consult" | "order_placed_imaging" | "order_placed_lab" | "triage" | "waiting_for_doctor";
-      let nextStage: WorkflowStage = "at_billing";
-      if (selectedLabTests.length > 0) nextStage = "at_lab";
-      else if (selectedImaging.length > 0) nextStage = "at_imaging";
-      else if (prescriptions.length > 0) nextStage = "at_pharmacy";
+      let nextWfStage: WorkflowStage = "at_billing";
+      if (selectedLabTests.length > 0) nextWfStage = "at_lab";
+      else if (selectedImaging.length > 0) nextWfStage = "at_imaging";
+      else if (prescriptions.length > 0) nextWfStage = "at_pharmacy";
 
-      await supabase.from("tickets").update({ workflow_stage: nextStage, status: nextStage }).eq("id", selectedTicket.id);
-
-      // Clear draft
+      await supabase.from("tickets").update({ workflow_stage: nextWfStage, status: nextWfStage }).eq("id", selectedTicket.id);
       localStorage.removeItem(`draft-encounter-${selectedTicket.id}`);
 
-      toast({ title: "✅ Consultation Saved", description: `Patient moved to ${nextStage.replace(/_/g, " ")}.` });
-      logAuditEvent({ action: "consultation_saved", module: "consultation", details: { encounter_id: encounterData.id, patient_id: selectedTicket.patient!.id, next_stage: nextStage, diagnosis: encounter.diagnosis } });
+      toast({ title: "✅ Consultation Saved", description: `Patient moved to ${nextWfStage.replace(/_/g, " ")}.` });
+      logAuditEvent({ action: "consultation_saved", module: "consultation", details: { encounter_id: encounterData.id, patient_id: selectedTicket.patient!.id, next_stage: nextWfStage, diagnosis: encounter.diagnosis } });
       setSelectedTicket(null);
+      setShowConfirmSave(false);
       fetchQueue();
     } catch (error) {
       console.error("Error saving encounter:", error);
@@ -575,14 +640,12 @@ const Consultation = () => {
 
   const totalOrders = prescriptions.length + selectedLabTests.length + selectedImaging.length;
 
-  // Filtered lab tests
   const filteredLabTests = useMemo(() => {
     if (!labSearchTerm) return labTests;
     const term = labSearchTerm.toLowerCase();
     return labTests.filter(t => t.test_name.toLowerCase().includes(term) || (t.category || "").toLowerCase().includes(term));
   }, [labTests, labSearchTerm]);
 
-  // Filtered imaging
   const filteredImaging = useMemo(() => {
     if (!imagingSearchTerm) return imagingItems;
     const term = imagingSearchTerm.toLowerCase();
@@ -601,35 +664,85 @@ const Consultation = () => {
     );
   }
 
+  // ─── Vitals strip component (for < XL screens) ───────────────
+  const VitalsStrip = () => {
+    if (!latestVitals) return null;
+    return (
+      <Collapsible open={vitalsExpanded} onOpenChange={setVitalsExpanded} className="xl:hidden border-b bg-muted/20">
+        <CollapsibleTrigger className="w-full px-4 py-2 flex items-center justify-between hover:bg-muted/40 transition-colors">
+          <div className="flex items-center gap-3 text-xs">
+            <Activity className="h-3.5 w-3.5 text-primary" />
+            <span className="font-semibold">Vitals</span>
+            <div className="flex items-center gap-2 text-muted-foreground">
+              {latestVitals.blood_pressure_systolic && (
+                <span className="bg-background px-1.5 py-0.5 rounded border text-[10px] font-medium">
+                  BP {latestVitals.blood_pressure_systolic}/{latestVitals.blood_pressure_diastolic}
+                </span>
+              )}
+              {latestVitals.pulse_rate && (
+                <span className="bg-background px-1.5 py-0.5 rounded border text-[10px] font-medium">
+                  HR {latestVitals.pulse_rate}
+                </span>
+              )}
+              {latestVitals.temperature && (
+                <span className="bg-background px-1.5 py-0.5 rounded border text-[10px] font-medium">
+                  T {latestVitals.temperature}°C
+                </span>
+              )}
+              {latestVitals.oxygen_saturation && (
+                <span className="bg-background px-1.5 py-0.5 rounded border text-[10px] font-medium">
+                  SpO₂ {latestVitals.oxygen_saturation}%
+                </span>
+              )}
+            </div>
+          </div>
+          <ChevronsUpDown className="h-3.5 w-3.5 text-muted-foreground" />
+        </CollapsibleTrigger>
+        <CollapsibleContent>
+          <div className="px-4 pb-3 grid grid-cols-3 md:grid-cols-6 gap-2">
+            <VitalCard icon={Activity} label="Blood Pressure"
+              value={latestVitals.blood_pressure_systolic ? `${latestVitals.blood_pressure_systolic}/${latestVitals.blood_pressure_diastolic}` : null}
+              unit="mmHg" status={getBPStatus(latestVitals.blood_pressure_systolic, latestVitals.blood_pressure_diastolic)} />
+            <VitalCard icon={Heart} label="Pulse" value={latestVitals.pulse_rate} unit="bpm" status={getPulseStatus(latestVitals.pulse_rate)} />
+            <VitalCard icon={Thermometer} label="Temp" value={latestVitals.temperature} unit="°C" status={getTempStatus(latestVitals.temperature)} />
+            <VitalCard icon={Droplets} label="SpO₂" value={latestVitals.oxygen_saturation} unit="%" status={getSpO2Status(latestVitals.oxygen_saturation)} />
+            <VitalCard icon={Wind} label="Resp Rate" value={latestVitals.respiratory_rate} unit="/min" />
+            <VitalCard icon={Scale} label="Weight" value={latestVitals.weight} unit="kg" />
+          </div>
+        </CollapsibleContent>
+      </Collapsible>
+    );
+  };
+
   // ─── Render ───────────────────────────────────────────────────
   return (
     <TooltipProvider>
       <div className="flex h-screen overflow-hidden bg-background">
         {/* ── Left Panel: Patient Queue ── */}
-        <div className="w-80 border-r bg-card flex flex-col shrink-0">
-          <div className="p-4 border-b bg-primary/5">
+        <div className="w-72 lg:w-80 border-r bg-card flex flex-col shrink-0">
+          <div className="p-4 border-b" style={{ background: "var(--gradient-subtle)" }}>
             <div className="flex items-center justify-between mb-1">
-              <h2 className="font-bold text-base flex items-center gap-2">
-                <Stethoscope className="h-5 w-5 text-primary" />
-                Consultation Queue
+              <h2 className="font-bold text-sm flex items-center gap-2">
+                <Stethoscope className="h-4 w-4 text-primary" />
+                Consultation
               </h2>
               {isLive && (
-                <Badge variant="outline" className="gap-1 text-green-600 border-green-600/40 bg-green-50 text-[10px] px-2 py-0.5">
+                <Badge variant="outline" className="gap-1 text-[hsl(var(--success))] border-[hsl(var(--success))]/40 bg-[hsl(var(--success))]/10 text-[10px] px-2 py-0.5">
                   <Radio className="h-2 w-2 animate-pulse" /> Live
                 </Badge>
               )}
             </div>
-            <p className="text-xs text-muted-foreground">
-              {queue.filter(t => t.workflow_stage === "waiting_for_doctor").length} waiting · {queue.filter(t => t.workflow_stage === "in_consult").length} in consult
+            <p className="text-[11px] text-muted-foreground">
+              {queue.filter(t => t.workflow_stage === "waiting_for_doctor").length} waiting · {queue.filter(t => t.workflow_stage === "in_consult").length} active
             </p>
           </div>
           <ScrollArea className="flex-1">
-            <div className="p-2 space-y-1.5">
+            <div className="p-2 space-y-1">
               {queue.length === 0 ? (
                 <div className="text-center py-12 px-4">
-                  <Stethoscope className="h-10 w-10 mx-auto mb-3 text-muted-foreground/30" />
+                  <Stethoscope className="h-10 w-10 mx-auto mb-3 text-muted-foreground/20" />
                   <p className="text-sm text-muted-foreground">No patients in queue</p>
-                  <p className="text-xs text-muted-foreground/60 mt-1">Patients will appear here after triage</p>
+                  <p className="text-[11px] text-muted-foreground/50 mt-1">Patients appear here after triage</p>
                 </div>
               ) : (
                 queue.map((ticket) => {
@@ -638,10 +751,10 @@ const Consultation = () => {
                   return (
                     <div
                       key={ticket.id}
-                      className={`p-3 rounded-xl border cursor-pointer transition-all duration-200 ${
+                      className={`p-3 rounded-xl border cursor-pointer transition-all duration-150 ${
                         isSelected
-                          ? "bg-primary/8 border-primary shadow-sm ring-1 ring-primary/20"
-                          : "bg-background hover:bg-muted/60 hover:border-border"
+                          ? "bg-primary/5 border-primary/30 shadow-sm ring-1 ring-primary/15"
+                          : "bg-background hover:bg-muted/50 border-transparent hover:border-border"
                       }`}
                       onClick={() => selectPatient(ticket)}
                     >
@@ -678,7 +791,7 @@ const Consultation = () => {
                         {ticket.patient?.allergies && ticket.patient.allergies.length > 0 && (
                           <Tooltip>
                             <TooltipTrigger>
-                              <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                              <AlertTriangle className="h-3.5 w-3.5 text-[hsl(var(--warning))]" />
                             </TooltipTrigger>
                             <TooltipContent>
                               <p className="text-xs">Allergies: {ticket.patient.allergies.join(", ")}</p>
@@ -710,10 +823,10 @@ const Consultation = () => {
             <div className="flex-1 flex items-center justify-center">
               <div className="text-center space-y-4 max-w-sm">
                 <div className="w-20 h-20 mx-auto rounded-full bg-primary/5 flex items-center justify-center">
-                  <Stethoscope className="h-10 w-10 text-primary/30" />
+                  <Stethoscope className="h-10 w-10 text-primary/20" />
                 </div>
                 <div>
-                  <p className="text-lg font-medium text-foreground">Select a Patient</p>
+                  <p className="text-lg font-semibold text-foreground">Select a Patient</p>
                   <p className="text-sm text-muted-foreground mt-1">
                     Choose a patient from the queue to begin documentation
                   </p>
@@ -726,35 +839,35 @@ const Consultation = () => {
               <div className="border-b bg-card shadow-sm">
                 <div className="px-5 py-3">
                   <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-4 min-w-0">
-                      <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                        <User className="h-6 w-6 text-primary" />
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                        <User className="h-5 w-5 text-primary" />
                       </div>
                       <div className="min-w-0">
-                        <h1 className="text-lg font-bold truncate">{selectedTicket.patient?.profile?.full_name}</h1>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
+                        <h1 className="text-base font-bold truncate">{selectedTicket.patient?.profile?.full_name}</h1>
+                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground flex-wrap">
                           <span className="font-medium text-foreground">{selectedTicket.patient?.patient_id}</span>
-                          <span className="text-border">|</span>
+                          <span className="text-border">·</span>
                           <span>{calcAge(selectedTicket.patient?.profile?.date_of_birth || null)}</span>
-                          <span className="text-border">|</span>
+                          <span className="text-border">·</span>
                           <span className="capitalize">{selectedTicket.patient?.profile?.gender || "N/A"}</span>
                           {selectedTicket.patient?.blood_type && (
                             <>
-                              <span className="text-border">|</span>
-                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-red-600 border-red-200 bg-red-50">
+                              <span className="text-border">·</span>
+                              <Badge variant="outline" className="text-[10px] px-1.5 py-0 text-destructive border-destructive/20 bg-destructive/5">
                                 <Droplets className="h-2.5 w-2.5 mr-0.5" />{selectedTicket.patient.blood_type}
                               </Badge>
                             </>
                           )}
                           {selectedTicket.patient?.profile?.phone && (
                             <>
-                              <span className="text-border">|</span>
+                              <span className="text-border">·</span>
                               <span className="flex items-center gap-0.5"><Phone className="h-2.5 w-2.5" />{selectedTicket.patient.profile.phone}</span>
                             </>
                           )}
                           {selectedTicket.patient?.insurance_provider && (
                             <>
-                              <span className="text-border">|</span>
+                              <span className="text-border">·</span>
                               <Badge variant="outline" className="text-[10px] px-1.5 py-0">
                                 <Shield className="h-2.5 w-2.5 mr-0.5" />{selectedTicket.patient.insurance_provider}
                               </Badge>
@@ -764,17 +877,15 @@ const Consultation = () => {
                       </div>
                     </div>
                     <div className="flex items-center gap-2 shrink-0">
-                      <div className="text-right mr-2 hidden lg:block">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] text-muted-foreground">Notes</span>
-                          <Progress value={completionPct} className="w-20 h-1.5" />
-                          <span className="text-[10px] font-medium">{completionPct}%</span>
-                        </div>
+                      <div className="text-right mr-2 hidden md:flex items-center gap-2">
+                        <span className="text-[10px] text-muted-foreground">Progress</span>
+                        <Progress value={completionPct} className="w-20 h-1.5" />
+                        <span className="text-[10px] font-bold">{completionPct}%</span>
                       </div>
-                      <Button variant="outline" size="sm" onClick={() => setShowReferralForm(true)}>
+                      <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setShowReferralForm(true)}>
                         <FileText className="h-3.5 w-3.5 mr-1" /> Referral
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => setSelectedTicket(null)}>
+                      <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => setSelectedTicket(null)}>
                         <X className="h-4 w-4" />
                       </Button>
                     </div>
@@ -782,12 +893,12 @@ const Consultation = () => {
 
                   {/* Allergy banner */}
                   {selectedTicket.patient?.allergies && selectedTicket.patient.allergies.length > 0 && (
-                    <div className="mt-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg flex items-center gap-2">
-                      <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0" />
-                      <span className="text-xs font-medium text-amber-800">Allergies:</span>
+                    <div className="mt-2 px-3 py-1.5 bg-[hsl(var(--warning))]/10 border border-[hsl(var(--warning))]/30 rounded-lg flex items-center gap-2">
+                      <AlertTriangle className="h-3.5 w-3.5 text-[hsl(var(--warning))] shrink-0" />
+                      <span className="text-[11px] font-semibold text-[hsl(var(--warning))]">Allergies:</span>
                       <div className="flex flex-wrap gap-1">
                         {selectedTicket.patient.allergies.map((a, i) => (
-                          <Badge key={i} variant="outline" className="text-[10px] bg-amber-100 border-amber-300 text-amber-800">{a}</Badge>
+                          <Badge key={i} variant="outline" className="text-[10px] bg-[hsl(var(--warning))]/10 border-[hsl(var(--warning))]/30 text-foreground">{a}</Badge>
                         ))}
                       </div>
                     </div>
@@ -795,13 +906,16 @@ const Consultation = () => {
                 </div>
               </div>
 
+              {/* ── Vitals Strip (< XL) ── */}
+              <VitalsStrip />
+
               {/* ── Workspace ── */}
               <div className="flex-1 overflow-hidden flex">
                 {/* Center: Tabs */}
                 <div className="flex-1 overflow-auto">
-                  <div className="p-5">
-                    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-5">
-                      <TabsList className="bg-muted/60 p-1">
+                  <div className="p-4 lg:p-5">
+                    <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
+                      <TabsList className="bg-muted/50 p-1 h-auto flex-wrap">
                         <TabsTrigger value="encounter" className="gap-1.5 text-xs data-[state=active]:shadow-sm">
                           <Clipboard className="h-3.5 w-3.5" /> Clinical Notes
                         </TabsTrigger>
@@ -820,221 +934,230 @@ const Consultation = () => {
                       </TabsList>
 
                       {/* ── Clinical Notes Tab ── */}
-                      <TabsContent value="encounter" className="space-y-4 mt-0">
-                        <FormSection
-                          icon={AlertTriangle}
-                          title="Chief Complaint"
-                          hint="What is the primary reason for today's visit?"
-                          required
-                        >
-                          <Input
-                            value={encounter.chiefComplaint}
-                            onChange={(e) => setEncounter({ ...encounter, chiefComplaint: e.target.value })}
-                            placeholder='e.g., "Severe headache for 3 days"'
-                            className="text-sm"
-                          />
-                          {latestVitals?.presenting_complaint && (
-                            <div className="mt-2 p-2 rounded-md bg-blue-50 border border-blue-200">
-                              <p className="text-xs text-blue-700">
-                                <Info className="h-3 w-3 inline mr-1" />
-                                <strong>From Triage:</strong> {latestVitals.presenting_complaint}
-                              </p>
+                      <TabsContent value="encounter" className="mt-0">
+                        <Accordion type="multiple" defaultValue={["history", "examination", "assessment"]} className="space-y-3">
+                          {/* Section 1: History */}
+                          <SectionGroup value="history" icon={FileText} title="History" badge={historyFieldCount}>
+                            <div className="space-y-4">
+                              <Field label="Chief Complaint" hint="Primary reason for today's visit" required>
+                                <Input
+                                  value={encounter.chiefComplaint}
+                                  onChange={(e) => setEncounter({ ...encounter, chiefComplaint: e.target.value })}
+                                  placeholder='e.g., "Severe headache for 3 days"'
+                                  className="text-sm"
+                                />
+                                {latestVitals?.presenting_complaint && encounter.chiefComplaint === latestVitals.presenting_complaint && (
+                                  <p className="text-[11px] text-primary mt-1 flex items-center gap-1">
+                                    <Info className="h-3 w-3" /> Auto-filled from triage
+                                  </p>
+                                )}
+                              </Field>
+
+                              <Field label="History of Presenting Illness (HPI)" hint="SOCRATES: Site, Onset, Character, Radiation, Associations, Time course, Exacerbating/relieving, Severity">
+                                <Textarea
+                                  value={encounter.historyOfPresentIllness}
+                                  onChange={(e) => setEncounter({ ...encounter, historyOfPresentIllness: e.target.value })}
+                                  placeholder="Describe the onset, progression, and character of symptoms..."
+                                  rows={3}
+                                  className="text-sm resize-y"
+                                />
+                              </Field>
+
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                <Field label="Past Medical History" hint="Chronic conditions, hospitalizations">
+                                  <Textarea
+                                    value={encounter.pastMedicalHistory}
+                                    onChange={(e) => setEncounter({ ...encounter, pastMedicalHistory: e.target.value })}
+                                    placeholder="Known chronic diseases, past hospitalizations..."
+                                    rows={2} className="text-sm resize-y"
+                                  />
+                                </Field>
+                                <Field label="Past Surgical History" hint="Previous operations, complications">
+                                  <Textarea
+                                    value={encounter.pastSurgicalHistory}
+                                    onChange={(e) => setEncounter({ ...encounter, pastSurgicalHistory: e.target.value })}
+                                    placeholder="Appendectomy (2019), Tonsillectomy..."
+                                    rows={2} className="text-sm resize-y"
+                                  />
+                                </Field>
+                              </div>
+
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                <Field label="Medication History" hint="Current medications, dosages, OTC drugs">
+                                  <Textarea
+                                    value={encounter.medicineHistory}
+                                    onChange={(e) => setEncounter({ ...encounter, medicineHistory: e.target.value })}
+                                    placeholder="Current medications and dosages..."
+                                    rows={2} className="text-sm resize-y"
+                                  />
+                                </Field>
+                                <Field label="Social History" hint="Smoking, alcohol, occupation, exercise">
+                                  <Textarea
+                                    value={encounter.socialHistory}
+                                    onChange={(e) => setEncounter({ ...encounter, socialHistory: e.target.value })}
+                                    placeholder="Smoking status, alcohol use, occupation..."
+                                    rows={2} className="text-sm resize-y"
+                                  />
+                                </Field>
+                              </div>
                             </div>
-                          )}
-                        </FormSection>
+                          </SectionGroup>
 
-                        <FormSection
-                          icon={FileText}
-                          title="History of Presenting Illness"
-                          hint="Onset, duration, character, radiation, associated symptoms, timing, exacerbating/relieving factors, severity (SOCRATES)"
-                        >
-                          <Textarea
-                            value={encounter.historyOfPresentIllness}
-                            onChange={(e) => setEncounter({ ...encounter, historyOfPresentIllness: e.target.value })}
-                            placeholder="Describe the onset, progression, and character of symptoms..."
-                            rows={3}
-                            className="text-sm resize-y"
-                          />
-                        </FormSection>
+                          {/* Section 2: Examination */}
+                          <SectionGroup value="examination" icon={Eye} title="Examination" badge={examFieldCount}>
+                            <div className="space-y-4">
+                              <Field label="Subjective (S)" hint="Additional patient-reported info, review of systems">
+                                <Textarea
+                                  value={encounter.subjective}
+                                  onChange={(e) => setEncounter({ ...encounter, subjective: e.target.value })}
+                                  placeholder="Additional subjective findings, review of systems..."
+                                  rows={2} className="text-sm resize-y"
+                                />
+                              </Field>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                          <FormSection icon={Heart} title="Past Medical History" hint="Previous illnesses, hospitalizations, chronic conditions">
-                            <Textarea
-                              value={encounter.pastMedicalHistory}
-                              onChange={(e) => setEncounter({ ...encounter, pastMedicalHistory: e.target.value })}
-                              placeholder="Known chronic diseases, past hospitalizations..."
-                              rows={2}
-                              className="text-sm resize-y"
-                            />
-                          </FormSection>
-                          <FormSection icon={Syringe} title="Past Surgical History" hint="Previous operations, complications, anaesthesia reactions">
-                            <Textarea
-                              value={encounter.pastSurgicalHistory}
-                              onChange={(e) => setEncounter({ ...encounter, pastSurgicalHistory: e.target.value })}
-                              placeholder="Appendectomy (2019), Tonsillectomy..."
-                              rows={2}
-                              className="text-sm resize-y"
-                            />
-                          </FormSection>
-                        </div>
+                              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                                <Field label="General Examination" hint="Appearance, nutritional status, hydration, pallor">
+                                  <Textarea
+                                    value={encounter.physicalExamGeneral}
+                                    onChange={(e) => setEncounter({ ...encounter, physicalExamGeneral: e.target.value })}
+                                    placeholder="General appearance, nutritional status, hydration, pallor, jaundice, cyanosis..."
+                                    rows={3} className="text-sm resize-y"
+                                  />
+                                </Field>
+                                <Field label="Systemic Examination" hint="CVS, RS, GIT, CNS findings">
+                                  <Textarea
+                                    value={encounter.physicalExamSystemic}
+                                    onChange={(e) => setEncounter({ ...encounter, physicalExamSystemic: e.target.value })}
+                                    placeholder="CVS: S1 S2 heard, no murmurs&#10;RS: Equal air entry, clear&#10;GIT: Soft, non-tender&#10;CNS: GCS 15/15"
+                                    rows={3} className="text-sm resize-y"
+                                  />
+                                </Field>
+                              </div>
 
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                          <FormSection icon={Pill} title="Medication History" hint="Current medications, dosages, adherence, OTC drugs">
-                            <Textarea
-                              value={encounter.medicineHistory}
-                              onChange={(e) => setEncounter({ ...encounter, medicineHistory: e.target.value })}
-                              placeholder="Current medications and dosages..."
-                              rows={2}
-                              className="text-sm resize-y"
-                            />
-                          </FormSection>
-                          <FormSection icon={User} title="Social History" hint="Smoking, alcohol, occupation, living situation, exercise">
-                            <Textarea
-                              value={encounter.socialHistory}
-                              onChange={(e) => setEncounter({ ...encounter, socialHistory: e.target.value })}
-                              placeholder="Smoking status, alcohol use, occupation..."
-                              rows={2}
-                              className="text-sm resize-y"
-                            />
-                          </FormSection>
-                        </div>
-
-                        <div className="flex items-center gap-3 py-2">
-                          <Separator className="flex-1" />
-                          <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">SOAP Documentation</span>
-                          <Separator className="flex-1" />
-                        </div>
-
-                        <FormSection icon={Clipboard} title="Subjective (S)" hint="Additional patient-reported information not covered above">
-                          <Textarea
-                            value={encounter.subjective}
-                            onChange={(e) => setEncounter({ ...encounter, subjective: e.target.value })}
-                            placeholder="Additional subjective findings, review of systems..."
-                            rows={2}
-                            className="text-sm resize-y"
-                          />
-                        </FormSection>
-
-                        <FormSection icon={Eye} title="Objective (O) — Physical Examination" hint="Document your clinical findings from examination">
-                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
-                            <div className="space-y-1.5">
-                              <Label className="text-xs font-medium text-muted-foreground">General Examination</Label>
-                              <Textarea
-                                value={encounter.physicalExamGeneral}
-                                onChange={(e) => setEncounter({ ...encounter, physicalExamGeneral: e.target.value })}
-                                placeholder="General appearance, nutritional status, hydration, pallor, jaundice, cyanosis, lymphadenopathy..."
-                                rows={3}
-                                className="text-sm resize-y"
-                              />
+                              <Field label="Additional Objective Findings" hint="Special tests, investigations reviewed">
+                                <Textarea
+                                  value={encounter.objective}
+                                  onChange={(e) => setEncounter({ ...encounter, objective: e.target.value })}
+                                  placeholder="Additional objective findings, special tests..."
+                                  rows={2} className="text-sm resize-y"
+                                />
+                              </Field>
                             </div>
-                            <div className="space-y-1.5">
-                              <Label className="text-xs font-medium text-muted-foreground">Systemic Examination</Label>
-                              <Textarea
-                                value={encounter.physicalExamSystemic}
-                                onChange={(e) => setEncounter({ ...encounter, physicalExamSystemic: e.target.value })}
-                                placeholder="CVS: S1 S2 heard, no murmurs&#10;RS: Equal air entry, clear&#10;GIT: Soft, non-tender&#10;CNS: GCS 15/15"
-                                rows={3}
-                                className="text-sm resize-y"
-                              />
+                          </SectionGroup>
+
+                          {/* Section 3: Assessment & Plan */}
+                          <SectionGroup value="assessment" icon={Brain} title="Assessment & Plan" badge={assessPlanCount}>
+                            <div className="space-y-4">
+                              <Field label="Assessment" hint="Clinical impression, working diagnosis, differentials — use ICD codes when possible">
+                                <Textarea
+                                  value={encounter.assessment}
+                                  onChange={(e) => setEncounter({ ...encounter, assessment: e.target.value })}
+                                  placeholder="Clinical impression and reasoning..."
+                                  rows={2} className="text-sm resize-y"
+                                />
+                              </Field>
+
+                              <Field label="Diagnosis Tags">
+                                <div className="flex gap-2">
+                                  <Input
+                                    value={diagnosisInput}
+                                    onChange={(e) => setDiagnosisInput(e.target.value)}
+                                    placeholder="e.g., J06.9 — Upper respiratory infection"
+                                    className="text-sm"
+                                    onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addDiagnosis())}
+                                  />
+                                  <Button type="button" variant="outline" size="sm" onClick={addDiagnosis} disabled={!diagnosisInput.trim()}>
+                                    <Plus className="h-3.5 w-3.5 mr-1" /> Add
+                                  </Button>
+                                </div>
+                                {encounter.diagnosis.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5 mt-2">
+                                    {encounter.diagnosis.map((d, i) => (
+                                      <Badge key={i} variant="secondary" className="gap-1 text-xs py-1 px-2.5">
+                                        <CheckCircle2 className="h-3 w-3 text-[hsl(var(--success))]" />
+                                        {d}
+                                        <X className="h-3 w-3 cursor-pointer hover:text-destructive transition-colors ml-1" onClick={() => removeDiagnosis(i)} />
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                )}
+                              </Field>
+
+                              <Field label="Plan" hint="Treatment plan, medications, investigations, follow-up, patient education">
+                                <Textarea
+                                  value={encounter.plan}
+                                  onChange={(e) => setEncounter({ ...encounter, plan: e.target.value })}
+                                  placeholder="1. Investigations: CBC, RBS&#10;2. Treatment: Amoxicillin 500mg TDS × 7 days&#10;3. Follow-up in 2 weeks"
+                                  rows={4} className="text-sm resize-y"
+                                />
+                              </Field>
+
+                              <Field label="Follow-up / TCA" hint="When should the patient return?">
+                                <Input
+                                  type="date"
+                                  value={encounter.followUpDate}
+                                  onChange={(e) => setEncounter({ ...encounter, followUpDate: e.target.value })}
+                                  className="text-sm max-w-xs"
+                                />
+                              </Field>
                             </div>
-                          </div>
-                          <Textarea
-                            value={encounter.objective}
-                            onChange={(e) => setEncounter({ ...encounter, objective: e.target.value })}
-                            placeholder="Additional objective findings, special tests..."
-                            rows={2}
-                            className="text-sm resize-y mt-3"
-                          />
-                        </FormSection>
-
-                        <FormSection icon={Brain} title="Assessment (A) / Diagnosis" hint="Clinical impression, working diagnosis, differentials — use ICD codes when possible">
-                          <Textarea
-                            value={encounter.assessment}
-                            onChange={(e) => setEncounter({ ...encounter, assessment: e.target.value })}
-                            placeholder="Clinical impression and reasoning..."
-                            rows={2}
-                            className="text-sm resize-y"
-                          />
-                          <div className="flex gap-2 mt-3">
-                            <Input
-                              value={diagnosisInput}
-                              onChange={(e) => setDiagnosisInput(e.target.value)}
-                              placeholder="Add diagnosis (e.g., J06.9 — Upper respiratory infection)"
-                              className="text-sm"
-                              onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addDiagnosis())}
-                            />
-                            <Button type="button" variant="outline" size="sm" onClick={addDiagnosis} disabled={!diagnosisInput.trim()}>
-                              <Plus className="h-3.5 w-3.5 mr-1" /> Add
-                            </Button>
-                          </div>
-                          {encounter.diagnosis.length > 0 && (
-                            <div className="flex flex-wrap gap-1.5 mt-2">
-                              {encounter.diagnosis.map((d, i) => (
-                                <Badge key={i} variant="secondary" className="gap-1 text-xs py-1 px-2">
-                                  <CheckCircle2 className="h-3 w-3 text-green-600" />
-                                  {d}
-                                  <X className="h-3 w-3 cursor-pointer hover:text-destructive transition-colors" onClick={() => removeDiagnosis(i)} />
-                                </Badge>
-                              ))}
-                            </div>
-                          )}
-                        </FormSection>
-
-                        <FormSection icon={ClipboardList} title="Plan (P)" hint="Treatment plan, medications, investigations, follow-up, patient education">
-                          <Textarea
-                            value={encounter.plan}
-                            onChange={(e) => setEncounter({ ...encounter, plan: e.target.value })}
-                            placeholder="1. Investigations: CBC, RBS&#10;2. Treatment: Amoxicillin 500mg TDS × 7 days&#10;3. Follow-up in 2 weeks&#10;4. Patient counselled on..."
-                            rows={4}
-                            className="text-sm resize-y"
-                          />
-                        </FormSection>
-
-                        <FormSection icon={Clock} title="Follow-up / TCA" hint="When should the patient return?">
-                          <Input
-                            type="date"
-                            value={encounter.followUpDate}
-                            onChange={(e) => setEncounter({ ...encounter, followUpDate: e.target.value })}
-                            className="text-sm max-w-xs"
-                          />
-                        </FormSection>
+                          </SectionGroup>
+                        </Accordion>
                       </TabsContent>
 
                       {/* ── Orders Tab ── */}
-                      <TabsContent value="orders" className="space-y-5 mt-0">
+                      <TabsContent value="orders" className="space-y-4 mt-0">
+                        {/* Cost Estimate Card */}
+                        <Card className="border-primary/20 bg-primary/5">
+                          <CardContent className="px-4 py-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <DollarSign className="h-4 w-4 text-primary" />
+                                <span className="text-sm font-semibold">Estimated Cost</span>
+                              </div>
+                              <span className="text-base font-bold text-primary">KES {costEstimate.total.toLocaleString()}</span>
+                            </div>
+                            <div className="flex items-center gap-4 mt-2 text-[11px] text-muted-foreground">
+                              <span>Consultation: KES {costEstimate.consultation}</span>
+                              {costEstimate.labs > 0 && <span>Labs: KES {costEstimate.labs.toLocaleString()}</span>}
+                              {costEstimate.imaging > 0 && <span>Imaging: KES {costEstimate.imaging.toLocaleString()}</span>}
+                            </div>
+                          </CardContent>
+                        </Card>
+
                         {/* Prescriptions */}
                         <Card className="border-border/60">
-                          <CardHeader className="pb-2 pt-4 px-5">
+                          <CardHeader className="pb-2 pt-4 px-4">
                             <div className="flex items-center justify-between">
                               <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                                <div className="p-1.5 rounded-md bg-green-100 text-green-700"><Pill className="h-4 w-4" /></div>
+                                <div className="p-1.5 rounded-lg bg-[hsl(var(--success))]/15 text-[hsl(var(--success))]"><Pill className="h-4 w-4" /></div>
                                 Prescriptions
                                 {prescriptions.length > 0 && <Badge variant="secondary" className="text-[10px]">{prescriptions.length}</Badge>}
                               </CardTitle>
-                              <Button size="sm" onClick={() => setShowPrescriptionDialog(true)} className="h-8 text-xs">
-                                <Plus className="h-3.5 w-3.5 mr-1" /> Add Medication
+                              <Button size="sm" onClick={() => setShowPrescriptionDialog(true)} className="h-7 text-xs">
+                                <Plus className="h-3 w-3 mr-1" /> Add Medication
                               </Button>
                             </div>
                           </CardHeader>
-                          <CardContent className="px-5 pb-4">
+                          <CardContent className="px-4 pb-4">
                             {prescriptions.length === 0 ? (
                               <div className="text-center py-6 text-muted-foreground">
-                                <Pill className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                                <Pill className="h-8 w-8 mx-auto mb-2 opacity-15" />
                                 <p className="text-xs">No medications prescribed yet</p>
                               </div>
                             ) : (
                               <div className="space-y-2">
                                 {prescriptions.map((p, i) => (
-                                  <div key={i} className="flex items-center justify-between p-3 bg-green-50/50 border border-green-100 rounded-lg">
+                                  <div key={i} className="flex items-center justify-between p-2.5 bg-[hsl(var(--success))]/5 border border-[hsl(var(--success))]/20 rounded-lg">
                                     <div className="min-w-0">
                                       <p className="font-medium text-sm">{p.medication_name}</p>
-                                      <p className="text-xs text-muted-foreground mt-0.5">
-                                        {p.dosage} · {p.frequency} · {p.duration} · Qty: {p.quantity}
+                                      <p className="text-[11px] text-muted-foreground mt-0.5">
+                                        {p.route} · {p.dosage} · {p.frequency} · {p.duration} · Qty: {p.quantity}
                                       </p>
-                                      {p.instructions && <p className="text-xs text-muted-foreground italic mt-0.5">{p.instructions}</p>}
+                                      {p.instructions && <p className="text-[11px] text-muted-foreground italic mt-0.5">{p.instructions}</p>}
                                     </div>
-                                    <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive shrink-0" onClick={() => removePrescription(i)}>
-                                      <X className="h-4 w-4" />
+                                    <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive shrink-0 h-7 w-7 p-0" onClick={() => removePrescription(i)}>
+                                      <X className="h-3.5 w-3.5" />
                                     </Button>
                                   </div>
                                 ))}
@@ -1045,33 +1168,26 @@ const Consultation = () => {
 
                         {/* Lab Tests */}
                         <Card className="border-border/60">
-                          <CardHeader className="pb-2 pt-4 px-5">
+                          <CardHeader className="pb-2 pt-4 px-4">
                             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                              <div className="p-1.5 rounded-md bg-blue-100 text-blue-700"><TestTube className="h-4 w-4" /></div>
-                              Laboratory Investigations
+                              <div className="p-1.5 rounded-lg bg-blue-100 text-blue-700"><TestTube className="h-4 w-4" /></div>
+                              Laboratory
                               {selectedLabTests.length > 0 && <Badge variant="secondary" className="text-[10px]">{selectedLabTests.length}</Badge>}
                             </CardTitle>
                           </CardHeader>
-                          <CardContent className="px-5 pb-4 space-y-3">
+                          <CardContent className="px-4 pb-4 space-y-3">
                             <div className="relative">
-                              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                              <Input
-                                value={labSearchTerm}
-                                onChange={(e) => setLabSearchTerm(e.target.value)}
-                                placeholder="Search lab tests..."
-                                className="pl-8 h-8 text-xs"
-                              />
+                              <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                              <Input value={labSearchTerm} onChange={(e) => setLabSearchTerm(e.target.value)} placeholder="Search lab tests..." className="pl-8 h-8 text-xs" />
                             </div>
-                            <div className="grid grid-cols-2 xl:grid-cols-3 gap-2 max-h-56 overflow-auto">
+                            <div className="grid grid-cols-2 xl:grid-cols-3 gap-1.5 max-h-52 overflow-auto">
                               {filteredLabTests.map((test) => {
                                 const selected = selectedLabTests.includes(test.id);
                                 return (
                                   <div
                                     key={test.id}
-                                    className={`p-2.5 border rounded-lg cursor-pointer transition-all text-sm ${
-                                      selected
-                                        ? "bg-blue-50 border-blue-300 ring-1 ring-blue-200"
-                                        : "hover:bg-muted/60 hover:border-border"
+                                    className={`p-2 border rounded-lg cursor-pointer transition-all text-sm ${
+                                      selected ? "bg-blue-50 border-blue-300 ring-1 ring-blue-200" : "hover:bg-muted/50 hover:border-border"
                                     }`}
                                     onClick={() => {
                                       if (selected) setSelectedLabTests(selectedLabTests.filter(t => t !== test.id));
@@ -1082,7 +1198,7 @@ const Consultation = () => {
                                       <p className="font-medium text-xs leading-tight">{test.test_name}</p>
                                       {selected && <CheckCircle2 className="h-3.5 w-3.5 text-blue-600 shrink-0" />}
                                     </div>
-                                    <p className="text-[10px] text-muted-foreground mt-1">KES {test.price}</p>
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">KES {test.price}</p>
                                   </div>
                                 );
                               })}
@@ -1092,33 +1208,26 @@ const Consultation = () => {
 
                         {/* Imaging */}
                         <Card className="border-border/60">
-                          <CardHeader className="pb-2 pt-4 px-5">
+                          <CardHeader className="pb-2 pt-4 px-4">
                             <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                              <div className="p-1.5 rounded-md bg-purple-100 text-purple-700"><Camera className="h-4 w-4" /></div>
-                              Imaging Investigations
+                              <div className="p-1.5 rounded-lg bg-purple-100 text-purple-700"><Camera className="h-4 w-4" /></div>
+                              Imaging
                               {selectedImaging.length > 0 && <Badge variant="secondary" className="text-[10px]">{selectedImaging.length}</Badge>}
                             </CardTitle>
                           </CardHeader>
-                          <CardContent className="px-5 pb-4 space-y-3">
+                          <CardContent className="px-4 pb-4 space-y-3">
                             <div className="relative">
-                              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-                              <Input
-                                value={imagingSearchTerm}
-                                onChange={(e) => setImagingSearchTerm(e.target.value)}
-                                placeholder="Search imaging..."
-                                className="pl-8 h-8 text-xs"
-                              />
+                              <Search className="absolute left-2.5 top-2 h-3.5 w-3.5 text-muted-foreground" />
+                              <Input value={imagingSearchTerm} onChange={(e) => setImagingSearchTerm(e.target.value)} placeholder="Search imaging..." className="pl-8 h-8 text-xs" />
                             </div>
-                            <div className="grid grid-cols-2 xl:grid-cols-3 gap-2 max-h-56 overflow-auto">
+                            <div className="grid grid-cols-2 xl:grid-cols-3 gap-1.5 max-h-52 overflow-auto">
                               {filteredImaging.map((item) => {
                                 const selected = selectedImaging.includes(item.id);
                                 return (
                                   <div
                                     key={item.id}
-                                    className={`p-2.5 border rounded-lg cursor-pointer transition-all text-sm ${
-                                      selected
-                                        ? "bg-purple-50 border-purple-300 ring-1 ring-purple-200"
-                                        : "hover:bg-muted/60 hover:border-border"
+                                    className={`p-2 border rounded-lg cursor-pointer transition-all text-sm ${
+                                      selected ? "bg-purple-50 border-purple-300 ring-1 ring-purple-200" : "hover:bg-muted/50 hover:border-border"
                                     }`}
                                     onClick={() => {
                                       if (selected) setSelectedImaging(selectedImaging.filter(i => i !== item.id));
@@ -1129,7 +1238,7 @@ const Consultation = () => {
                                       <p className="font-medium text-xs leading-tight">{item.name}</p>
                                       {selected && <CheckCircle2 className="h-3.5 w-3.5 text-purple-600 shrink-0" />}
                                     </div>
-                                    <p className="text-[10px] text-muted-foreground mt-1">{item.modality} · KES {item.price}</p>
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">{item.modality} · KES {item.price}</p>
                                   </div>
                                 );
                               })}
@@ -1146,22 +1255,22 @@ const Consultation = () => {
                       {/* ── History Tab ── */}
                       <TabsContent value="history" className="mt-0">
                         <Card className="border-border/60">
-                          <CardHeader className="px-5 pt-4 pb-2">
+                          <CardHeader className="px-4 pt-4 pb-2">
                             <CardTitle className="text-sm font-semibold flex items-center gap-2">
                               <History className="h-4 w-4 text-muted-foreground" /> Previous Encounters
                             </CardTitle>
                           </CardHeader>
-                          <CardContent className="px-5 pb-4">
+                          <CardContent className="px-4 pb-4">
                             {patientHistory.length === 0 ? (
                               <div className="text-center py-8 text-muted-foreground">
-                                <FileText className="h-8 w-8 mx-auto mb-2 opacity-20" />
+                                <FileText className="h-8 w-8 mx-auto mb-2 opacity-15" />
                                 <p className="text-xs">No previous encounters on record</p>
                               </div>
                             ) : (
-                              <div className="space-y-3">
+                              <div className="space-y-2">
                                 {patientHistory.map((enc) => (
                                   <div key={enc.id} className="p-3 border rounded-lg hover:bg-muted/30 transition-colors">
-                                    <div className="flex items-center justify-between mb-1.5">
+                                    <div className="flex items-center justify-between mb-1">
                                       <span className="text-xs font-semibold">{new Date(enc.encounter_date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}</span>
                                       {enc.diagnosis && enc.diagnosis.length > 0 && (
                                         <Badge variant="outline" className="text-[10px]">{enc.diagnosis[0]}</Badge>
@@ -1180,106 +1289,81 @@ const Consultation = () => {
                   </div>
                 </div>
 
-                {/* ── Right Panel: Vitals & Quick Info ── */}
-                <div className="w-72 border-l bg-muted/10 overflow-auto shrink-0 hidden xl:block">
-                  <div className="p-4 space-y-5">
-                    {/* Vitals */}
+                {/* ── Right Panel: Vitals (XL only) ── */}
+                <div className="w-64 border-l bg-muted/10 overflow-auto shrink-0 hidden xl:block">
+                  <div className="p-3 space-y-4">
                     <div>
-                      <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-3">
-                        <Activity className="h-3.5 w-3.5" /> Latest Vitals
+                      <h3 className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground flex items-center gap-1.5 mb-2.5">
+                        <Activity className="h-3 w-3" /> Latest Vitals
                       </h3>
                       {latestVitals ? (
-                        <div className="space-y-2">
-                          <div className="grid grid-cols-2 gap-2">
-                            <VitalCard
-                              icon={Activity}
-                              label="Blood Pressure"
+                        <div className="space-y-1.5">
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <VitalCard icon={Activity} label="BP"
                               value={latestVitals.blood_pressure_systolic ? `${latestVitals.blood_pressure_systolic}/${latestVitals.blood_pressure_diastolic}` : null}
-                              unit="mmHg"
-                              status={getBPStatus(latestVitals.blood_pressure_systolic, latestVitals.blood_pressure_diastolic)}
-                            />
-                            <VitalCard
-                              icon={Heart}
-                              label="Pulse"
-                              value={latestVitals.pulse_rate}
-                              unit="bpm"
-                              status={getPulseStatus(latestVitals.pulse_rate)}
-                            />
-                            <VitalCard
-                              icon={Thermometer}
-                              label="Temperature"
-                              value={latestVitals.temperature}
-                              unit="°C"
-                              status={getTempStatus(latestVitals.temperature)}
-                            />
-                            <VitalCard
-                              icon={Droplets}
-                              label="SpO₂"
-                              value={latestVitals.oxygen_saturation}
-                              unit="%"
-                              status={getSpO2Status(latestVitals.oxygen_saturation)}
-                            />
-                            <VitalCard icon={Wind} label="Resp Rate" value={latestVitals.respiratory_rate} unit="/min" />
+                              unit="mmHg" status={getBPStatus(latestVitals.blood_pressure_systolic, latestVitals.blood_pressure_diastolic)} />
+                            <VitalCard icon={Heart} label="Pulse" value={latestVitals.pulse_rate} unit="bpm" status={getPulseStatus(latestVitals.pulse_rate)} />
+                            <VitalCard icon={Thermometer} label="Temp" value={latestVitals.temperature} unit="°C" status={getTempStatus(latestVitals.temperature)} />
+                            <VitalCard icon={Droplets} label="SpO₂" value={latestVitals.oxygen_saturation} unit="%" status={getSpO2Status(latestVitals.oxygen_saturation)} />
+                            <VitalCard icon={Wind} label="RR" value={latestVitals.respiratory_rate} unit="/min" />
                             <VitalCard icon={Scale} label="Weight" value={latestVitals.weight} unit="kg" />
                           </div>
                           {latestVitals.height && latestVitals.bmi && (
-                            <div className="grid grid-cols-2 gap-2">
+                            <div className="grid grid-cols-2 gap-1.5">
                               <VitalCard icon={Ruler} label="Height" value={latestVitals.height} unit="cm" />
                               <VitalCard icon={Scale} label="BMI" value={latestVitals.bmi} />
                             </div>
                           )}
-                          <p className="text-[10px] text-muted-foreground text-center mt-1">
-                            Recorded {new Date(latestVitals.recorded_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                          <p className="text-[9px] text-muted-foreground text-center mt-1">
+                            {new Date(latestVitals.recorded_at).toLocaleString("en-GB", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
                           </p>
                         </div>
                       ) : (
                         <div className="text-center py-4 text-muted-foreground">
-                          <Activity className="h-6 w-6 mx-auto mb-1 opacity-20" />
-                          <p className="text-xs">No vitals recorded</p>
+                          <Activity className="h-6 w-6 mx-auto mb-1 opacity-15" />
+                          <p className="text-[11px]">No vitals recorded</p>
                         </div>
                       )}
                     </div>
 
                     <Separator />
 
-                    {/* Chronic Conditions */}
                     <div>
-                      <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground flex items-center gap-1.5 mb-2">
-                        <Heart className="h-3.5 w-3.5" /> Chronic Conditions
+                      <h3 className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground flex items-center gap-1.5 mb-2">
+                        <Heart className="h-3 w-3" /> Chronic Conditions
                       </h3>
                       {selectedTicket.patient?.chronic_conditions && selectedTicket.patient.chronic_conditions.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5">
+                        <div className="flex flex-wrap gap-1">
                           {selectedTicket.patient.chronic_conditions.map((c, i) => (
-                            <Badge key={i} variant="outline" className="text-[10px] bg-red-50 border-red-200 text-red-700">{c}</Badge>
+                            <Badge key={i} variant="outline" className="text-[10px] bg-destructive/5 border-destructive/20 text-destructive">{c}</Badge>
                           ))}
                         </div>
                       ) : (
-                        <p className="text-xs text-muted-foreground">None recorded</p>
+                        <p className="text-[11px] text-muted-foreground">None recorded</p>
                       )}
                     </div>
 
                     <Separator />
 
-                    {/* Quick Summary */}
                     <div>
-                      <h3 className="font-bold text-xs uppercase tracking-wider text-muted-foreground mb-2">Order Summary</h3>
+                      <h3 className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground mb-2">Order Summary</h3>
                       <div className="space-y-1.5">
-                        <div className="flex justify-between text-xs">
+                        <div className="flex justify-between text-[11px]">
                           <span className="text-muted-foreground">Prescriptions</span>
-                          <span className="font-medium">{prescriptions.length}</span>
+                          <span className="font-semibold">{prescriptions.length}</span>
                         </div>
-                        <div className="flex justify-between text-xs">
+                        <div className="flex justify-between text-[11px]">
                           <span className="text-muted-foreground">Lab Tests</span>
-                          <span className="font-medium">{selectedLabTests.length}</span>
+                          <span className="font-semibold">{selectedLabTests.length}</span>
                         </div>
-                        <div className="flex justify-between text-xs">
+                        <div className="flex justify-between text-[11px]">
                           <span className="text-muted-foreground">Imaging</span>
-                          <span className="font-medium">{selectedImaging.length}</span>
+                          <span className="font-semibold">{selectedImaging.length}</span>
                         </div>
                         <Separator />
-                        <div className="flex justify-between text-xs font-semibold">
-                          <span>Total Orders</span>
-                          <span>{totalOrders}</span>
+                        <div className="flex justify-between text-[11px] font-bold">
+                          <span>Est. Cost</span>
+                          <span className="text-primary">KES {costEstimate.total.toLocaleString()}</span>
                         </div>
                       </div>
                     </div>
@@ -1288,27 +1372,25 @@ const Consultation = () => {
               </div>
 
               {/* ── Footer: Save Bar ── */}
-              <div className="border-t bg-card shadow-[0_-2px_10px_rgba(0,0,0,0.04)] px-5 py-3 flex items-center justify-between">
-                <div className="flex items-center gap-3 text-xs text-muted-foreground">
+              <div className="border-t bg-card shadow-[0_-1px_4px_rgba(0,0,0,0.03)] px-4 py-2.5 flex items-center justify-between">
+                <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
                   <span className="flex items-center gap-1"><Pill className="h-3 w-3" />{prescriptions.length} Rx</span>
                   <span className="flex items-center gap-1"><TestTube className="h-3 w-3" />{selectedLabTests.length} Labs</span>
-                  <span className="flex items-center gap-1"><Camera className="h-3 w-3" />{selectedImaging.length} Imaging</span>
-                  <Separator orientation="vertical" className="h-4" />
-                  <span className="text-[10px] text-muted-foreground/60">Auto-saved as draft</span>
+                  <span className="flex items-center gap-1"><Camera className="h-3 w-3" />{selectedImaging.length} Img</span>
+                  <Separator orientation="vertical" className="h-3" />
+                  <span className="text-[10px] text-muted-foreground/50 flex items-center gap-1">
+                    <Save className="h-2.5 w-2.5" /> Draft auto-saved
+                  </span>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" onClick={() => setSelectedTicket(null)}>Cancel</Button>
+                  <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setSelectedTicket(null)}>Cancel</Button>
                   <Button
                     size="sm"
-                    onClick={saveEncounter}
+                    className="h-8 text-xs min-w-[140px]"
+                    onClick={() => setShowConfirmSave(true)}
                     disabled={!encounter.chiefComplaint || savingEncounter}
-                    className="min-w-[140px]"
                   >
-                    {savingEncounter ? (
-                      <><div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-white mr-2" /> Saving...</>
-                    ) : (
-                      <><Save className="h-3.5 w-3.5 mr-1.5" /> Complete & Save</>
-                    )}
+                    <Save className="h-3.5 w-3.5 mr-1.5" /> Complete & Save
                   </Button>
                 </div>
               </div>
@@ -1316,18 +1398,84 @@ const Consultation = () => {
           )}
         </div>
 
+        {/* ── Save Confirmation Dialog ── */}
+        <AlertDialog open={showConfirmSave} onOpenChange={setShowConfirmSave}>
+          <AlertDialogContent className="max-w-md">
+            <AlertDialogHeader>
+              <AlertDialogTitle className="flex items-center gap-2">
+                <CheckCircle2 className="h-5 w-5 text-primary" />
+                Confirm Consultation
+              </AlertDialogTitle>
+              <AlertDialogDescription asChild>
+                <div className="space-y-3 text-sm">
+                  <p>Review the summary before saving:</p>
+                  <div className="bg-muted/50 rounded-lg p-3 space-y-2">
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Patient</span>
+                      <span className="font-medium">{selectedTicket?.patient?.profile?.full_name}</span>
+                    </div>
+                    {encounter.diagnosis.length > 0 && (
+                      <div className="flex justify-between text-xs items-start">
+                        <span className="text-muted-foreground">Diagnosis</span>
+                        <div className="flex flex-wrap gap-1 justify-end max-w-[200px]">
+                          {encounter.diagnosis.map((d, i) => (
+                            <Badge key={i} variant="secondary" className="text-[10px]">{d}</Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    <Separator />
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Prescriptions</span>
+                      <span className="font-medium">{prescriptions.length}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Lab Orders</span>
+                      <span className="font-medium">{selectedLabTests.length}</span>
+                    </div>
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Imaging Orders</span>
+                      <span className="font-medium">{selectedImaging.length}</span>
+                    </div>
+                    <Separator />
+                    <div className="flex justify-between text-xs">
+                      <span className="text-muted-foreground">Est. Total</span>
+                      <span className="font-bold text-primary">KES {costEstimate.total.toLocaleString()}</span>
+                    </div>
+                    <div className="flex items-center justify-between text-xs pt-1">
+                      <span className="text-muted-foreground">Next Station</span>
+                      <Badge variant="outline" className="gap-1 text-[10px]">
+                        <ArrowRight className="h-2.5 w-2.5" /> {nextStage}
+                      </Badge>
+                    </div>
+                  </div>
+                </div>
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel className="text-xs">Go Back</AlertDialogCancel>
+              <AlertDialogAction onClick={saveEncounter} disabled={savingEncounter} className="text-xs">
+                {savingEncounter ? (
+                  <><div className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary-foreground mr-2" /> Saving...</>
+                ) : (
+                  <><CheckCircle2 className="h-3.5 w-3.5 mr-1.5" /> Confirm & Send</>
+                )}
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
         {/* ── Prescription Dialog ── */}
         <Dialog open={showPrescriptionDialog} onOpenChange={setShowPrescriptionDialog}>
           <DialogContent className="max-w-lg">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <div className="p-1.5 rounded-md bg-green-100 text-green-700"><Pill className="h-4 w-4" /></div>
+              <DialogTitle className="flex items-center gap-2 text-sm">
+                <div className="p-1.5 rounded-lg bg-[hsl(var(--success))]/15 text-[hsl(var(--success))]"><Pill className="h-4 w-4" /></div>
                 Add Prescription
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <div className="space-y-2">
-                <Label className="text-xs font-medium">Medication Name <span className="text-destructive">*</span></Label>
+              <Field label="Medication Name" required>
                 <div className="relative">
                   <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                   <Input
@@ -1341,7 +1489,7 @@ const Consultation = () => {
                   />
                 </div>
                 {drugSearchTerm && !currentPrescription.medication_name && (
-                  <div className="border rounded-lg max-h-40 overflow-auto shadow-sm">
+                  <div className="border rounded-lg max-h-36 overflow-auto shadow-sm">
                     {pharmacyInventory
                       .filter(item =>
                         item.drug_name.toLowerCase().includes(drugSearchTerm.toLowerCase()) ||
@@ -1351,7 +1499,7 @@ const Consultation = () => {
                       .map(item => (
                         <div
                           key={item.id}
-                          className="p-2.5 hover:bg-muted cursor-pointer border-b last:border-b-0 text-sm transition-colors"
+                          className="p-2 hover:bg-muted cursor-pointer border-b last:border-b-0 text-sm transition-colors"
                           onClick={() => {
                             const fullName = item.strength_size ? `${item.drug_name} ${item.strength_size}` : item.drug_name;
                             setCurrentPrescription({ ...currentPrescription, medication_name: fullName });
@@ -1375,48 +1523,71 @@ const Consultation = () => {
                       item.drug_name.toLowerCase().includes(drugSearchTerm.toLowerCase()) ||
                       (item.generic_name || "").toLowerCase().includes(drugSearchTerm.toLowerCase())
                     ).length === 0 && (
-                      <p className="p-3 text-xs text-muted-foreground text-center">No matching drugs in inventory</p>
+                      <p className="p-3 text-xs text-muted-foreground text-center">No matching drugs</p>
                     )}
                   </div>
                 )}
                 {currentPrescription.medication_name && (
-                  <p className="text-xs text-green-600 flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> {currentPrescription.medication_name}</p>
+                  <p className="text-[11px] text-[hsl(var(--success))] flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> {currentPrescription.medication_name}</p>
                 )}
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">Dosage <span className="text-destructive">*</span></Label>
-                  <Input value={currentPrescription.dosage} onChange={(e) => setCurrentPrescription({ ...currentPrescription, dosage: e.target.value })} placeholder="e.g., 1 tablet" className="text-sm" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">Frequency</Label>
-                  <Select value={currentPrescription.frequency} onValueChange={(value) => setCurrentPrescription({ ...currentPrescription, frequency: value })}>
-                    <SelectTrigger className="text-sm h-9"><SelectValue placeholder="Select frequency" /></SelectTrigger>
+              </Field>
+
+              <div className="grid grid-cols-3 gap-3">
+                <Field label="Route">
+                  <Select value={currentPrescription.route} onValueChange={(v) => setCurrentPrescription({ ...currentPrescription, route: v })}>
+                    <SelectTrigger className="text-xs h-9"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {["Oral", "IV", "IM", "SC", "Topical", "Rectal", "Sublingual", "Inhaled", "Nasal", "Ophthalmic", "Otic"].map(r => (
+                        <SelectItem key={r} value={r}>{r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Dosage" required>
+                  <Input value={currentPrescription.dosage} onChange={(e) => setCurrentPrescription({ ...currentPrescription, dosage: e.target.value })} placeholder="e.g., 1 tablet" className="text-xs h-9" />
+                </Field>
+                <Field label="Frequency">
+                  <Select value={currentPrescription.frequency} onValueChange={(v) => setCurrentPrescription({ ...currentPrescription, frequency: v })}>
+                    <SelectTrigger className="text-xs h-9"><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
                       {["Once daily", "Twice daily", "Three times daily", "Four times daily", "Every 4 hours", "Every 6 hours", "Every 8 hours", "As needed", "At bedtime", "STAT"].map(f => (
                         <SelectItem key={f} value={f}>{f}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
+                </Field>
               </div>
+
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">Duration</Label>
-                  <Input value={currentPrescription.duration} onChange={(e) => setCurrentPrescription({ ...currentPrescription, duration: e.target.value })} placeholder="e.g., 7 days" className="text-sm" />
-                </div>
-                <div className="space-y-1.5">
-                  <Label className="text-xs font-medium">Quantity</Label>
-                  <Input type="number" value={currentPrescription.quantity} onChange={(e) => setCurrentPrescription({ ...currentPrescription, quantity: parseInt(e.target.value) || 1 })} min="1" className="text-sm" />
-                </div>
+                <Field label="Duration" hint="Click for quick fill">
+                  <Input value={currentPrescription.duration} onChange={(e) => setCurrentPrescription({ ...currentPrescription, duration: e.target.value })} placeholder="e.g., 7 days" className="text-xs h-9" />
+                  <div className="flex gap-1 mt-1.5">
+                    {["3 days", "5 days", "7 days", "14 days", "30 days"].map(d => (
+                      <Button
+                        key={d}
+                        type="button"
+                        variant={currentPrescription.duration === d ? "default" : "outline"}
+                        size="sm"
+                        className="h-6 text-[10px] px-2"
+                        onClick={() => setCurrentPrescription({ ...currentPrescription, duration: d })}
+                      >
+                        {d.replace(" days", "d")}
+                      </Button>
+                    ))}
+                  </div>
+                </Field>
+                <Field label="Quantity">
+                  <Input type="number" value={currentPrescription.quantity} onChange={(e) => setCurrentPrescription({ ...currentPrescription, quantity: parseInt(e.target.value) || 1 })} min="1" className="text-xs h-9" />
+                </Field>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs font-medium">Special Instructions</Label>
-                <Textarea value={currentPrescription.instructions} onChange={(e) => setCurrentPrescription({ ...currentPrescription, instructions: e.target.value })} placeholder="e.g., Take with food, avoid dairy products" rows={2} className="text-sm" />
-              </div>
-              <div className="flex justify-end gap-2 pt-2">
-                <Button variant="outline" size="sm" onClick={() => setShowPrescriptionDialog(false)}>Cancel</Button>
-                <Button size="sm" onClick={addPrescription} disabled={!currentPrescription.medication_name || !currentPrescription.dosage}>
+
+              <Field label="Special Instructions">
+                <Textarea value={currentPrescription.instructions} onChange={(e) => setCurrentPrescription({ ...currentPrescription, instructions: e.target.value })} placeholder="e.g., Take with food, avoid dairy" rows={2} className="text-sm" />
+              </Field>
+
+              <div className="flex justify-end gap-2 pt-1">
+                <Button variant="outline" size="sm" className="text-xs" onClick={() => setShowPrescriptionDialog(false)}>Cancel</Button>
+                <Button size="sm" className="text-xs" onClick={addPrescription} disabled={!currentPrescription.medication_name || !currentPrescription.dosage}>
                   <Plus className="h-3.5 w-3.5 mr-1" /> Add Prescription
                 </Button>
               </div>
@@ -1424,9 +1595,11 @@ const Consultation = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Referral Form */}
+        {/* Referral Form (controlled) */}
         {selectedTicket?.patient && (
           <ReferralForm
+            open={showReferralForm}
+            onOpenChange={setShowReferralForm}
             patientId={selectedTicket.patient.id}
             patientName={selectedTicket.patient.profile?.full_name || ""}
             patientAge={calcAge(selectedTicket.patient.profile?.date_of_birth || null)}

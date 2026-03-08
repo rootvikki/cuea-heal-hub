@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -15,14 +15,29 @@ interface ReferralFormProps {
   patientGender: string;
   encounterId?: string;
   doctorName: string;
+  /** Controlled mode: pass open + onOpenChange to control externally */
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
 }
 
-export function ReferralForm({ patientId, patientName, patientAge, patientGender, encounterId, doctorName }: ReferralFormProps) {
+export function ReferralForm({ patientId, patientName, patientAge, patientGender, encounterId, doctorName, open: controlledOpen, onOpenChange }: ReferralFormProps) {
   const { toast } = useToast();
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
   const [reasons, setReasons] = useState("");
   const [treatmentGiven, setTreatmentGiven] = useState("");
   const [saving, setSaving] = useState(false);
+
+  const isControlled = controlledOpen !== undefined;
+  const open = isControlled ? controlledOpen : internalOpen;
+  const setOpen = (val: boolean) => {
+    if (onOpenChange) onOpenChange(val);
+    if (!isControlled) setInternalOpen(val);
+  };
+
+  // Reset form when opening
+  useEffect(() => {
+    if (open) { setReasons(""); setTreatmentGiven(""); }
+  }, [open]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -39,8 +54,6 @@ export function ReferralForm({ patientId, patientName, patientAge, patientGender
       if (error) throw error;
       toast({ title: "Referral saved" });
       setOpen(false);
-      setReasons("");
-      setTreatmentGiven("");
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
@@ -78,6 +91,51 @@ export function ReferralForm({ patientId, patientName, patientAge, patientGender
     printWindow.print();
   };
 
+  const dialogContent = (
+    <DialogContent className="max-w-lg">
+      <DialogHeader>
+        <DialogTitle>Referral Form — CUEA Infirmary</DialogTitle>
+      </DialogHeader>
+      <div className="space-y-4">
+        <div className="grid grid-cols-3 gap-3 text-sm">
+          <div><Label>Patient</Label><Input readOnly value={patientName} className="bg-muted" /></div>
+          <div><Label>Age</Label><Input readOnly value={patientAge} className="bg-muted" /></div>
+          <div><Label>Gender</Label><Input readOnly value={patientGender} className="bg-muted" /></div>
+        </div>
+        <div className="space-y-2">
+          <Label>Reasons for Referral *</Label>
+          <Textarea rows={4} value={reasons} onChange={(e) => setReasons(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label>Treatment Given</Label>
+          <Textarea rows={3} value={treatmentGiven} onChange={(e) => setTreatmentGiven(e.target.value)} />
+        </div>
+        <div className="space-y-2">
+          <Label>Doctor</Label>
+          <Input readOnly value={doctorName} className="bg-muted" />
+        </div>
+        <div className="flex justify-end gap-2">
+          <Button variant="outline" onClick={handlePrint} disabled={!reasons}>
+            <Printer className="h-4 w-4 mr-1" /> Print
+          </Button>
+          <Button onClick={handleSave} disabled={!reasons || saving}>
+            {saving ? "Saving..." : "Save Referral"}
+          </Button>
+        </div>
+      </div>
+    </DialogContent>
+  );
+
+  // Controlled mode: no trigger needed
+  if (isControlled) {
+    return (
+      <Dialog open={open} onOpenChange={setOpen}>
+        {dialogContent}
+      </Dialog>
+    );
+  }
+
+  // Uncontrolled mode: render with trigger button
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -85,38 +143,7 @@ export function ReferralForm({ patientId, patientName, patientAge, patientGender
           <FileText className="h-4 w-4" /> Referral
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
-        <DialogHeader>
-          <DialogTitle>Referral Form — CUEA Infirmary</DialogTitle>
-        </DialogHeader>
-        <div className="space-y-4">
-          <div className="grid grid-cols-3 gap-3 text-sm">
-            <div><Label>Patient</Label><Input readOnly value={patientName} className="bg-muted" /></div>
-            <div><Label>Age</Label><Input readOnly value={patientAge} className="bg-muted" /></div>
-            <div><Label>Gender</Label><Input readOnly value={patientGender} className="bg-muted" /></div>
-          </div>
-          <div className="space-y-2">
-            <Label>Reasons for Referral *</Label>
-            <Textarea rows={4} value={reasons} onChange={(e) => setReasons(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>Treatment Given</Label>
-            <Textarea rows={3} value={treatmentGiven} onChange={(e) => setTreatmentGiven(e.target.value)} />
-          </div>
-          <div className="space-y-2">
-            <Label>Doctor</Label>
-            <Input readOnly value={doctorName} className="bg-muted" />
-          </div>
-          <div className="flex justify-end gap-2">
-            <Button variant="outline" onClick={handlePrint} disabled={!reasons}>
-              <Printer className="h-4 w-4 mr-1" /> Print
-            </Button>
-            <Button onClick={handleSave} disabled={!reasons || saving}>
-              {saving ? "Saving..." : "Save Referral"}
-            </Button>
-          </div>
-        </div>
-      </DialogContent>
+      {dialogContent}
     </Dialog>
   );
 }
