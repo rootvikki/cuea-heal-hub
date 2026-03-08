@@ -1053,7 +1053,7 @@ const Consultation = () => {
                                   value={encounter.assessment}
                                   onChange={(e) => setEncounter({ ...encounter, assessment: e.target.value })}
                                   placeholder="Clinical impression and reasoning..."
-                                  rows={2} className="text-sm resize-y"
+                                  rows={3} className="text-base resize-y"
                                 />
                               </Field>
 
