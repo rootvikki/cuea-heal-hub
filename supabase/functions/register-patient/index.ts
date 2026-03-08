@@ -68,7 +68,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Create or resolve auth user (duplicate emails should not break registration flow)
+    // Create or resolve auth user
     let userId: string;
     let existingPatientRecord: { id: string; patient_id: string } | null = null;
 
@@ -90,10 +90,8 @@ Deno.serve(async (req) => {
       while (!foundUser) {
         const { data: usersPage, error: listError } = await supabase.auth.admin.listUsers({ page, perPage });
         if (listError) throw listError;
-
         const users = usersPage?.users || [];
         foundUser = users.find((u: any) => u.email?.toLowerCase() === email.toLowerCase()) || null;
-
         if (users.length < perPage) break;
         page += 1;
       }
@@ -119,28 +117,50 @@ Deno.serve(async (req) => {
       userId = authData.user.id;
     }
 
-    // Create/update profile — use onConflict to ensure upsert works on user_id
+    // Write profile — upsert then explicit update as belt-and-suspenders
+    const profilePayload = {
+      user_id: userId,
+      full_name: fullName,
+      phone: phone || null,
+      email,
+      date_of_birth: dateOfBirth || null,
+      gender: gender || null,
+      address: address || null,
+      country: nationality || "Kenya",
+    };
+
     const { error: profileError } = await supabase.from("profiles").upsert(
-      {
-        user_id: userId,
-        full_name: fullName,
-        phone: phone || null,
-        email,
-        date_of_birth: dateOfBirth || null,
-        gender: gender || null,
-        address: address || null,
-        country: nationality || "Kenya",
-      },
+      profilePayload,
       { onConflict: "user_id" }
     );
 
-    // Fallback: if upsert silently failed, force update the name
     if (profileError) {
       console.error("Profile upsert error:", profileError.message);
-      await supabase.from("profiles").update({ full_name: fullName, phone: phone || null, email, date_of_birth: dateOfBirth || null, gender: gender || null, address: address || null }).eq("user_id", userId);
     }
 
-    // Existing auth account + existing patient record => return success instead of error
+    // Always do an explicit UPDATE to guarantee data is written
+    await supabase.from("profiles").update({
+      full_name: fullName,
+      phone: phone || null,
+      email,
+      date_of_birth: dateOfBirth || null,
+      gender: gender || null,
+      address: address || null,
+      country: nationality || "Kenya",
+    }).eq("user_id", userId);
+
+    // Verify the write succeeded
+    const { data: verifyProfile } = await supabase
+      .from("profiles")
+      .select("full_name")
+      .eq("user_id", userId)
+      .single();
+
+    if (!verifyProfile?.full_name || verifyProfile.full_name === "") {
+      console.error("PROFILE WRITE VERIFICATION FAILED for user_id:", userId, "expected:", fullName);
+    }
+
+    // Existing auth account + existing patient record => return success
     if (existingPatientRecord) {
       await supabase.from("user_roles").upsert(
         { user_id: userId, role: "patient" },
@@ -154,7 +174,6 @@ Deno.serve(async (req) => {
         details: { patient_id: existingPatientRecord.patient_id, registered_email: email },
       });
 
-      // Fetch visit_reason for routing
       const { data: existingFull } = await supabase
         .from("patients")
         .select("visit_reason")
@@ -200,6 +219,7 @@ Deno.serve(async (req) => {
     }).select("id").single();
 
     if (patientError) throw patientError;
+
     // Assign patient role
     await supabase.from("user_roles").upsert(
       { user_id: userId, role: "patient" },

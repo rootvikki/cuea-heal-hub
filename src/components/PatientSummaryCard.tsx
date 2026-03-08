@@ -2,9 +2,10 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { calculateAge } from "@/lib/utils";
 import {
   User, Heart, Activity, TestTube, Pill, DollarSign, AlertTriangle,
-  CheckCircle2, Clock, Droplets, Thermometer, Wind
+  CheckCircle2, Clock, Droplets, Thermometer, Wind, Phone, MapPin, Shield
 } from "lucide-react";
 
 interface PatientSummaryCardProps {
@@ -20,6 +21,12 @@ interface PatientData {
   insurance_provider: string | null;
   insurance_number: string | null;
   chronic_conditions: string[] | null;
+  national_id: string | null;
+  payroll_number: string | null;
+  admission_number: string | null;
+  next_of_kin_name: string | null;
+  next_of_kin_phone: string | null;
+  next_of_kin_relationship: string | null;
   profile?: { full_name: string; phone: string | null; date_of_birth: string | null; gender: string | null };
 }
 
@@ -36,7 +43,7 @@ export const PatientSummaryCard = ({ patientId, ticketId }: PatientSummaryCardPr
     if (!patientId || !ticketId) return;
     setLoading(true);
     Promise.all([
-      supabase.from("patients").select("patient_id, patient_type, blood_type, allergies, insurance_provider, insurance_number, chronic_conditions, profiles!inner(full_name, phone, date_of_birth, gender)").eq("id", patientId).single(),
+      supabase.from("patients").select("patient_id, patient_type, blood_type, allergies, insurance_provider, insurance_number, chronic_conditions, national_id, payroll_number, admission_number, next_of_kin_name, next_of_kin_phone, next_of_kin_relationship, profiles!inner(full_name, phone, date_of_birth, gender)").eq("id", patientId).single(),
       supabase.from("vitals").select("*").eq("patient_id", patientId).order("recorded_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("encounters").select("diagnosis, assessment, chief_complaint").eq("ticket_id", ticketId).order("created_at", { ascending: false }).limit(1).maybeSingle(),
       supabase.from("lab_orders").select("status, lab_tests_catalog(test_name)").eq("patient_id", patientId).order("created_at", { ascending: false }).limit(10),
@@ -65,6 +72,12 @@ export const PatientSummaryCard = ({ patientId, ticketId }: PatientSummaryCardPr
   const pendingLabs = labOrders.filter(l => l.status !== "completed").length;
   const undispensedRx = prescriptions.filter(p => !p.dispensed).length;
 
+  const name = patient.profile?.full_name?.trim();
+  const phone = patient.profile?.phone?.trim();
+  const dob = patient.profile?.date_of_birth;
+  const gender = patient.profile?.gender;
+  const isIncomplete = !name || !phone || !dob;
+
   const SectionStatus = ({ complete }: { complete: boolean }) =>
     complete
       ? <CheckCircle2 className="h-3.5 w-3.5 text-[hsl(var(--success))] shrink-0" />
@@ -72,20 +85,25 @@ export const PatientSummaryCard = ({ patientId, ticketId }: PatientSummaryCardPr
 
   return (
     <div className="rounded-lg border bg-card text-card-foreground shadow-sm">
-      {/* Compact header with key alerts */}
+      {/* Header */}
       <div className="px-4 py-3 flex items-center justify-between gap-4 flex-wrap border-b">
         <div className="flex items-center gap-3">
           <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center">
             <User className="h-4 w-4 text-primary" />
           </div>
           <div>
-            <p className="font-semibold text-sm">{patient.profile?.full_name?.trim() || <span className="text-destructive italic">Name missing</span>}</p>
-            <p className="text-xs text-muted-foreground">{patient.patient_id} · <span className="capitalize">{(patient.patient_type || "outsider").replace("_", " ")}</span></p>
+            <p className="font-semibold text-sm">{name || <span className="text-destructive italic">{patient.patient_id || "Name pending"}</span>}</p>
+            <p className="text-xs text-muted-foreground">{patient.patient_id} · <span className="capitalize">{(patient.patient_type || "outsider").replace("_", " ")}</span>{gender ? ` · ${gender}` : ""}{dob ? ` · ${calculateAge(dob)}` : ""}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {isIncomplete && (
+            <Badge variant="destructive" className="text-[10px]">
+              <AlertTriangle className="h-3 w-3 mr-1" />Incomplete Profile
+            </Badge>
+          )}
           {patient.blood_type && <Badge variant="outline" className="text-[10px]"><Droplets className="h-3 w-3 mr-1" />{patient.blood_type}</Badge>}
-          {patient.insurance_provider && <Badge variant="outline" className="text-[10px]">{patient.insurance_provider}</Badge>}
+          {patient.insurance_provider && <Badge variant="outline" className="text-[10px]"><Shield className="h-3 w-3 mr-1" />{patient.insurance_provider}{patient.insurance_number ? ` #${patient.insurance_number}` : ""}</Badge>}
           {hasAllergies && (
             <Badge variant="destructive" className="text-[10px]">
               <AlertTriangle className="h-3 w-3 mr-1" />{patient.allergies!.join(", ")}
@@ -96,6 +114,26 @@ export const PatientSummaryCard = ({ patientId, ticketId }: PatientSummaryCardPr
       </div>
 
       <Accordion type="multiple" className="px-4">
+        {/* Demographics */}
+        <AccordionItem value="demographics" className="border-b-0">
+          <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
+            <span className="flex items-center gap-2"><SectionStatus complete={!isIncomplete} /><User className="h-3.5 w-3.5" /> Demographics</span>
+          </AccordionTrigger>
+          <AccordionContent className="pb-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-xs">
+              <InfoPill label="Phone" value={phone || "—"} icon={<Phone className="h-3 w-3" />} warn={!phone} />
+              <InfoPill label="Gender" value={gender || "—"} warn={!gender} />
+              <InfoPill label="Age" value={dob ? calculateAge(dob) : "—"} warn={!dob} />
+              <InfoPill label="National ID" value={patient.national_id || "—"} />
+              {patient.payroll_number && <InfoPill label="Payroll #" value={patient.payroll_number} />}
+              {patient.admission_number && <InfoPill label="Reg #" value={patient.admission_number} />}
+              {patient.next_of_kin_name && (
+                <InfoPill label="Next of Kin" value={`${patient.next_of_kin_name}${patient.next_of_kin_relationship ? ` (${patient.next_of_kin_relationship})` : ""}${patient.next_of_kin_phone ? ` — ${patient.next_of_kin_phone}` : ""}`} />
+              )}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+
         {/* Vitals */}
         <AccordionItem value="vitals" className="border-b-0">
           <AccordionTrigger className="py-2 text-xs font-semibold hover:no-underline">
@@ -191,5 +229,13 @@ const VitalPill = ({ label, value, icon }: { label: string; value: string | numb
     {icon}
     <span className="text-muted-foreground">{label}:</span>
     <span className="font-medium">{value}</span>
+  </div>
+);
+
+const InfoPill = ({ label, value, icon, warn }: { label: string; value: string; icon?: React.ReactNode; warn?: boolean }) => (
+  <div className={`flex items-center gap-1.5 px-2 py-1 rounded-md ${warn ? "bg-destructive/10" : "bg-muted/50"}`}>
+    {icon}
+    <span className="text-muted-foreground">{label}:</span>
+    <span className={`font-medium ${warn ? "text-destructive" : ""}`}>{value}</span>
   </div>
 );
