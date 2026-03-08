@@ -977,7 +977,7 @@ const Consultation = () => {
                                     value={encounter.pastSurgicalHistory}
                                     onChange={(e) => setEncounter({ ...encounter, pastSurgicalHistory: e.target.value })}
                                     placeholder="Appendectomy (2019), Tonsillectomy..."
-                                    rows={2} className="text-sm resize-y"
+                                    rows={3} className="text-base resize-y"
                                   />
                                 </Field>
                               </div>
