@@ -211,7 +211,7 @@ export function AppSidebar() {
         <Button
           variant="outline"
           onClick={handleLogout}
-          className="w-full justify-start gap-2 overflow-visible"
+          className="w-full justify-start gap-2 overflow-visible text-foreground hover:text-foreground"
         >
           <LogOut className="h-4 w-4 shrink-0" />
           <span>Logout</span>
