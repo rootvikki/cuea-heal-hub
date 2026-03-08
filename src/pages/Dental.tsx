@@ -12,6 +12,7 @@ import { useToast } from "@/hooks/use-toast";
 import { StationQueue } from "@/components/StationQueue";
 import { InterimPayment } from "@/components/InterimPayment";
 import { Plus, X, Send, Calendar } from "lucide-react";
+import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 
 const DENTAL_PROCEDURES = [
   { name: "Dental Examination", price: 500 },
