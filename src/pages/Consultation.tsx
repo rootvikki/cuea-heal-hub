@@ -372,7 +372,7 @@ const Consultation = () => {
             sonnerToast.info("New patient ready for consultation");
           }
         }
-        queryClient.invalidateQueries({ queryKey: ["station-queue", "waiting_for_doctor", "in_consult", "triage"] });
+        queryClient.invalidateQueries({ queryKey: ["station-queue", "waiting_for_doctor", "in_consult"] });
         fetchQueue();
       })
       .subscribe((status) => setIsLive(status === "SUBSCRIBED"));
