@@ -171,12 +171,12 @@ const Field = ({ label, hint, required, children }: {
   required?: boolean;
   children: React.ReactNode;
 }) => (
-  <div className="space-y-1.5">
-    <Label className="text-xs font-semibold text-foreground/80">
+  <div className="space-y-2">
+    <Label className="text-sm font-semibold text-foreground/80">
       {label}
       {required && <span className="text-destructive ml-1">*</span>}
     </Label>
-    {hint && <p className="text-[11px] text-muted-foreground leading-relaxed -mt-0.5">{hint}</p>}
+    {hint && <p className="text-xs text-muted-foreground leading-relaxed -mt-0.5">{hint}</p>}
     {children}
   </div>
 );
