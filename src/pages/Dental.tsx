@@ -44,6 +44,11 @@ interface DentalEntry {
 const Dental = () => {
   const { toast } = useToast();
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [queueCollapsed, setQueueCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (selectedTicket) setQueueCollapsed(true);
+  }, [selectedTicket]);
   const [entries, setEntries] = useState<DentalEntry[]>([]);
   const [selectedProc, setSelectedProc] = useState("");
   const [toothNum, setToothNum] = useState("");
