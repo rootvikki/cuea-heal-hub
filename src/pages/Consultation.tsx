@@ -1482,7 +1482,7 @@ const Consultation = () => {
                     value={drugSearchTerm}
                     onChange={(e) => {
                       setDrugSearchTerm(e.target.value);
-                      if (!e.target.value) setCurrentPrescription({ ...currentPrescription, medication_name: "" });
+                      setCurrentPrescription({ ...currentPrescription, medication_name: e.target.value });
                     }}
                     placeholder="Search pharmacy inventory..."
                     className="pl-8 text-sm"
