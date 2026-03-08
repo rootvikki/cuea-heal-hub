@@ -163,7 +163,7 @@ Deno.serve(async (req) => {
     const patientId = opdData as string;
 
     // Create patient record
-    const { error: patientError } = await supabase.from("patients").insert({
+    const { data: patientRecord, error: patientError } = await supabase.from("patients").insert({
       user_id: userId,
       patient_id: patientId,
       patient_type: patientType || "outsider",
@@ -179,10 +179,9 @@ Deno.serve(async (req) => {
       next_of_kin_name: nextOfKinName || null,
       next_of_kin_relationship: nextOfKinRelationship || null,
       next_of_kin_phone: nextOfKinPhone || null,
-    });
+    }).select("id").single();
 
     if (patientError) throw patientError;
-
     // Assign patient role
     await supabase.from("user_roles").upsert(
       { user_id: userId, role: "patient" },
