@@ -1063,7 +1063,7 @@ const Consultation = () => {
                                     value={diagnosisInput}
                                     onChange={(e) => setDiagnosisInput(e.target.value)}
                                     placeholder="e.g., J06.9 — Upper respiratory infection"
-                                    className="text-sm"
+                                    className="h-12 text-base"
                                     onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addDiagnosis())}
                                   />
                                   <Button type="button" variant="outline" size="sm" onClick={addDiagnosis} disabled={!diagnosisInput.trim()}>
