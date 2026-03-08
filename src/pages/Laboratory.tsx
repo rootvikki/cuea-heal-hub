@@ -287,6 +287,8 @@ const Laboratory = () => {
         title="Lab Queue"
         onSelectPatient={setSelectedTicket}
         selectedTicketId={selectedTicket?.id}
+        collapsed={queueCollapsed}
+        onToggleCollapse={() => setQueueCollapsed(!queueCollapsed)}
       />
 
       <div className="flex-1 overflow-auto p-6 space-y-6">

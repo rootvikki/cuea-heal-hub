@@ -199,6 +199,8 @@ const Vitals = () => {
         title="Triage Queue"
         onSelectPatient={setSelectedTicket}
         selectedTicketId={selectedTicket?.id}
+        collapsed={queueCollapsed}
+        onToggleCollapse={() => setQueueCollapsed(!queueCollapsed)}
       />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
