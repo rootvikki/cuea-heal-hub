@@ -1554,7 +1554,7 @@ const Consultation = () => {
                 </Field>
                 <Field label="Frequency">
                   <Select value={currentPrescription.frequency} onValueChange={(v) => setCurrentPrescription({ ...currentPrescription, frequency: v })}>
-                    <SelectTrigger className="text-xs h-9"><SelectValue placeholder="Select" /></SelectTrigger>
+                    <SelectTrigger className="text-sm h-11"><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
                       {["Once daily", "Twice daily", "Three times daily", "Four times daily", "Every 4 hours", "Every 6 hours", "Every 8 hours", "As needed", "At bedtime", "STAT"].map(f => (
                         <SelectItem key={f} value={f}>{f}</SelectItem>
