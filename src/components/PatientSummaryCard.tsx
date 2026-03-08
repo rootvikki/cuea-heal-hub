@@ -79,7 +79,7 @@ export const PatientSummaryCard = ({ patientId, ticketId }: PatientSummaryCardPr
             <User className="h-4 w-4 text-primary" />
           </div>
           <div>
-            <p className="font-semibold text-sm">{patient.profile?.full_name}</p>
+            <p className="font-semibold text-sm">{patient.profile?.full_name?.trim() || <span className="text-destructive italic">Name missing</span>}</p>
             <p className="text-xs text-muted-foreground">{patient.patient_id} · <span className="capitalize">{(patient.patient_type || "outsider").replace("_", " ")}</span></p>
           </div>
         </div>
