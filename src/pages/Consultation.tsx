@@ -996,7 +996,7 @@ const Consultation = () => {
                                     value={encounter.socialHistory}
                                     onChange={(e) => setEncounter({ ...encounter, socialHistory: e.target.value })}
                                     placeholder="Smoking status, alcohol use, occupation..."
-                                    rows={2} className="text-sm resize-y"
+                                    rows={3} className="text-base resize-y"
                                   />
                                 </Field>
                               </div>
