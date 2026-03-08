@@ -14,6 +14,7 @@ import { InterimPayment } from "@/components/InterimPayment";
 import { Activity, Send, Calendar, Thermometer, HeartPulse, Weight, Ruler, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline, deriveVisitPath } from "@/components/WorkflowTimeline";
+import { PatientSummaryCard } from "@/components/PatientSummaryCard";
 
 // ─── Vital range helpers ─────────────────────────────────────────
 const getBPClass = (sys: string, dia: string) => {
