@@ -234,6 +234,8 @@ const Vitals = () => {
               visitPath={deriveVisitPath(selectedTicket.workflow_stage || selectedTicket.status, {})}
             />
 
+            <PatientSummaryCard patientId={selectedTicket.patient_id} ticketId={selectedTicket.id} />
+
             {/* Triage Form */}
             <Card>
               <CardHeader>

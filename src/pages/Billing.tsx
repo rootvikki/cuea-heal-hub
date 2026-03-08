@@ -16,6 +16,7 @@ import { StationQueue } from "@/components/StationQueue";
 import { Receipt, CreditCard, Smartphone, FileText, DollarSign } from "lucide-react";
 import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
+import { PatientSummaryCard } from "@/components/PatientSummaryCard";
 
 const Billing = () => {
   const { toast } = useToast();

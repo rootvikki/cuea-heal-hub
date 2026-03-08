@@ -16,6 +16,7 @@ import { Camera, Search, Clock, CheckCircle, AlertCircle, FileImage } from "luci
 import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
+import { PatientSummaryCard } from "@/components/PatientSummaryCard";
 
 const Imaging = () => {
   const { toast } = useToast();

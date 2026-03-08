@@ -25,6 +25,7 @@ import { Pill, Plus, Package, AlertTriangle, Search, ClipboardList } from "lucid
 import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
+import { PatientSummaryCard } from "@/components/PatientSummaryCard";
 
 const Pharmacy = () => {
   const { toast } = useToast();

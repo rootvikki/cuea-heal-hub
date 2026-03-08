@@ -932,6 +932,8 @@ const Consultation = () => {
                     })}
                   />
 
+                  <PatientSummaryCard patientId={selectedTicket.patient.id} ticketId={selectedTicket.id} />
+
                   {/* Allergy banner */}
                   {selectedTicket.patient?.allergies && selectedTicket.patient.allergies.length > 0 && (
                     <div className="mt-2 px-3 py-1.5 bg-[hsl(var(--warning))]/10 border border-[hsl(var(--warning))]/30 rounded-lg flex items-center gap-2">
