@@ -57,8 +57,7 @@ serve(async (req) => {
     for (const [key, value] of Object.entries(settings)) {
       await serviceClient
         .from("system_settings")
-        .update({ value, updated_by: userId, updated_at: new Date().toISOString() })
-        .eq("key", key);
+        .upsert({ key, value, updated_by: userId, updated_at: new Date().toISOString() }, { onConflict: "key" });
     }
 
     return new Response(

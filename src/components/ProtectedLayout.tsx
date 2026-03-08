@@ -69,7 +69,10 @@ const ProtectedLayout = ({ children, allowedRoles }: ProtectedLayoutProps) => {
             </SidebarTrigger>
             <span className="ml-3 font-semibold text-sm">CUEA Infirmary</span>
           </header>
-          <main className="flex-1">{children}</main>
+          <main className="flex-1 p-6 lg:p-8">
+            <PageBreadcrumb />
+            {children}
+          </main>
         </div>
       </div>
     </SidebarProvider>
