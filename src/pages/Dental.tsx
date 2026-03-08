@@ -159,15 +159,15 @@ const Dental = () => {
                       </SelectContent>
                     </Select>
                   </div>
-                  <div className="space-y-1.5">
-                    <Label>Tooth #</Label>
-                    <Input value={toothNum} onChange={(e) => setToothNum(e.target.value)} placeholder="e.g. 14" />
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Tooth #</Label>
+                    <Input value={toothNum} onChange={(e) => setToothNum(e.target.value)} placeholder="e.g. 14" className="h-12 text-base" />
                   </div>
-                  <div className="space-y-1.5">
-                    <Label>Notes</Label>
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Notes</Label>
                     <div className="flex gap-2">
-                      <Input value={procNotes} onChange={(e) => setProcNotes(e.target.value)} />
-                      <Button onClick={addEntry} disabled={!selectedProc} size="icon"><Plus className="h-4 w-4" /></Button>
+                      <Input value={procNotes} onChange={(e) => setProcNotes(e.target.value)} className="h-12 text-base" />
+                      <Button onClick={addEntry} disabled={!selectedProc} size="icon" className="h-12 w-12"><Plus className="h-4 w-4" /></Button>
                     </div>
                   </div>
                 </div>
