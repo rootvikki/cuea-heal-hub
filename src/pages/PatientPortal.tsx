@@ -19,8 +19,10 @@ import {
   AlertCircle,
   Loader2,
   User,
-  Pill
+  Pill,
+  MessageSquare
 } from "lucide-react";
+import FeedbackForm from "@/components/FeedbackForm";
 import {
   Dialog,
   DialogContent,
