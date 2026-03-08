@@ -354,9 +354,9 @@ const Billing = () => {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Payment Method</Label>
+              <Label className="text-sm font-semibold">Payment Method</Label>
               <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectTrigger className="h-12 text-base"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="mpesa">M-Pesa</SelectItem>
                   <SelectItem value="cash">Cash</SelectItem>
