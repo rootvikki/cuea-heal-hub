@@ -1477,7 +1477,7 @@ const Consultation = () => {
             <div className="space-y-4">
               <Field label="Medication Name" required>
                 <div className="relative">
-                  <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                  <Search className="absolute left-3 top-3.5 h-4 w-4 text-muted-foreground" />
                   <Input
                     value={drugSearchTerm}
                     onChange={(e) => {
@@ -1485,7 +1485,7 @@ const Consultation = () => {
                       setCurrentPrescription({ ...currentPrescription, medication_name: e.target.value });
                     }}
                     placeholder="Search pharmacy inventory..."
-                    className="pl-8 text-sm"
+                    className="pl-10 h-12 text-base"
                   />
                 </div>
                 {drugSearchTerm && pharmacyInventory.some(item => {
