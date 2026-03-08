@@ -255,7 +255,7 @@ const Vitals = () => {
                           <span>BP: {v.blood_pressure_systolic || "-"}/{v.blood_pressure_diastolic || "-"}</span>
                           <span>P: {v.pulse_rate || "-"}</span>
                           <span>SpO₂: {v.oxygen_saturation || "-"}%</span>
-                          <span>W: {v.weight || "-"}kg</span>
+                          <span>W: {v.weight || "-"}kg H: {v.height ? (v.height / 100).toFixed(2) : "-"}m</span>
                           <span>BMI: {v.bmi || "-"}</span>
                         </div>
                       ))}
