@@ -308,6 +308,8 @@ const Laboratory = () => {
           </div>
         </div>
 
+        {selectedTicket && <PatientSummaryCard patientId={selectedTicket.patient_id} ticketId={selectedTicket.id} />}
+
         <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
           <Card><CardContent className="p-4 flex items-center gap-4"><div className="p-3 rounded-full bg-yellow-100"><TestTube className="h-6 w-6 text-yellow-600" /></div><div><p className="text-sm text-muted-foreground">Pending</p><p className="text-2xl font-bold">{pendingOrders.length}</p></div></CardContent></Card>
           <Card><CardContent className="p-4 flex items-center gap-4"><div className="p-3 rounded-full bg-green-100"><TestTube className="h-6 w-6 text-green-600" /></div><div><p className="text-sm text-muted-foreground">Completed Today</p><p className="text-2xl font-bold">{completedOrders.filter(o => o.result_entered_at?.startsWith(new Date().toISOString().split('T')[0])).length}</p></div></CardContent></Card>
