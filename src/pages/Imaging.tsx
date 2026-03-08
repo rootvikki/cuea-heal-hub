@@ -174,6 +174,8 @@ const Imaging = () => {
           </div>
         </div>
 
+        {selectedTicket && <PatientSummaryCard patientId={selectedTicket.patient_id} ticketId={selectedTicket.id} />}
+
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card><CardContent className="p-4 flex items-center gap-4"><div className="p-3 rounded-full bg-yellow-100"><Clock className="h-6 w-6 text-yellow-600" /></div><div><p className="text-sm text-muted-foreground">Pending</p><p className="text-2xl font-bold">{pendingOrders.filter(o => o.status === "pending").length}</p></div></CardContent></Card>
           <Card><CardContent className="p-4 flex items-center gap-4"><div className="p-3 rounded-full bg-purple-100"><Camera className="h-6 w-6 text-purple-600" /></div><div><p className="text-sm text-muted-foreground">In Progress</p><p className="text-2xl font-bold">{pendingOrders.filter(o => o.status === "in_progress").length}</p></div></CardContent></Card>
