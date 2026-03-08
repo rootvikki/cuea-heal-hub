@@ -1550,7 +1550,7 @@ const Consultation = () => {
                   </Select>
                 </Field>
                 <Field label="Dosage" required>
-                  <Input value={currentPrescription.dosage} onChange={(e) => setCurrentPrescription({ ...currentPrescription, dosage: e.target.value })} placeholder="e.g., 1 tablet" className="text-xs h-9" />
+                  <Input value={currentPrescription.dosage} onChange={(e) => setCurrentPrescription({ ...currentPrescription, dosage: e.target.value })} placeholder="e.g., 1 tablet" className="text-sm h-11" />
                 </Field>
                 <Field label="Frequency">
                   <Select value={currentPrescription.frequency} onValueChange={(v) => setCurrentPrescription({ ...currentPrescription, frequency: v })}>
