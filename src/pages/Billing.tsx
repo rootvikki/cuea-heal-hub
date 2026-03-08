@@ -32,6 +32,11 @@ const Billing = () => {
   const [paymentMethod, setPaymentMethod] = useState("mpesa");
   const [processingPayment, setProcessingPayment] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [queueCollapsed, setQueueCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (selectedTicket) setQueueCollapsed(true);
+  }, [selectedTicket]);
 
   useEffect(() => {
     fetchInvoices();
