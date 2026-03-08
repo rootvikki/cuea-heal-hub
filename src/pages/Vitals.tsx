@@ -221,7 +221,7 @@ const Vitals = () => {
               <CardContent className="py-3 flex items-center justify-between">
                 <div className="flex items-center gap-6 text-sm">
                   <div><span className="text-muted-foreground">Ticket:</span> <strong>{selectedTicket.ticket_number}</strong></div>
-                  <div><span className="text-muted-foreground">Patient:</span> <strong>{selectedTicket.patient?.profile?.full_name}</strong></div>
+                  <div><span className="text-muted-foreground">Patient:</span> <strong>{selectedTicket.patient?.profile?.full_name || <span className="text-destructive italic">Name missing</span>}</strong></div>
                   <div><span className="text-muted-foreground">OPD No:</span> <strong>{selectedTicket.patient?.patient_id}</strong></div>
                 </div>
                 <InterimPayment ticketId={selectedTicket.id} patientId={selectedTicket.patient_id} />
