@@ -61,6 +61,11 @@ const Vitals = () => {
   const { toast } = useToast();
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  const [queueCollapsed, setQueueCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (selectedTicket) setQueueCollapsed(true);
+  }, [selectedTicket]);
 
   const [form, setForm] = useState({
     weight: "", height: "", bpSystolic: "", bpDiastolic: "",
