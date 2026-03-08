@@ -478,13 +478,14 @@ export default function StaffOnboarding() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="notes">Additional Notes</Label>
+                <Label htmlFor="notes" className="text-sm font-semibold">Additional Notes</Label>
                 <Textarea
                   id="notes"
                   placeholder="Any additional information about the staff member..."
                   value={formData.notes}
                   onChange={e => updateFormData("notes", e.target.value)}
                   rows={4}
+                  className="text-base"
                 />
               </div>
             </div>
