@@ -182,19 +182,9 @@ const Queue = () => {
     return <Badge variant="outline">Normal</Badge>;
   };
 
-  const statusFlow: TicketStatus[] = ["checked_in", "triage", "waiting_for_doctor", "in_consult", "at_pharmacy", "at_billing", "checked_out"];
-
   const getDisplayFlow = (ticket: any): string[] => {
     const stage = ticket.workflow_stage || ticket.status;
-    if (stage === "at_dental") {
-      return ["checked_in", "triage", "at_dental", "at_pharmacy", "at_billing", "checked_out"];
-    }
-    const base = [...statusFlow] as string[];
-    if (["at_lab", "at_imaging"].includes(stage)) {
-      const idx = base.indexOf("in_consult");
-      base.splice(idx + 1, 0, stage);
-    }
-    return base;
+    return inferPathFromStage(stage);
   };
 
   return (
