@@ -944,7 +944,7 @@ const Consultation = () => {
                                   value={encounter.chiefComplaint}
                                   onChange={(e) => setEncounter({ ...encounter, chiefComplaint: e.target.value })}
                                   placeholder='e.g., "Severe headache for 3 days"'
-                                  className="text-sm"
+                                  className="h-12 text-base font-medium"
                                 />
                                 {latestVitals?.presenting_complaint && encounter.chiefComplaint === latestVitals.presenting_complaint && (
                                   <p className="text-[11px] text-primary mt-1 flex items-center gap-1">
