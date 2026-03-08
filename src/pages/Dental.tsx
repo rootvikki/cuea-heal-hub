@@ -141,7 +141,10 @@ const Dental = () => {
             </Card>
 
             {/* Workflow Timeline */}
-            <WorkflowTimeline currentStage={selectedTicket.workflow_stage || selectedTicket.status} />
+            <WorkflowTimeline
+              currentStage={selectedTicket.workflow_stage || selectedTicket.status}
+              visitPath={deriveVisitPath(selectedTicket.workflow_stage || selectedTicket.status, { isDental: true, hasPrescriptions: entries.length > 0 })}
+            />
 
             {/* Add Procedures */}
             <Card>
