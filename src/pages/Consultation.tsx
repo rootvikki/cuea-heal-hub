@@ -1097,7 +1097,7 @@ const Consultation = () => {
                                   type="date"
                                   value={encounter.followUpDate}
                                   onChange={(e) => setEncounter({ ...encounter, followUpDate: e.target.value })}
-                                  className="text-sm max-w-xs"
+                                  className="h-12 text-base max-w-xs"
                                 />
                               </Field>
                             </div>
