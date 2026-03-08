@@ -164,7 +164,11 @@ export function StationQueue({ stationStages, nextStage, title, onSelectPatient,
                 </div>
                 <div className="flex items-center gap-1.5">
                   <User className="h-3 w-3 text-muted-foreground" />
-                  <span className="truncate">{ticket.patient?.profile?.full_name}</span>
+                  <span className="truncate">
+                    {ticket.patient?.profile?.full_name?.trim() || (
+                      <span className="text-destructive italic">{ticket.patient?.patient_id || "Name pending"}</span>
+                    )}
+                  </span>
                 </div>
                 <p className="text-xs text-muted-foreground">{ticket.patient?.patient_id}</p>
                 <div className="flex gap-1.5">

@@ -14,7 +14,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
 import {
-  Search, UserPlus, ClipboardList, Calendar, Radio, User, ArrowRight, Clock, Plus,
+  Search, UserPlus, ClipboardList, Calendar, Radio, User, ArrowRight, Clock, Plus, Loader2,
 } from "lucide-react";
 import { PatientRegistrationDialog } from "@/components/PatientRegistrationDialog";
 import { inferPathFromStage, WorkflowTimeline } from "@/components/WorkflowTimeline";
@@ -24,6 +24,34 @@ const PRIORITY_OPTIONS = [
   { value: "2", label: "High", color: "bg-warning/15 border-[hsl(var(--warning))] text-[hsl(var(--warning))]" },
   { value: "3", label: "Emergency", color: "bg-destructive/15 border-destructive text-destructive" },
 ];
+
+const patientDisplayName = (profile: any, patientId?: string, nationalId?: string) => {
+  const name = profile?.full_name?.trim();
+  if (name) return name;
+  if (nationalId) return `ID: ${nationalId}`;
+  return patientId || "Unknown Patient";
+};
+
+const visitReasonLabel = (reason: string | null) => {
+  if (!reason) return null;
+  const map: Record<string, { label: string; cls: string }> = {
+    dental: { label: "Dental", cls: "bg-blue-100 text-blue-700 border-blue-300" },
+    outpatient: { label: "Outpatient", cls: "bg-emerald-100 text-emerald-700 border-emerald-300" },
+    inpatient: { label: "Inpatient", cls: "bg-purple-100 text-purple-700 border-purple-300" },
+  };
+  return map[reason] || { label: reason, cls: "bg-muted text-muted-foreground" };
+};
+
+const patientTypeLabel = (type: string | null) => {
+  if (!type) return null;
+  const map: Record<string, string> = {
+    cuea_staff: "Staff",
+    cuea_student: "Student",
+    outsider: "Outsider",
+    dependent: "Dependent",
+  };
+  return map[type] || type;
+};
 
 const Reception = () => {
   const { toast } = useToast();
@@ -36,14 +64,16 @@ const Reception = () => {
   const [checkInForm, setCheckInForm] = useState({ departmentId: "", priority: "1" });
   const [appointmentForm, setAppointmentForm] = useState({ patientId: "", departmentId: "", appointmentDate: "", reason: "" });
   const [aptPatientSearch, setAptPatientSearch] = useState("");
+  const [isCheckingIn, setIsCheckingIn] = useState(false);
+  const [isCheckingInAppointment, setIsCheckingInAppointment] = useState<string | null>(null);
 
-  // Fetch patients
+  // Fetch patients with more fields for display
   const { data: patients = [] } = useQuery({
     queryKey: ["reception-patients"],
     queryFn: async () => {
       const { data, error } = await supabase
         .from("patients")
-        .select("id, patient_id, user_id, visit_reason, national_id, profiles!inner(full_name)")
+        .select("id, patient_id, user_id, visit_reason, patient_type, national_id, profiles!inner(full_name)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       return (data || []).map((p: any) => ({ ...p, profile: { full_name: p.profiles?.full_name } }));
@@ -60,6 +90,13 @@ const Reception = () => {
     },
     staleTime: 300000,
   });
+
+  // Auto-select department if only one exists
+  useEffect(() => {
+    if (departments.length === 1 && !checkInForm.departmentId) {
+      setCheckInForm((prev) => ({ ...prev, departmentId: departments[0].id }));
+    }
+  }, [departments, checkInForm.departmentId]);
 
   // Fetch today's appointments
   const { data: todayAppointments = [], refetch: refetchAppointments } = useQuery({
@@ -122,86 +159,108 @@ const Reception = () => {
   // Open check-in dialog for a patient
   const openCheckIn = (patient: any) => {
     setSelectedPatientForCheckIn(patient);
-    setCheckInForm({ departmentId: "", priority: "1" });
+    setCheckInForm((prev) => ({
+      departmentId: departments.length === 1 ? departments[0].id : "",
+      priority: "1",
+    }));
     setCheckInDialogOpen(true);
   };
 
   // Handle check-in
   const handleCheckIn = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedPatientForCheckIn) return;
+    if (!selectedPatientForCheckIn || isCheckingIn) return;
+    setIsCheckingIn(true);
 
-    const patientId = selectedPatientForCheckIn.id;
+    try {
+      const patientId = selectedPatientForCheckIn.id;
 
-    const { data: existing } = await supabase
-      .from("tickets")
-      .select("id, ticket_number")
-      .eq("patient_id", patientId)
-      .neq("status", "checked_out")
-      .limit(1);
+      const { data: existing } = await supabase
+        .from("tickets")
+        .select("id, ticket_number")
+        .eq("patient_id", patientId)
+        .neq("status", "checked_out")
+        .limit(1);
 
-    if (existing && existing.length > 0) {
-      toast({ title: "Already checked in", description: `Active ticket: ${existing[0].ticket_number}`, variant: "destructive" });
-      return;
-    }
+      if (existing && existing.length > 0) {
+        toast({ title: "Already checked in", description: `Active ticket: ${existing[0].ticket_number}`, variant: "destructive" });
+        return;
+      }
 
-    const isDental = selectedPatientForCheckIn.visit_reason === "dental";
-    const initialStatus = isDental ? "at_dental" : "checked_in";
-    const ticketNumber = `T-${Date.now().toString().slice(-6)}`;
+      const isDental = selectedPatientForCheckIn.visit_reason === "dental";
+      const initialStatus = isDental ? "at_dental" : "checked_in";
+      const ticketNumber = `T-${Date.now().toString().slice(-6)}`;
 
-    const { error } = await supabase.from("tickets").insert({
-      ticket_number: ticketNumber,
-      patient_id: patientId,
-      department_id: checkInForm.departmentId,
-      priority: parseInt(checkInForm.priority),
-      status: initialStatus,
-      workflow_stage: initialStatus,
-    });
+      const { error } = await supabase.from("tickets").insert({
+        ticket_number: ticketNumber,
+        patient_id: patientId,
+        department_id: checkInForm.departmentId,
+        priority: parseInt(checkInForm.priority),
+        status: initialStatus,
+        workflow_stage: initialStatus,
+      });
 
-    if (error) {
-      toast({ title: "Check-in failed", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Patient checked in", description: isDental ? `${ticketNumber} → Dental` : `Ticket: ${ticketNumber}` });
-      setCheckInDialogOpen(false);
-      setSelectedPatientForCheckIn(null);
-      setSearch("");
-      queryClient.invalidateQueries({ queryKey: ["reception-queue"] });
+      if (error) {
+        toast({ title: "Check-in failed", description: error.message, variant: "destructive" });
+      } else {
+        sonnerToast.success(`✅ Checked in: ${ticketNumber}`, {
+          description: `${patientDisplayName(selectedPatientForCheckIn.profile, selectedPatientForCheckIn.patient_id)} → ${isDental ? "Dental" : "Vitals/Triage"}`,
+        });
+        setCheckInDialogOpen(false);
+        setSelectedPatientForCheckIn(null);
+        setSearch("");
+        queryClient.invalidateQueries({ queryKey: ["reception-queue"] });
+        queryClient.invalidateQueries({ queryKey: ["reception-patients"] });
+      }
+    } finally {
+      setIsCheckingIn(false);
     }
   };
 
   // Check-in from appointment
   const handleCheckInFromAppointment = async (apt: any) => {
     const patientId = apt.patients?.id;
-    if (!patientId) { toast({ title: "Error", description: "Patient not found", variant: "destructive" }); return; }
-
-    const { data: existing } = await supabase
-      .from("tickets").select("id, ticket_number").eq("patient_id", patientId).neq("status", "checked_out").limit(1);
-
-    if (existing && existing.length > 0) {
-      toast({ title: "Already checked in", description: `Active ticket: ${existing[0].ticket_number}`, variant: "destructive" });
+    if (!patientId || isCheckingInAppointment) {
+      toast({ title: "Error", description: "Patient not found", variant: "destructive" });
       return;
     }
+    setIsCheckingInAppointment(apt.id);
 
-    const isDental = apt.patients?.visit_reason === "dental";
-    const ticketNumber = `T-${Date.now().toString().slice(-6)}`;
+    try {
+      const { data: existing } = await supabase
+        .from("tickets").select("id, ticket_number").eq("patient_id", patientId).neq("status", "checked_out").limit(1);
 
-    const { error } = await supabase.from("tickets").insert({
-      ticket_number: ticketNumber,
-      patient_id: patientId,
-      department_id: apt.department_id,
-      priority: 1,
-      status: isDental ? "at_dental" : "checked_in",
-      workflow_stage: isDental ? "at_dental" : "checked_in",
-      appointment_id: apt.id,
-    });
+      if (existing && existing.length > 0) {
+        toast({ title: "Already checked in", description: `Active ticket: ${existing[0].ticket_number}`, variant: "destructive" });
+        return;
+      }
 
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
-      await supabase.from("appointments").update({ status: "confirmed" }).eq("id", apt.id);
-      toast({ title: "Patient checked in", description: `Ticket: ${ticketNumber}` });
-      refetchAppointments();
-      queryClient.invalidateQueries({ queryKey: ["reception-queue"] });
+      const isDental = apt.patients?.visit_reason === "dental";
+      const ticketNumber = `T-${Date.now().toString().slice(-6)}`;
+
+      const { error } = await supabase.from("tickets").insert({
+        ticket_number: ticketNumber,
+        patient_id: patientId,
+        department_id: apt.department_id,
+        priority: 1,
+        status: isDental ? "at_dental" : "checked_in",
+        workflow_stage: isDental ? "at_dental" : "checked_in",
+        appointment_id: apt.id,
+      });
+
+      if (error) {
+        toast({ title: "Error", description: error.message, variant: "destructive" });
+      } else {
+        await supabase.from("appointments").update({ status: "confirmed" }).eq("id", apt.id);
+        sonnerToast.success(`✅ Checked in: ${ticketNumber}`, {
+          description: `${apt.patients?.profiles?.full_name || apt.patients?.patient_id} from appointment`,
+        });
+        refetchAppointments();
+        queryClient.invalidateQueries({ queryKey: ["reception-queue"] });
+        queryClient.invalidateQueries({ queryKey: ["reception-patients"] });
+      }
+    } finally {
+      setIsCheckingInAppointment(null);
     }
   };
 
@@ -235,14 +294,16 @@ const Reception = () => {
   // After patient registration, auto-open check-in dialog
   const handlePatientRegistered = (data: { patientRecordId: string; patientId: string; visitReason: string; existing: boolean; fullName: string }) => {
     queryClient.invalidateQueries({ queryKey: ["reception-patients"] });
-    // Auto-open check-in dialog with the newly registered patient
     setSelectedPatientForCheckIn({
       id: data.patientRecordId,
       patient_id: data.patientId,
       visit_reason: data.visitReason,
       profile: { full_name: data.fullName },
     });
-    setCheckInForm({ departmentId: "", priority: "1" });
+    setCheckInForm({
+      departmentId: departments.length === 1 ? departments[0].id : "",
+      priority: "1",
+    });
     setCheckInDialogOpen(true);
   };
 
@@ -256,7 +317,7 @@ const Reception = () => {
           <div className="flex items-center gap-3">
             <h1 className="text-3xl font-bold">Reception Desk</h1>
             {isLive && (
-              <Badge variant="outline" className="gap-1 text-green-600 border-green-600">
+              <Badge variant="outline" className="gap-1 text-[hsl(var(--success))] border-[hsl(var(--success))]">
                 <Radio className="h-3 w-3 animate-pulse" /> Live
               </Badge>
             )}
@@ -288,22 +349,38 @@ const Reception = () => {
           {search.length >= 2 && (
             <div className="space-y-2">
               {searchResults.length > 0 ? (
-                searchResults.map((p: any) => (
-                  <div key={p.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
-                        <User className="h-5 w-5 text-primary" />
+                searchResults.map((p: any) => {
+                  const vr = visitReasonLabel(p.visit_reason);
+                  const pt = patientTypeLabel(p.patient_type);
+                  return (
+                    <div key={p.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50 transition-colors">
+                      <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                          <User className="h-5 w-5 text-primary" />
+                        </div>
+                        <div>
+                          <p className="font-semibold">
+                            {patientDisplayName(p.profile, p.patient_id, p.national_id)}
+                            {!p.profile?.full_name?.trim() && (
+                              <span className="ml-2 text-xs text-destructive italic">Name missing</span>
+                            )}
+                          </p>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <span className="font-mono">{p.patient_id}</span>
+                            {p.national_id && <span>• ID: {p.national_id}</span>}
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <p className="font-medium">{p.profile?.full_name}</p>
-                        <p className="text-sm text-muted-foreground">{p.patient_id}{p.national_id ? ` • ID: ${p.national_id}` : ""}</p>
+                      <div className="flex items-center gap-2">
+                        {pt && <Badge variant="outline" className="text-xs">{pt}</Badge>}
+                        {vr && <Badge variant="outline" className={`text-xs ${vr.cls}`}>{vr.label}</Badge>}
+                        <Button onClick={() => openCheckIn(p)} className="gap-2">
+                          <ClipboardList className="h-4 w-4" /> Check-in
+                        </Button>
                       </div>
                     </div>
-                    <Button onClick={() => openCheckIn(p)} className="gap-2">
-                      <ClipboardList className="h-4 w-4" /> Check-in
-                    </Button>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="text-center py-6 space-y-3">
                   <p className="text-muted-foreground">No patients found for "{search}"</p>
@@ -350,12 +427,22 @@ const Reception = () => {
                           {apt.status}
                         </Badge>
                       </div>
-                      <p className="text-sm font-medium">{apt.patients?.profiles?.full_name}</p>
+                      <p className="text-sm font-medium">{patientDisplayName(apt.patients?.profiles, apt.patients?.patient_id)}</p>
                       <p className="text-xs text-muted-foreground">{apt.departments?.name}</p>
                     </div>
                     {apt.status === "scheduled" && (
-                      <Button size="sm" onClick={() => handleCheckInFromAppointment(apt)} className="gap-1">
-                        <ArrowRight className="h-3 w-3" /> Check-in
+                      <Button
+                        size="sm"
+                        onClick={() => handleCheckInFromAppointment(apt)}
+                        disabled={isCheckingInAppointment === apt.id}
+                        className="gap-1"
+                      >
+                        {isCheckingInAppointment === apt.id ? (
+                          <Loader2 className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <ArrowRight className="h-3 w-3" />
+                        )}
+                        Check-in
                       </Button>
                     )}
                   </div>
@@ -386,7 +473,7 @@ const Reception = () => {
                           <span className="font-bold text-sm">{ticket.ticket_number}</span>
                           <Badge variant="outline" className="text-xs">{ticket.status.replace(/_/g, " ")}</Badge>
                         </div>
-                        <p className="text-sm">{ticket.patient?.profile?.full_name}</p>
+                        <p className="text-sm">{patientDisplayName(ticket.patient?.profile, ticket.patient?.patient_id)}</p>
                         <p className="text-xs text-muted-foreground">{ticket.department?.name}</p>
                       </div>
                       <Badge className={`text-xs ${mins >= 60 ? "bg-destructive text-destructive-foreground" : mins >= 30 ? "bg-warning" : "bg-muted text-muted-foreground"}`}>
@@ -408,7 +495,10 @@ const Reception = () => {
           <DialogHeader>
             <DialogTitle>Check-in Patient</DialogTitle>
             <DialogDescription>
-              {selectedPatientForCheckIn?.profile?.full_name} ({selectedPatientForCheckIn?.patient_id})
+              <span className="font-semibold text-foreground">
+                {patientDisplayName(selectedPatientForCheckIn?.profile, selectedPatientForCheckIn?.patient_id)}
+              </span>
+              {" "}({selectedPatientForCheckIn?.patient_id})
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleCheckIn} className="space-y-5">
@@ -444,8 +534,11 @@ const Reception = () => {
               <Badge className="bg-primary/10 text-primary border-primary">Will be routed to Dental</Badge>
             )}
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setCheckInDialogOpen(false)}>Cancel</Button>
-              <Button type="submit">Check-in</Button>
+              <Button type="button" variant="outline" onClick={() => setCheckInDialogOpen(false)} disabled={isCheckingIn}>Cancel</Button>
+              <Button type="submit" disabled={isCheckingIn || !checkInForm.departmentId}>
+                {isCheckingIn && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+                Check-in
+              </Button>
             </div>
           </form>
         </DialogContent>
@@ -472,7 +565,7 @@ const Reception = () => {
                     <SelectItem key={p.id} value={p.id}>
                       <div className="flex items-center gap-2">
                         <User className="h-3.5 w-3.5 text-muted-foreground" />
-                        {p.patient_id} — {p.profile?.full_name}
+                        {p.patient_id} — {patientDisplayName(p.profile, p.patient_id)}
                       </div>
                     </SelectItem>
                   ))}

@@ -120,7 +120,7 @@ Deno.serve(async (req) => {
     }
 
     // Create/update profile — use onConflict to ensure upsert works on user_id
-    await supabase.from("profiles").upsert(
+    const { error: profileError } = await supabase.from("profiles").upsert(
       {
         user_id: userId,
         full_name: fullName,
@@ -133,6 +133,12 @@ Deno.serve(async (req) => {
       },
       { onConflict: "user_id" }
     );
+
+    // Fallback: if upsert silently failed, force update the name
+    if (profileError) {
+      console.error("Profile upsert error:", profileError.message);
+      await supabase.from("profiles").update({ full_name: fullName, phone: phone || null, email, date_of_birth: dateOfBirth || null, gender: gender || null, address: address || null }).eq("user_id", userId);
+    }
 
     // Existing auth account + existing patient record => return success instead of error
     if (existingPatientRecord) {
