@@ -1583,7 +1583,7 @@ const Consultation = () => {
                   </div>
                 </Field>
                 <Field label="Quantity">
-                  <Input type="number" value={currentPrescription.quantity} onChange={(e) => setCurrentPrescription({ ...currentPrescription, quantity: parseInt(e.target.value) || 1 })} min="1" className="text-xs h-9" />
+                  <Input type="number" value={currentPrescription.quantity} onChange={(e) => setCurrentPrescription({ ...currentPrescription, quantity: parseInt(e.target.value) || 1 })} min="1" className="text-sm h-11" />
                 </Field>
               </div>
 
