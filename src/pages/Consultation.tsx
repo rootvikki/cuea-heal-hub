@@ -1588,7 +1588,7 @@ const Consultation = () => {
               </div>
 
               <Field label="Special Instructions">
-                <Textarea value={currentPrescription.instructions} onChange={(e) => setCurrentPrescription({ ...currentPrescription, instructions: e.target.value })} placeholder="e.g., Take with food, avoid dairy" rows={2} className="text-sm" />
+                <Textarea value={currentPrescription.instructions} onChange={(e) => setCurrentPrescription({ ...currentPrescription, instructions: e.target.value })} placeholder="e.g., Take with food, avoid dairy" rows={3} className="text-base" />
               </Field>
 
               <div className="flex justify-end gap-2 pt-1">
