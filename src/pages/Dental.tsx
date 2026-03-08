@@ -140,13 +140,16 @@ const Dental = () => {
               </CardContent>
             </Card>
 
+            {/* Workflow Timeline */}
+            <WorkflowTimeline currentStage={selectedTicket.workflow_stage || selectedTicket.status} />
+
             {/* Add Procedures */}
             <Card>
               <CardHeader><CardTitle className="text-lg">Add Procedures</CardTitle></CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-1.5">
-                    <Label>Procedure</Label>
+              <CardContent className="space-y-5">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  <div className="space-y-2">
+                    <Label className="text-sm font-semibold">Procedure</Label>
                     <Select value={selectedProc} onValueChange={setSelectedProc}>
                       <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
                       <SelectContent>
