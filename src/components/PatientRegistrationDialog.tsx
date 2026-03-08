@@ -30,7 +30,15 @@ const SectionHeader = ({ icon: Icon, title, filled, total }: { icon: React.Eleme
   </div>
 );
 
-export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: () => void }) => {
+interface RegistrationResult {
+  patientRecordId: string;
+  patientId: string;
+  visitReason: string;
+  existing: boolean;
+  fullName: string;
+}
+
+export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: RegistrationResult) => void }) => {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
