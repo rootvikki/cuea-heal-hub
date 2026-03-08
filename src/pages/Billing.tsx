@@ -367,8 +367,8 @@ const Billing = () => {
 
             {paymentMethod === "mpesa" && (
               <div className="space-y-2">
-                <Label>Phone Number</Label>
-                <Input type="tel" placeholder="254712345678" value={paymentPhone} onChange={(e) => setPaymentPhone(e.target.value)} />
+                <Label className="text-sm font-semibold">Phone Number</Label>
+                <Input type="tel" placeholder="254712345678" value={paymentPhone} onChange={(e) => setPaymentPhone(e.target.value)} className="h-12 text-base" />
               </div>
             )}
 

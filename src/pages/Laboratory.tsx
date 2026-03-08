@@ -476,13 +476,14 @@ const Laboratory = () => {
             )}
 
             <div className="space-y-2">
-              <Label>Notes</Label>
+              <Label className="text-sm font-semibold">Notes</Label>
               <Textarea
                 value={resultNotes}
                 onChange={(e) => setResultNotes(e.target.value)}
                 placeholder="Additional observations..."
-                rows={2}
+                rows={4}
                 disabled={selectedOrder?.status === "completed"}
+                className="text-base"
               />
             </div>
 

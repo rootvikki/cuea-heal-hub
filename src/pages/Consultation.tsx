@@ -895,6 +895,7 @@ const Consultation = () => {
                       </Button>
                     </div>
                   </div>
+                  <WorkflowTimeline currentStage={selectedTicket.workflow_stage || selectedTicket.status} />
 
                   {/* Allergy banner */}
                   {selectedTicket.patient?.allergies && selectedTicket.patient.allergies.length > 0 && (

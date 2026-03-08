@@ -290,24 +290,24 @@ const Imaging = () => {
 
       {/* Results Dialog */}
       <Dialog open={resultDialogOpen} onOpenChange={setResultDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Enter Radiology Results</DialogTitle>
           </DialogHeader>
           {selectedOrder && (
-            <div className="space-y-4">
-              <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
+            <div className="space-y-5">
+              <div className="p-4 bg-muted rounded-lg text-sm space-y-1">
                 <p><strong>Patient:</strong> {selectedOrder.patient?.profiles?.full_name}</p>
                 <p><strong>Study:</strong> {selectedOrder.imaging_catalog?.name} ({selectedOrder.imaging_catalog?.modality})</p>
                 <p><strong>Clinical Indication:</strong> {selectedOrder.clinical_indication || "Not specified"}</p>
               </div>
               <div className="space-y-2">
-                <Label>Findings *</Label>
-                <Textarea value={findings} onChange={(e) => setFindings(e.target.value)} placeholder="Describe radiological findings..." rows={4} />
+                <Label className="text-sm font-semibold">Findings *</Label>
+                <Textarea value={findings} onChange={(e) => setFindings(e.target.value)} placeholder="Describe radiological findings..." rows={5} className="text-base" />
               </div>
               <div className="space-y-2">
-                <Label>Impression *</Label>
-                <Textarea value={impression} onChange={(e) => setImpression(e.target.value)} placeholder="Radiological impression / conclusion..." rows={3} />
+                <Label className="text-sm font-semibold">Impression *</Label>
+                <Textarea value={impression} onChange={(e) => setImpression(e.target.value)} placeholder="Radiological impression / conclusion..." rows={4} className="text-base" />
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setResultDialogOpen(false)}>Cancel</Button>

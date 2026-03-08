@@ -220,6 +220,9 @@ const Vitals = () => {
               </CardContent>
             </Card>
 
+            {/* Workflow Timeline */}
+            <WorkflowTimeline currentStage={selectedTicket.workflow_stage || selectedTicket.status} />
+
             {/* Triage Form */}
             <Card>
               <CardHeader>
