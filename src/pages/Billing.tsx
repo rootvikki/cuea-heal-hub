@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -130,6 +132,65 @@ const Billing = () => {
     await generateInvoiceFromCharges(selectedPatientInfo.ticket.id);
     setChargeSheetOpen(false);
     fetchInvoices();
+  };
+
+  const generateChargeSheetPDF = () => {
+    if (!selectedPatientInfo || selectedPatientCharges.length === 0) return;
+    const doc = new jsPDF();
+    const total = selectedPatientCharges.reduce((s, c) => s + (c.amount || 0), 0);
+    const regId = selectedPatientInfo.admission_number || selectedPatientInfo.payroll_number || selectedPatientInfo.national_id || selectedPatientInfo.patient_id;
+
+    // CUEA Header
+    doc.setFontSize(14);
+    doc.setFont("helvetica", "bold");
+    doc.text("THE CATHOLIC UNIVERSITY OF EASTERN AFRICA", 105, 20, { align: "center" });
+    doc.setFontSize(11);
+    doc.text("UNIVERSITY INFIRMARY", 105, 28, { align: "center" });
+    doc.setFontSize(10);
+    doc.setFont("helvetica", "normal");
+    doc.text("P.O. BOX 62157-00200, NAIROBI | TEL: 020-8891601", 105, 34, { align: "center" });
+    doc.setLineWidth(0.5);
+    doc.line(20, 38, 190, 38);
+
+    doc.setFontSize(12);
+    doc.setFont("helvetica", "bold");
+    doc.text("INFIRMARY CHARGE SHEET", 105, 48, { align: "center" });
+    doc.setFontSize(10);
+    doc.text("TO: CREDIT CONTROLLER", 20, 58);
+
+    doc.setFont("helvetica", "normal");
+    doc.text(`Patient Name: ${selectedPatientInfo.profile?.full_name || ""}`, 20, 68);
+    doc.text(`REG/ID No.: ${regId}`, 20, 76);
+    doc.text(`Patient Type: ${(selectedPatientInfo.patient_type || "outsider").replace("_", " ").toUpperCase()}`, 120, 68);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 120, 76);
+
+    const tableData = selectedPatientCharges.map((c, i) => [
+      (i + 1).toString(),
+      c.description,
+      (c.billing_stage || "-").replace("_", " "),
+      `KES ${c.amount.toLocaleString()}`,
+    ]);
+
+    autoTable(doc, {
+      startY: 84,
+      head: [["#", "Service Description", "Stage", "Amount (KES)"]],
+      body: tableData,
+      foot: [["", "", "TOTAL BILL", `KES ${total.toLocaleString()}`]],
+      theme: "grid",
+      headStyles: { fillColor: [41, 128, 185], fontStyle: "bold" },
+      footStyles: { fillColor: [240, 240, 240], fontStyle: "bold", textColor: [0, 0, 0] },
+      styles: { fontSize: 9 },
+    });
+
+    const finalY = (doc as any).lastAutoTable.finalY + 20;
+    doc.setFont("helvetica", "normal");
+    doc.text("SR. IN CHARGE: _________________________", 20, finalY);
+    doc.text("Date: _________________________", 120, finalY);
+    doc.setFontSize(8);
+    doc.text("CUEA/DVC/ADM/INF/04/fm01", 20, finalY + 20);
+
+    doc.save(`Charge_Sheet_${regId}_${new Date().toISOString().split("T")[0]}.pdf`);
+    toast({ title: "PDF Downloaded", description: "Charge sheet PDF generated" });
   };
 
   const handlePayment = async () => {
@@ -346,6 +407,9 @@ const Billing = () => {
 
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setChargeSheetOpen(false)}>Close</Button>
+                <Button variant="secondary" onClick={generateChargeSheetPDF} className="gap-2">
+                  <FileText className="h-4 w-4" /> Print Charge Sheet
+                </Button>
                 <Button onClick={handleGenerateAndPay}>Generate Invoice</Button>
               </div>
             </div>

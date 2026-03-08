@@ -15,23 +15,60 @@ import { Plus, X, Send, Calendar } from "lucide-react";
 import { WorkflowTimeline, deriveVisitPath } from "@/components/WorkflowTimeline";
 
 const DENTAL_PROCEDURES = [
+  // Examination & Consultation
   { name: "Dental Examination", price: 500 },
-  { name: "Dental X-Ray", price: 1000 },
-  { name: "Tooth Extraction - Simple", price: 1500 },
-  { name: "Tooth Extraction - Surgical", price: 5000 },
-  { name: "Dental Filling - Temporary", price: 1000 },
-  { name: "Dental Filling - Permanent", price: 3000 },
-  { name: "Root Canal Treatment", price: 8000 },
+  { name: "Dental Consultation", price: 500 },
+  // Extractions
+  { name: "Simple Extraction", price: 1500 },
+  { name: "Closed Disimpaction", price: 2000 },
+  { name: "Open Disimpaction", price: 5000 },
+  // Restorations
+  { name: "Amalgam Restoration F1", price: 2000 },
+  { name: "Amalgam Restoration F2", price: 2500 },
+  { name: "Amalgam Restoration F3", price: 3000 },
+  { name: "Composite Filling F1", price: 2500 },
+  { name: "Composite Filling F2", price: 3000 },
+  { name: "Composite Filling F3", price: 3500 },
+  { name: "GIC Filling F1", price: 2000 },
+  { name: "GIC Filling F2", price: 2500 },
+  { name: "GIC Filling F3", price: 3000 },
+  { name: "Temporary Filling", price: 1000 },
+  // Endodontics
+  { name: "Root Canal - Anterior", price: 6000 },
+  { name: "Root Canal - Premolar", price: 8000 },
+  { name: "Root Canal - Molar", price: 10000 },
+  { name: "Pulpotomy", price: 3000 },
+  { name: "Pulpectomy", price: 4000 },
+  { name: "Apicectomy", price: 8000 },
+  // Periodontics
   { name: "Scaling & Polishing", price: 3000 },
-  { name: "Dental Abscess Drainage", price: 2000 },
-  { name: "Crown Placement", price: 15000 },
-  { name: "Bridge Work", price: 20000 },
-  { name: "Denture - Partial", price: 15000 },
+  { name: "Deep Scaling (per quadrant)", price: 2000 },
+  { name: "Gum Treatment (per quadrant)", price: 3000 },
+  // Prosthodontics
+  { name: "Crown - PFM", price: 15000 },
+  { name: "Crown - Full Metal", price: 12000 },
+  { name: "Crown - All Ceramic", price: 20000 },
+  { name: "Stainless Steel Crown", price: 5000 },
+  { name: "Bridge Work (per unit)", price: 15000 },
+  { name: "Resin Bonded Bridge", price: 20000 },
+  { name: "Denture - Partial (Acrylic)", price: 15000 },
   { name: "Denture - Full", price: 25000 },
-  { name: "Orthodontic Consultation", price: 2000 },
-  { name: "Teeth Whitening", price: 5000 },
+  // Preventive
   { name: "Fluoride Application", price: 1000 },
-  { name: "Gum Treatment", price: 3000 },
+  { name: "Fissure Sealing (per tooth)", price: 1500 },
+  { name: "Teeth Whitening", price: 5000 },
+  // Surgery
+  { name: "Dental Abscess I&D", price: 2000 },
+  { name: "Alveoloplasty", price: 3000 },
+  { name: "Suturing (per stitch)", price: 500 },
+  { name: "Biopsy", price: 5000 },
+  { name: "Splinting (per tooth)", price: 1500 },
+  { name: "Hemostasis", price: 500 },
+  // Radiology
+  { name: "Dental X-Ray (Periapical)", price: 500 },
+  { name: "Dental X-Ray (OPG)", price: 2000 },
+  // Other
+  { name: "Orthodontic Consultation", price: 2000 },
 ];
 
 interface DentalEntry {

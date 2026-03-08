@@ -1248,6 +1248,41 @@ export type Database = {
           },
         ]
       }
+      patient_feedback: {
+        Row: {
+          comments: string | null
+          created_at: string
+          id: string
+          patient_id: string
+          ratings: Json
+          visit_reason: string
+        }
+        Insert: {
+          comments?: string | null
+          created_at?: string
+          id?: string
+          patient_id: string
+          ratings?: Json
+          visit_reason: string
+        }
+        Update: {
+          comments?: string | null
+          created_at?: string
+          id?: string
+          patient_id?: string
+          ratings?: Json
+          visit_reason?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "patient_feedback_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       patients: {
         Row: {
           admission_number: string | null
@@ -1386,6 +1421,7 @@ export type Database = {
         Row: {
           average_monthly_consumption: number | null
           batch_number: string | null
+          category: string | null
           created_at: string | null
           drug_name: string
           expiry_date: string | null
@@ -1403,6 +1439,7 @@ export type Database = {
         Insert: {
           average_monthly_consumption?: number | null
           batch_number?: string | null
+          category?: string | null
           created_at?: string | null
           drug_name: string
           expiry_date?: string | null
@@ -1420,6 +1457,7 @@ export type Database = {
         Update: {
           average_monthly_consumption?: number | null
           batch_number?: string | null
+          category?: string | null
           created_at?: string | null
           drug_name?: string
           expiry_date?: string | null

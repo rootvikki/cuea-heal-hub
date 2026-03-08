@@ -19,8 +19,10 @@ import {
   AlertCircle,
   Loader2,
   User,
-  Pill
+  Pill,
+  MessageSquare
 } from "lucide-react";
+import FeedbackForm from "@/components/FeedbackForm";
 import {
   Dialog,
   DialogContent,
@@ -256,7 +258,7 @@ const PatientPortal = () => {
           </div>
 
           <Tabs defaultValue="appointments" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
+            <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5">
               <TabsTrigger value="appointments" className="gap-2">
                 <Calendar className="h-4 w-4" />
                 <span className="hidden sm:inline">Appointments</span>
@@ -272,6 +274,10 @@ const PatientPortal = () => {
               <TabsTrigger value="billing" className="gap-2">
                 <CreditCard className="h-4 w-4" />
                 <span className="hidden sm:inline">Billing</span>
+              </TabsTrigger>
+              <TabsTrigger value="feedback" className="gap-2">
+                <MessageSquare className="h-4 w-4" />
+                <span className="hidden sm:inline">Feedback</span>
               </TabsTrigger>
             </TabsList>
 
@@ -504,6 +510,11 @@ const PatientPortal = () => {
                   </ScrollArea>
                 </CardContent>
               </Card>
+            </TabsContent>
+
+            {/* Feedback Tab */}
+            <TabsContent value="feedback">
+              <FeedbackForm patientId={patient.id} />
             </TabsContent>
           </Tabs>
 
