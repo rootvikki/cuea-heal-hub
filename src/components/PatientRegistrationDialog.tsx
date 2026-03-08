@@ -140,6 +140,13 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
         description: result?.message || `OPD No: ${result.patientId}`,
       });
       setOpen(false);
+      const registrationData: RegistrationResult = {
+        patientRecordId: result.patientRecordId,
+        patientId: result.patientId,
+        visitReason: result.visitReason || formData.visitReason || "outpatient",
+        existing: !!result.existing,
+        fullName: formData.fullName,
+      };
       setFormData({
         fullName: "", phone: "", email: "", password: "", dateOfBirth: "", gender: "",
         nationalId: "", nationality: "Kenyan", postalAddress: "", address: "",
@@ -147,7 +154,7 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
         insuranceProvider: "", insuranceNumber: "",
         nextOfKinName: "", nextOfKinRelationship: "", nextOfKinPhone: "",
       });
-      onSuccess?.();
+      onSuccess?.(registrationData);
     } catch (error: any) {
       toast({ title: "Registration failed", description: error.message, variant: "destructive" });
     } finally {

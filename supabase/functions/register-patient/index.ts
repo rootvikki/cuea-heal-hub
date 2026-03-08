@@ -145,10 +145,19 @@ Deno.serve(async (req) => {
         details: { patient_id: existingPatientRecord.patient_id, registered_email: email },
       });
 
+      // Fetch visit_reason for routing
+      const { data: existingFull } = await supabase
+        .from("patients")
+        .select("visit_reason")
+        .eq("id", existingPatientRecord.id)
+        .single();
+
       return new Response(
         JSON.stringify({
           success: true,
           patientId: existingPatientRecord.patient_id,
+          patientRecordId: existingPatientRecord.id,
+          visitReason: existingFull?.visit_reason || "outpatient",
           userId,
           existing: true,
           message: "Patient already existed. Existing record loaded.",
