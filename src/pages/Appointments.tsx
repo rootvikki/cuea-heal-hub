@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calendar as CalendarIcon, Plus, ClipboardList } from "lucide-react";
+import { Calendar as CalendarIcon, Plus, ClipboardList, Search } from "lucide-react";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Dialog,
@@ -23,6 +23,8 @@ interface Appointment {
   appointment_date: string;
   status: string;
   reason: string;
+  patient_id: string;
+  department_id: string;
   patients: {
     patient_id: string;
     profiles: { full_name: string };
@@ -38,6 +40,7 @@ const Appointments = () => {
   const [patients, setPatients] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [patientSearch, setPatientSearch] = useState("");
   const [formData, setFormData] = useState({
     patientId: "",
     departmentId: "",
@@ -54,10 +57,10 @@ const Appointments = () => {
   const fetchAppointments = async () => {
     setLoading(true);
     const dateStr = selectedDate?.toISOString().split('T')[0];
-    
+
     const { data, error } = await supabase
       .from("appointments")
-      .select("id, appointment_date, status, reason, department_id")
+      .select("*, patients!inner(patient_id, user_id, profiles:profiles!inner(full_name)), departments!inner(name)")
       .gte("appointment_date", dateStr)
       .lt("appointment_date", `${dateStr}T23:59:59`)
       .order("appointment_date");
@@ -65,42 +68,15 @@ const Appointments = () => {
     if (error) {
       console.error("Error fetching appointments:", error);
     } else {
-      // Fetch patient and department info separately
-      const appointmentIds = data?.map(a => a.id) || [];
-      const patientPromises = data?.map(async (apt: any) => {
-        const { data: patientData } = await supabase
-          .from("patients")
-          .select("patient_id, user_id")
-          .eq("id", apt.patient_id)
-          .single();
-        
-        if (patientData) {
-          const { data: profileData } = await supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("user_id", patientData.user_id)
-            .single();
-          
-          return { ...apt, patients: { patient_id: patientData.patient_id, profiles: profileData } };
-        }
-        return apt;
-      }) || [];
-
-      const appointmentsWithData = await Promise.all(patientPromises);
-      
-      // Fetch departments
-      const deptPromises = appointmentsWithData.map(async (apt: any) => {
-        const { data: deptData } = await supabase
-          .from("departments")
-          .select("name")
-          .eq("id", apt.department_id)
-          .single();
-        
-        return { ...apt, departments: deptData };
-      });
-
-      const finalAppointments = await Promise.all(deptPromises);
-      setAppointments(finalAppointments as any);
+      const mapped = (data || []).map((apt: any) => ({
+        ...apt,
+        patients: {
+          patient_id: apt.patients?.patient_id,
+          profiles: apt.patients?.profiles,
+        },
+        departments: apt.departments,
+      }));
+      setAppointments(mapped as Appointment[]);
     }
     setLoading(false);
   };
@@ -111,25 +87,30 @@ const Appointments = () => {
   };
 
   const fetchPatients = async () => {
-    const { data } = await supabase.from("patients").select("id, patient_id, user_id");
+    const { data } = await supabase
+      .from("patients")
+      .select("id, patient_id, user_id, profiles:profiles!inner(full_name)");
     if (data) {
-      const patientsWithProfiles = await Promise.all(
-        data.map(async (patient) => {
-          const { data: profile } = await supabase
-            .from("profiles")
-            .select("full_name")
-            .eq("user_id", patient.user_id)
-            .single();
-          return { ...patient, profile };
-        })
-      );
-      setPatients(patientsWithProfiles);
+      const mapped = (data as any[]).map((p) => ({
+        ...p,
+        profile: p.profiles,
+      }));
+      setPatients(mapped);
     }
   };
 
+  const filteredPatients = patients.filter((p) => {
+    if (!patientSearch) return true;
+    const term = patientSearch.toLowerCase();
+    return (
+      p.patient_id?.toLowerCase().includes(term) ||
+      p.profile?.full_name?.toLowerCase().includes(term)
+    );
+  });
+
   const handleCreateAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     const { error } = await supabase.from("appointments").insert({
       patient_id: formData.patientId,
       department_id: formData.departmentId,
@@ -151,14 +132,12 @@ const Appointments = () => {
       });
       setDialogOpen(false);
       setFormData({ patientId: "", departmentId: "", appointmentDate: "", reason: "" });
+      setPatientSearch("");
       fetchAppointments();
     }
   };
 
   const handleCheckInFromAppointment = async (appointment: Appointment) => {
-    // Check for duplicate active ticket
-    const patientId = (appointment as any).patient_id_raw || appointment.patients?.patient_id;
-    // We need the patient UUID (not OPD number)
     const { data: patientRecord } = await supabase
       .from("patients")
       .select("id")
@@ -190,7 +169,7 @@ const Appointments = () => {
     const { error } = await supabase.from("tickets").insert({
       ticket_number: ticketNumber,
       patient_id: patientRecord.id,
-      department_id: (appointment as any).department_id,
+      department_id: appointment.department_id,
       priority: 1,
       status: "checked_in",
       workflow_stage: "checked_in",
@@ -200,7 +179,6 @@ const Appointments = () => {
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
-      // Update appointment status
       await supabase.from("appointments").update({ status: "confirmed" }).eq("id", appointment.id);
       toast({ title: "Patient checked in", description: `Ticket: ${ticketNumber}` });
       fetchAppointments();
@@ -227,7 +205,7 @@ const Appointments = () => {
             Schedule and manage patient appointments
           </p>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <Dialog open={dialogOpen} onOpenChange={(open) => { setDialogOpen(open); if (!open) setPatientSearch(""); }}>
           <DialogTrigger asChild>
             <Button className="gap-2">
               <Plus className="h-4 w-4" />
@@ -242,16 +220,28 @@ const Appointments = () => {
             <form onSubmit={handleCreateAppointment} className="space-y-4">
               <div className="space-y-2">
                 <Label>Patient</Label>
+                <div className="relative mb-2">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by name or OPD number..."
+                    value={patientSearch}
+                    onChange={(e) => setPatientSearch(e.target.value)}
+                    className="pl-10"
+                  />
+                </div>
                 <Select value={formData.patientId} onValueChange={(value) => setFormData({ ...formData, patientId: value })}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select patient" />
                   </SelectTrigger>
                   <SelectContent>
-                    {patients.map((patient) => (
+                    {filteredPatients.map((patient) => (
                       <SelectItem key={patient.id} value={patient.id}>
                         {patient.patient_id} - {patient.profile?.full_name}
                       </SelectItem>
                     ))}
+                    {filteredPatients.length === 0 && (
+                      <div className="p-2 text-sm text-muted-foreground text-center">No patients found</div>
+                    )}
                   </SelectContent>
                 </Select>
               </div>

@@ -172,10 +172,10 @@ const PatientPortal = () => {
     try {
       const { data, error } = await supabase.functions.invoke("mpesa-stk-push", {
         body: {
-          phone_number: phoneNumber,
+          phoneNumber: phoneNumber,
           amount: selectedInvoice.balance,
-          invoice_id: selectedInvoice.id,
-          account_reference: selectedInvoice.invoice_number
+          invoiceId: selectedInvoice.id,
+          accountReference: selectedInvoice.invoice_number
         }
       });
 

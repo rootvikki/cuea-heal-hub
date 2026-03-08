@@ -68,6 +68,15 @@ const Vitals = () => {
       });
       if (vitErr) throw vitErr;
 
+      // Save nursing notes as a nursing_procedure record if non-empty
+      if (form.nursingNotes.trim()) {
+        await supabase.from("nursing_procedures").insert({
+          patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id,
+          nurse_id: user?.id || "", procedure_type: "nursing_notes",
+          notes: form.nursingNotes, price: 0,
+        });
+      }
+
       for (const proc of procedures) {
         await supabase.from("nursing_procedures").insert({
           patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id,
