@@ -745,10 +745,15 @@ const Consultation = () => {
         <div className="w-72 lg:w-80 border-r bg-card flex flex-col shrink-0 transition-all duration-200">
           <div className="p-4 border-b" style={{ background: "var(--gradient-subtle)" }}>
             <div className="flex items-center justify-between mb-1">
-              <h2 className="font-bold text-sm flex items-center gap-2">
-                <Stethoscope className="h-4 w-4 text-primary" />
-                Consultation
-              </h2>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setQueueCollapsed(true)}>
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+                <h2 className="font-bold text-sm flex items-center gap-2">
+                  <Stethoscope className="h-4 w-4 text-primary" />
+                  Consultation
+                </h2>
+              </div>
               {isLive && (
                 <Badge variant="outline" className="gap-1 text-[hsl(var(--success))] border-[hsl(var(--success))]/40 bg-[hsl(var(--success))]/10 text-[10px] px-2 py-0.5">
                   <Radio className="h-2 w-2 animate-pulse" /> Live
