@@ -68,19 +68,10 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Check if a user with this email already exists
-    const { data: existingUsers } = await supabase.auth.admin.listUsers();
-    const emailExists = existingUsers?.users?.some(
-      (u: any) => u.email?.toLowerCase() === email.toLowerCase()
-    );
-    if (emailExists) {
-      return new Response(
-        JSON.stringify({ error: "A patient with this email address is already registered. Please use a different email or search for the existing patient." }),
-        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
+    // Create or resolve auth user (duplicate emails should not break registration flow)
+    let userId: string;
+    let existingPatientRecord: { id: string; patient_id: string } | null = null;
 
-    // Create auth user via admin API (does NOT affect caller session)
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
       password,
@@ -88,12 +79,47 @@ Deno.serve(async (req) => {
       user_metadata: { full_name: fullName, phone },
     });
 
-    if (authError) throw authError;
-    if (!authData.user) throw new Error("User creation failed");
+    if (authError) {
+      const duplicateEmail = /already been registered|already registered|email address/i.test(authError.message || "");
+      if (!duplicateEmail) throw authError;
 
-    const userId = authData.user.id;
+      let page = 1;
+      const perPage = 1000;
+      let foundUser: { id: string; email?: string | null } | null = null;
 
-    // Create profile
+      while (!foundUser) {
+        const { data: usersPage, error: listError } = await supabase.auth.admin.listUsers({ page, perPage });
+        if (listError) throw listError;
+
+        const users = usersPage?.users || [];
+        foundUser = users.find((u: any) => u.email?.toLowerCase() === email.toLowerCase()) || null;
+
+        if (users.length < perPage) break;
+        page += 1;
+      }
+
+      if (!foundUser) {
+        return new Response(
+          JSON.stringify({ error: "A user with this email already exists but could not be resolved." }),
+          { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      userId = foundUser.id;
+
+      const { data: existingPatient } = await supabase
+        .from("patients")
+        .select("id, patient_id")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      existingPatientRecord = existingPatient || null;
+    } else {
+      if (!authData.user) throw new Error("User creation failed");
+      userId = authData.user.id;
+    }
+
+    // Create/update profile
     await supabase.from("profiles").upsert({
       user_id: userId,
       full_name: fullName,
@@ -104,6 +130,32 @@ Deno.serve(async (req) => {
       address: address || null,
       country: nationality || "Kenya",
     });
+
+    // Existing auth account + existing patient record => return success instead of error
+    if (existingPatientRecord) {
+      await supabase.from("user_roles").upsert(
+        { user_id: userId, role: "patient" },
+        { onConflict: "user_id,role" }
+      );
+
+      await supabase.from("audit_logs").insert({
+        user_id: caller.id,
+        action: "patient_registration_reused",
+        module: "registration",
+        details: { patient_id: existingPatientRecord.patient_id, registered_email: email },
+      });
+
+      return new Response(
+        JSON.stringify({
+          success: true,
+          patientId: existingPatientRecord.patient_id,
+          userId,
+          existing: true,
+          message: "Patient already existed. Existing record loaded.",
+        }),
+        { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // Generate sequential OPD number
     const { data: opdData, error: opdError } = await supabase.rpc("next_opd_number");
