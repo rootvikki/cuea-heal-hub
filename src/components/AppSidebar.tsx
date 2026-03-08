@@ -211,10 +211,10 @@ export function AppSidebar() {
         <Button
           variant="outline"
           onClick={handleLogout}
-          className="w-full justify-start"
+          className="w-full justify-start gap-2 min-w-0"
         >
-          <LogOut className="h-4 w-4" />
-          <span className="ml-2">Logout</span>
+          <LogOut className="h-4 w-4 shrink-0" />
+          <span className="truncate group-data-[collapsible=icon]:hidden">Logout</span>
         </Button>
       </SidebarFooter>
     </Sidebar>
