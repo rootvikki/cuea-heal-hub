@@ -29,6 +29,11 @@ const Imaging = () => {
   const [findings, setFindings] = useState("");
   const [impression, setImpression] = useState("");
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [queueCollapsed, setQueueCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (selectedTicket) setQueueCollapsed(true);
+  }, [selectedTicket]);
 
   useEffect(() => {
     fetchOrders();
