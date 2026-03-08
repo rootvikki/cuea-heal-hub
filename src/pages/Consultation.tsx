@@ -726,7 +726,23 @@ const Consultation = () => {
     <TooltipProvider>
       <div className="flex h-screen overflow-hidden bg-background">
         {/* ── Left Panel: Patient Queue ── */}
-        <div className="w-72 lg:w-80 border-r bg-card flex flex-col shrink-0">
+        {queueCollapsed ? (
+          <div className="w-12 border-r bg-card flex flex-col items-center py-3 gap-3 shrink-0 transition-all duration-200">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setQueueCollapsed(false)}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">
+              {queue.length}
+            </Badge>
+            <div className="flex-1 flex items-center">
+              <span className="text-[10px] font-semibold text-muted-foreground tracking-wider" style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}>
+                Consultation
+              </span>
+            </div>
+            {isLive && <Radio className="h-3 w-3 text-[hsl(var(--success))] animate-pulse" />}
+          </div>
+        ) : (
+        <div className="w-72 lg:w-80 border-r bg-card flex flex-col shrink-0 transition-all duration-200">
           <div className="p-4 border-b" style={{ background: "var(--gradient-subtle)" }}>
             <div className="flex items-center justify-between mb-1">
               <h2 className="font-bold text-sm flex items-center gap-2">
