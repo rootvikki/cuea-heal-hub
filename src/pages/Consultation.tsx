@@ -969,7 +969,7 @@ const Consultation = () => {
                                     value={encounter.pastMedicalHistory}
                                     onChange={(e) => setEncounter({ ...encounter, pastMedicalHistory: e.target.value })}
                                     placeholder="Known chronic diseases, past hospitalizations..."
-                                    rows={2} className="text-sm resize-y"
+                                    rows={3} className="text-base resize-y"
                                   />
                                 </Field>
                                 <Field label="Past Surgical History" hint="Previous operations, complications">
