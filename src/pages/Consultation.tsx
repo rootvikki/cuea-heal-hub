@@ -988,7 +988,7 @@ const Consultation = () => {
                                     value={encounter.medicineHistory}
                                     onChange={(e) => setEncounter({ ...encounter, medicineHistory: e.target.value })}
                                     placeholder="Current medications and dosages..."
-                                    rows={2} className="text-sm resize-y"
+                                    rows={3} className="text-base resize-y"
                                   />
                                 </Field>
                                 <Field label="Social History" hint="Smoking, alcohol, occupation, exercise">
