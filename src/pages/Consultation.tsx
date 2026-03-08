@@ -1482,13 +1482,19 @@ const Consultation = () => {
                     value={drugSearchTerm}
                     onChange={(e) => {
                       setDrugSearchTerm(e.target.value);
-                      if (!e.target.value) setCurrentPrescription({ ...currentPrescription, medication_name: "" });
+                      setCurrentPrescription({ ...currentPrescription, medication_name: e.target.value });
                     }}
                     placeholder="Search pharmacy inventory..."
                     className="pl-8 text-sm"
                   />
                 </div>
-                {drugSearchTerm && !currentPrescription.medication_name && (
+                {drugSearchTerm && pharmacyInventory.some(item => {
+                  const fullName = item.strength_size ? `${item.drug_name} ${item.strength_size}` : item.drug_name;
+                  return item.drug_name.toLowerCase().includes(drugSearchTerm.toLowerCase()) || (item.generic_name || "").toLowerCase().includes(drugSearchTerm.toLowerCase());
+                }) && !pharmacyInventory.some(item => {
+                  const fullName = item.strength_size ? `${item.drug_name} ${item.strength_size}` : item.drug_name;
+                  return fullName === drugSearchTerm;
+                }) && (
                   <div className="border rounded-lg max-h-36 overflow-auto shadow-sm">
                     {pharmacyInventory
                       .filter(item =>
