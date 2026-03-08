@@ -1,237 +1,78 @@
 
 
-# System-Wide Usability and Polish Plan
+# System-Wide Form UX Redesign + Patient Journey Timeline
 
-After a thorough review of every major page, component, and workflow in the system, here is a prioritized plan to make the CUEA Infirmary HMS the easiest and smoothest system to use for all staff and patients.
+## What We're Building
 
----
+Two things:
+1. **A reusable Patient Journey Timeline component** that shows workflow progress visually on every station page
+2. **Form space and usability improvements** across Pharmacy, Laboratory, Imaging, Billing, and Dental — the pages that were missed in the previous redesign pass
 
-## 1. Global UX Improvements
+The Vitals, Consultation, Patient Registration, Queue, Appointments, and Staff Onboarding forms were already upgraded with `h-12` inputs, `text-base`, and generous spacing. The remaining pages still use cramped default-sized inputs.
 
-### Breadcrumb Navigation
-- Add a breadcrumb bar at the top of every page inside `ProtectedLayout` showing the current location (e.g., "Dashboard > Patient Queue")
-- Helps users orient themselves, especially new staff
+## Changes
 
-### Consistent Page Headers
-- Standardize all page headers with the same structure: icon + title + subtitle + action buttons aligned right
-- Currently some pages use `p-6`, others `p-8` -- normalize all to `p-6 lg:p-8`
+### 1. New Component: `WorkflowTimeline.tsx`
 
-### Loading States
-- Replace plain text "Loading..." in tables with skeleton rows (animated placeholder rows)
-- Already have a `PageSkeleton` component but it is only used on Dashboard; extend usage to all pages
+A horizontal step indicator showing the patient's current position in the workflow. Each station page will render it in the patient header area.
 
-### Empty States
-- Add friendly illustrations or icons with helpful messages when tables are empty (e.g., "No patients in queue yet. Check in a patient to get started.")
-- Add a call-to-action button in empty states pointing to the relevant action
+```text
+[✓ Check-in] → [✓ Triage] → [● Consultation] → [ Lab ] → [ Pharmacy ] → [ Billing ]
+                                  ↑ current
+```
 
-### Toast Notifications
-- Standardize all success/error toasts with consistent wording
-- Add a subtle sound/vibration cue for critical notifications (e.g., emergency queue additions)
+- Props: `currentStage: string`, `ticketId?: string`
+- Derives the full flow from the stage (handles lab/imaging/dental branches)
+- Completed steps shown with green checkmark, current step highlighted with primary color, future steps muted
+- Compact single-line design that fits in any page header
 
----
+### 2. Pharmacy Forms (`Pharmacy.tsx`)
 
-## 2. Sidebar Improvements
+- "Add Drug" dialog: increase all inputs to `h-12 text-base`, grid gap from `gap-4` to `gap-5`, add field hints
+- Drug search input in header: `h-12 text-base`
+- Labels: `text-sm font-semibold`
+- Add `WorkflowTimeline` to the patient header area
+- Add the timeline when a ticket is selected
 
-### Current User Display
-- Show the logged-in user's name and role badge in the sidebar header (below the logo)
-- Currently users have no visual confirmation of who they are logged in as while navigating
+### 3. Laboratory Forms (`Laboratory.tsx`)
 
-### Active Section Highlighting
-- The current active item highlighting works but the entire section group should subtly expand/highlight
-- Add a small colored left-border indicator on the active item for better visibility on the maroon background
+- Result entry dialog: increase inputs to `h-12 text-base`
+- Structured result fields: increase from default to `h-11 text-sm`
+- Search input: `h-12 text-base`
+- Add `WorkflowTimeline` when viewing a patient's order
 
-### Collapsible Sidebar on Mobile
-- Ensure the sidebar auto-collapses on mobile and opens as an overlay
-- Add a hamburger menu button in the top-left of the main content area on mobile
+### 4. Imaging Forms (`Imaging.tsx`)
 
----
+- Result entry dialog: increase textarea rows to 5, inputs to `h-12 text-base`
+- Search input: `h-12 text-base`
+- Add `WorkflowTimeline` in header area
 
-## 3. Dashboard Enhancements
+### 5. Billing Page (`Billing.tsx`)
 
-### Greeting with Time of Day
-- Change "Welcome back" to "Good morning/afternoon/evening" based on time of day
-- Small touch that makes the system feel personal
+- Payment dialog: increase all inputs to `h-12 text-base`
+- Charge sheet dialog: improve spacing
+- Add `WorkflowTimeline` when viewing a patient's charges
 
-### Stat Cards Animation
-- Add a count-up animation on stat card numbers when they load
-- Add subtle hover scale effect (already have `hover:shadow-lg`, enhance with `hover:scale-[1.02]`)
+### 6. Dental Page (`Dental.tsx`)
 
-### Quick Action Cards Enhancement
-- Add icons to each quick action button
-- Add keyboard shortcuts for top 3 actions (show shortcut hint in the button)
+- Procedure form: increase inputs to `h-12 text-base`, gap to `gap-5`
+- Notes textarea: rows 4, `text-base`
+- Add `WorkflowTimeline` in patient header
 
----
+### 7. Integration in Already-Updated Pages
 
-## 4. Patient Queue Page
+- Add `WorkflowTimeline` to Vitals and Consultation patient headers (small addition to existing files)
 
-### Visual Queue Board
-- Add color-coded status columns (like a Kanban board view) as an alternative to the list view
-- Toggle between "List View" and "Board View"
-- Board columns: Checked In | Triage | Waiting for Doctor | In Consult | Lab/Imaging | Pharmacy | Billing | Done
+## Files Changed
 
-### Patient Wait Time Display
-- Show elapsed wait time since check-in on each ticket (e.g., "Waiting: 23 min")
-- Highlight tickets waiting longer than 30 minutes in amber, 60+ minutes in red
+- **New**: `src/components/WorkflowTimeline.tsx`
+- **Edit**: `src/pages/Pharmacy.tsx` — bigger forms + timeline
+- **Edit**: `src/pages/Laboratory.tsx` — bigger forms + timeline
+- **Edit**: `src/pages/Imaging.tsx` — bigger forms + timeline
+- **Edit**: `src/pages/Billing.tsx` — bigger forms + timeline
+- **Edit**: `src/pages/Dental.tsx` — bigger forms + timeline
+- **Edit**: `src/pages/Vitals.tsx` — add timeline
+- **Edit**: `src/pages/Consultation.tsx` — add timeline
 
-### Sound Alert for New Check-ins
-- Play a subtle notification sound when a new patient is checked in (configurable in settings)
-
----
-
-## 5. Consultation Page
-
-### Split-Panel Layout Polish
-- The left queue panel is good; enhance with patient photo/avatar placeholder
-- Add patient age, gender, and allergies badge directly in the queue card for quick reference
-
-### Auto-Save Draft
-- Auto-save encounter form data to localStorage every 30 seconds
-- Show a "Draft saved" indicator
-- Restore draft when returning to the same patient
-
-### Clinical Templates
-- Add quick-fill templates for common presentations (e.g., "Upper Respiratory Infection", "Malaria", "UTI")
-- Pre-fill chief complaint, assessment, and common prescriptions
-
-### Diagnosis Autocomplete
-- Add ICD-10 code search/autocomplete for the diagnosis field
-- Currently it is free-text which makes reporting inconsistent
-
----
-
-## 6. Vitals / Triage Page
-
-### Visual Vital Signs Dashboard
-- Show vitals on a visual body-map or gauge-style indicators
-- Color-code out-of-range values automatically (e.g., BP > 140 shows red)
-- The BMI calculation is good; add a visual BMI category indicator (underweight/normal/overweight/obese)
-
-### Quick Input Mode
-- Allow tab-through of all vital fields in order for fast data entry
-- Auto-advance to next field on Enter key
-
----
-
-## 7. Pharmacy Page
-
-### Prescription Queue Enhancement
-- Group prescriptions by patient (currently individual rows)
-- Show all medications for one patient together with a single "Dispense All" button
-- Add a confirmation dialog showing what will be deducted from inventory before dispensing
-
-### Low Stock Visual Alert
-- Add a persistent banner at the top of the Pharmacy page when any items are below reorder level
-- Color-code inventory rows: green (adequate), amber (approaching reorder), red (below reorder)
-
----
-
-## 8. Laboratory Page
-
-### Sample Tracking
-- Add visual status badges for sample lifecycle: Ordered > Collected > Processing > Completed
-- Show estimated turnaround time
-
-### Result Entry Improvement
-- The structured result fields are excellent; add auto-flagging (H/L/Critical) based on reference ranges
-- Already partially implemented but ensure consistency across all test types
-
----
-
-## 9. Billing Page
-
-### Invoice Summary Dashboard
-- Add summary cards at the top: Total Outstanding, Collected Today, Pending M-Pesa
-- Visual pie chart of payment methods breakdown
-
-### One-Click Receipt
-- After payment, show a "Print Receipt" button that generates a clean PDF receipt
-- Include hospital logo, patient details, itemized charges, and payment confirmation
-
----
-
-## 10. Patient Portal
-
-### Welcome Dashboard
-- Add a welcome card with patient name and upcoming appointment reminder
-- Show a simple timeline of recent visits
-
-### Mobile-First Design
-- Ensure all portal tabs work perfectly on mobile (patients will primarily use phones)
-- Large touch-friendly buttons and cards
-
----
-
-## 11. Settings Page
-
-### Organized Settings Sections
-- Group settings into clear categories with icons: General, M-Pesa, Notifications, System
-- Add visual confirmation when settings are saved (checkmark animation)
-
----
-
-## Technical Implementation Details
-
-### File Changes
-
-**New Component: `src/components/Breadcrumb.tsx`**
-- Simple breadcrumb component using react-router location
-- Maps route paths to human-readable names
-
-**Edit: `src/components/ProtectedLayout.tsx`**
-- Add breadcrumb component above the main content
-- Add current user name/role display in the sidebar header area
-- Normalize padding
-
-**Edit: `src/components/AppSidebar.tsx`**
-- Add user info section (name + primary role badge) below the logo
-- Add left-border active indicator styling
-
-**Edit: `src/pages/Dashboard.tsx`**
-- Add time-of-day greeting
-- Add icons to QuickActionButton
-- Add hover scale animation to StatCard
-
-**Edit: `src/pages/Queue.tsx`**
-- Add wait time display (calculate from `checked_in_at`)
-- Add color-coded wait time warnings
-- Add Kanban board view toggle
-
-**Edit: `src/pages/Consultation.tsx`**
-- Add auto-save to localStorage
-- Add patient demographics (age, gender, allergies) in queue cards
-- Add common diagnosis templates
-
-**Edit: `src/pages/Vitals.tsx`**
-- Add visual BMI category indicator
-- Color-code out-of-range vital values
-- Add tab-through navigation
-
-**Edit: `src/pages/Pharmacy.tsx`**
-- Group prescriptions by patient
-- Add inventory color-coding for stock levels
-- Add low-stock banner
-
-**Edit: `src/pages/Billing.tsx`**
-- Add summary stat cards at the top
-- Improve invoice table with better status badges
-
-**Edit: `src/pages/PatientPortal.tsx`**
-- Add welcome card with next appointment
-- Improve mobile responsiveness of tabs
-
-**Edit: `src/index.css`**
-- Add smooth transition utilities
-- Add count-up animation keyframes
-
-### Execution Order
-1. Global: Breadcrumb + ProtectedLayout padding normalization
-2. AppSidebar: User info display + active indicator
-3. Dashboard: Time greeting + stat card animations + quick action icons
-4. Queue: Wait time display + color warnings
-5. Consultation: Auto-save + patient info in queue cards
-6. Vitals: Visual indicators + keyboard navigation
-7. Pharmacy: Group by patient + stock level coloring
-8. Billing: Summary cards
-9. PatientPortal: Welcome card + mobile polish
-10. Settings: Section grouping
+No database changes needed.
 
