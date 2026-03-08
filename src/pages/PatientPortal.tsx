@@ -511,6 +511,11 @@ const PatientPortal = () => {
                 </CardContent>
               </Card>
             </TabsContent>
+
+            {/* Feedback Tab */}
+            <TabsContent value="feedback">
+              <FeedbackForm patientId={patient.id} />
+            </TabsContent>
           </Tabs>
 
           {/* Payment Dialog */}

@@ -407,6 +407,9 @@ const Billing = () => {
 
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setChargeSheetOpen(false)}>Close</Button>
+                <Button variant="secondary" onClick={generateChargeSheetPDF} className="gap-2">
+                  <FileText className="h-4 w-4" /> Print Charge Sheet
+                </Button>
                 <Button onClick={handleGenerateAndPay}>Generate Invoice</Button>
               </div>
             </div>
