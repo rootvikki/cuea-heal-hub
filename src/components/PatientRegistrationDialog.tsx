@@ -120,9 +120,13 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: () => voi
           nextOfKinPhone: formData.nextOfKinPhone || null,
         },
       });
-      if (response.error) throw new Error(response.error.message || "Registration failed");
       const result = response.data;
-      if (result.error) throw new Error(result.error);
+      if (response.error) {
+        // Extract message from the response body if available
+        const msg = result?.error || response.error.message || "Registration failed";
+        throw new Error(msg);
+      }
+      if (result?.error) throw new Error(result.error);
       toast({ title: "Patient registered", description: `OPD No: ${result.patientId}` });
       setOpen(false);
       setFormData({
