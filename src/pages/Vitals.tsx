@@ -61,6 +61,11 @@ const Vitals = () => {
   const { toast } = useToast();
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [saving, setSaving] = useState(false);
+  const [queueCollapsed, setQueueCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (selectedTicket) setQueueCollapsed(true);
+  }, [selectedTicket]);
 
   const [form, setForm] = useState({
     weight: "", height: "", bpSystolic: "", bpDiastolic: "",
@@ -194,6 +199,8 @@ const Vitals = () => {
         title="Triage Queue"
         onSelectPatient={setSelectedTicket}
         selectedTicketId={selectedTicket?.id}
+        collapsed={queueCollapsed}
+        onToggleCollapse={() => setQueueCollapsed(!queueCollapsed)}
       />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">

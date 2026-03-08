@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -44,6 +44,11 @@ interface DentalEntry {
 const Dental = () => {
   const { toast } = useToast();
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [queueCollapsed, setQueueCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (selectedTicket) setQueueCollapsed(true);
+  }, [selectedTicket]);
   const [entries, setEntries] = useState<DentalEntry[]>([]);
   const [selectedProc, setSelectedProc] = useState("");
   const [toothNum, setToothNum] = useState("");
@@ -118,6 +123,8 @@ const Dental = () => {
         title="Dental Queue"
         onSelectPatient={setSelectedTicket}
         selectedTicketId={selectedTicket?.id}
+        collapsed={queueCollapsed}
+        onToggleCollapse={() => setQueueCollapsed(!queueCollapsed)}
       />
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
         <div>

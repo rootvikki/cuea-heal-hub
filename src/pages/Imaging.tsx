@@ -29,6 +29,11 @@ const Imaging = () => {
   const [findings, setFindings] = useState("");
   const [impression, setImpression] = useState("");
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [queueCollapsed, setQueueCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (selectedTicket) setQueueCollapsed(true);
+  }, [selectedTicket]);
 
   useEffect(() => {
     fetchOrders();
@@ -148,6 +153,8 @@ const Imaging = () => {
         title="Imaging Queue"
         onSelectPatient={setSelectedTicket}
         selectedTicketId={selectedTicket?.id}
+        collapsed={queueCollapsed}
+        onToggleCollapse={() => setQueueCollapsed(!queueCollapsed)}
       />
 
       <div className="flex-1 overflow-auto p-6 space-y-6">

@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Radio, Play, CheckCircle, User } from "lucide-react";
+import { Radio, Play, CheckCircle, User, ChevronLeft, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 
 interface StationQueueProps {
@@ -13,6 +13,8 @@ interface StationQueueProps {
   title: string;
   onSelectPatient?: (ticket: any) => void;
   selectedTicketId?: string;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 async function fetchStationTickets(stationStages: string[]) {
@@ -35,7 +37,7 @@ async function fetchStationTickets(stationStages: string[]) {
   }));
 }
 
-export function StationQueue({ stationStages, nextStage, title, onSelectPatient, selectedTicketId }: StationQueueProps) {
+export function StationQueue({ stationStages, nextStage, title, onSelectPatient, selectedTicketId, collapsed = false, onToggleCollapse }: StationQueueProps) {
   const queryClient = useQueryClient();
   const [isLive, setIsLive] = useState(false);
 
@@ -76,13 +78,50 @@ export function StationQueue({ stationStages, nextStage, title, onSelectPatient,
     }
   };
 
+  // Collapsed mode: narrow vertical strip
+  if (collapsed) {
+    return (
+      <div className="w-12 border-r bg-muted/30 flex flex-col items-center py-3 gap-3 shrink-0 transition-all duration-200">
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-8 w-8"
+          onClick={onToggleCollapse}
+        >
+          <ChevronRight className="h-4 w-4" />
+        </Button>
+        <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">
+          {tickets.length}
+        </Badge>
+        <div className="flex-1 flex items-center">
+          <span
+            className="text-[10px] font-semibold text-muted-foreground tracking-wider"
+            style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}
+          >
+            {title}
+          </span>
+        </div>
+        {isLive && (
+          <Radio className="h-3 w-3 text-[hsl(var(--success))] animate-pulse" />
+        )}
+      </div>
+    );
+  }
+
   return (
-    <div className="w-72 border-r bg-muted/30 flex flex-col h-full">
+    <div className="w-72 border-r bg-muted/30 flex flex-col h-full shrink-0 transition-all duration-200">
       <div className="p-3 border-b">
         <div className="flex items-center justify-between">
-          <h3 className="font-semibold text-sm">{title}</h3>
+          <div className="flex items-center gap-2">
+            {onToggleCollapse && (
+              <Button variant="ghost" size="icon" className="h-6 w-6" onClick={onToggleCollapse}>
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </Button>
+            )}
+            <h3 className="font-semibold text-sm">{title}</h3>
+          </div>
           {isLive && (
-            <Badge variant="outline" className="gap-1 text-green-600 border-green-600 text-xs">
+            <Badge variant="outline" className="gap-1 text-[hsl(var(--success))] border-[hsl(var(--success))] text-xs">
               <Radio className="h-2 w-2 animate-pulse" /> Live
             </Badge>
           )}

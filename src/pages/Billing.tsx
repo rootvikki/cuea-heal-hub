@@ -32,6 +32,11 @@ const Billing = () => {
   const [paymentMethod, setPaymentMethod] = useState("mpesa");
   const [processingPayment, setProcessingPayment] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [queueCollapsed, setQueueCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (selectedTicket) setQueueCollapsed(true);
+  }, [selectedTicket]);
 
   useEffect(() => {
     fetchInvoices();
@@ -211,6 +216,8 @@ const Billing = () => {
           viewChargeSheet(ticket);
         }}
         selectedTicketId={selectedTicket?.id}
+        collapsed={queueCollapsed}
+        onToggleCollapse={() => setQueueCollapsed(!queueCollapsed)}
       />
 
       <div className="flex-1 overflow-auto p-6 space-y-6">

@@ -30,7 +30,7 @@ import {
   Clock, CheckCircle2, CircleDot, Thermometer, Droplets, Wind,
   Scale, Ruler, Shield, Save, ChevronRight, Search, Info,
   History, Brain, Clipboard, Syringe, Eye, ChevronDown,
-  ChevronsUpDown, DollarSign, ArrowRight, MapPin
+  ChevronsUpDown, DollarSign, ArrowRight, MapPin, ChevronLeft
 } from "lucide-react";
 
 // ─── Types ───────────────────────────────────────────────────────
@@ -244,6 +244,11 @@ const Consultation = () => {
   const [imagingSearchTerm, setImagingSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("encounter");
   const [vitalsExpanded, setVitalsExpanded] = useState(false);
+  const [queueCollapsed, setQueueCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (selectedTicket) setQueueCollapsed(true);
+  }, [selectedTicket]);
 
   const [encounter, setEncounter] = useState({
     chiefComplaint: "",
@@ -721,13 +726,34 @@ const Consultation = () => {
     <TooltipProvider>
       <div className="flex h-screen overflow-hidden bg-background">
         {/* ── Left Panel: Patient Queue ── */}
-        <div className="w-72 lg:w-80 border-r bg-card flex flex-col shrink-0">
+        {queueCollapsed ? (
+          <div className="w-12 border-r bg-card flex flex-col items-center py-3 gap-3 shrink-0 transition-all duration-200">
+            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setQueueCollapsed(false)}>
+              <ChevronRight className="h-4 w-4" />
+            </Button>
+            <Badge variant="outline" className="text-[10px] px-1.5 py-0.5">
+              {queue.length}
+            </Badge>
+            <div className="flex-1 flex items-center">
+              <span className="text-[10px] font-semibold text-muted-foreground tracking-wider" style={{ writingMode: "vertical-rl", textOrientation: "mixed" }}>
+                Consultation
+              </span>
+            </div>
+            {isLive && <Radio className="h-3 w-3 text-[hsl(var(--success))] animate-pulse" />}
+          </div>
+        ) : (
+        <div className="w-72 lg:w-80 border-r bg-card flex flex-col shrink-0 transition-all duration-200">
           <div className="p-4 border-b" style={{ background: "var(--gradient-subtle)" }}>
             <div className="flex items-center justify-between mb-1">
-              <h2 className="font-bold text-sm flex items-center gap-2">
-                <Stethoscope className="h-4 w-4 text-primary" />
-                Consultation
-              </h2>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="icon" className="h-6 w-6" onClick={() => setQueueCollapsed(true)}>
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </Button>
+                <h2 className="font-bold text-sm flex items-center gap-2">
+                  <Stethoscope className="h-4 w-4 text-primary" />
+                  Consultation
+                </h2>
+              </div>
               {isLive && (
                 <Badge variant="outline" className="gap-1 text-[hsl(var(--success))] border-[hsl(var(--success))]/40 bg-[hsl(var(--success))]/10 text-[10px] px-2 py-0.5">
                   <Radio className="h-2 w-2 animate-pulse" /> Live
@@ -818,6 +844,7 @@ const Consultation = () => {
             </div>
           </ScrollArea>
         </div>
+        )}
 
         {/* ── Main Content Area ── */}
         <div className="flex-1 flex flex-col overflow-hidden">
