@@ -1541,7 +1541,7 @@ const Consultation = () => {
               <div className="grid grid-cols-3 gap-3">
                 <Field label="Route">
                   <Select value={currentPrescription.route} onValueChange={(v) => setCurrentPrescription({ ...currentPrescription, route: v })}>
-                    <SelectTrigger className="text-xs h-9"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="text-sm h-11"><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {["Oral", "IV", "IM", "SC", "Topical", "Rectal", "Sublingual", "Inhaled", "Nasal", "Ophthalmic", "Otic"].map(r => (
                         <SelectItem key={r} value={r}>{r}</SelectItem>
