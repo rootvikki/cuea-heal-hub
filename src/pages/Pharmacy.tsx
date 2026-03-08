@@ -149,10 +149,12 @@ const Pharmacy = () => {
       unit_price: inventoryItem.unit_price,
     });
 
-    // Generate service charge for pharmacy
+    // Generate service charge for pharmacy (include ticket_id for billing charge sheet)
+    const activeTicket = await getActiveTicket(patientId);
     await supabase.from("service_charges").insert({
       patient_id: patientId,
       encounter_id: encounterId,
+      ticket_id: activeTicket?.id || null,
       service_type: "pharmacy",
       description: `Pharmacy: ${medicationName} x${quantity}`,
       amount: inventoryItem.unit_price * quantity,
