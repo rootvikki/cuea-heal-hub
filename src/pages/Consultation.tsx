@@ -244,6 +244,11 @@ const Consultation = () => {
   const [imagingSearchTerm, setImagingSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("encounter");
   const [vitalsExpanded, setVitalsExpanded] = useState(false);
+  const [queueCollapsed, setQueueCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (selectedTicket) setQueueCollapsed(true);
+  }, [selectedTicket]);
 
   const [encounter, setEncounter] = useState({
     chiefComplaint: "",
