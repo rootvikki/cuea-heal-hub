@@ -438,7 +438,7 @@ const Laboratory = () => {
                           <TableCell className="font-medium">{field.name}</TableCell>
                           <TableCell>
                             <Input
-                              className="h-8 w-28"
+                              className="h-11 w-32 text-sm"
                               value={resultFields[field.name] || ""}
                               onChange={(e) => setResultFields({ ...resultFields, [field.name]: e.target.value })}
                               disabled={selectedOrder.status === "completed"}
