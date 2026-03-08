@@ -20,6 +20,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
 import { ReferralForm } from "@/components/ReferralForm";
+import { InterimPayment } from "@/components/InterimPayment";
 import { PatientJourney } from "@/components/PatientJourney";
 import { logAuditEvent } from "@/lib/auditLog";
 import {
