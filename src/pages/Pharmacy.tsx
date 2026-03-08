@@ -36,6 +36,7 @@ const Pharmacy = () => {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [stockCardItem, setStockCardItem] = useState<any>(null);
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [dispenseConfirm, setDispenseConfirm] = useState<any>(null);
   const [formData, setFormData] = useState({
     drugName: "", genericName: "", batchNumber: "", quantity: "", unitPrice: "",
     expiryDate: "", reorderLevel: "50", strengthSize: "", packageType: "",
