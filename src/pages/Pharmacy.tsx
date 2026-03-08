@@ -24,6 +24,7 @@ import { StationQueue } from "@/components/StationQueue";
 import { Pill, Plus, Package, AlertTriangle, Search, ClipboardList } from "lucide-react";
 import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
+import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 
 const Pharmacy = () => {
   const { toast } = useToast();
