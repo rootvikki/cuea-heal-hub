@@ -13,6 +13,7 @@ import { NursingProcedures, type SelectedProcedure } from "@/components/NursingP
 import { InterimPayment } from "@/components/InterimPayment";
 import { Activity, Send, Calendar, Thermometer, HeartPulse, Weight, Ruler, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { logAuditEvent } from "@/lib/auditLog";
+import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 
 // ─── Vital range helpers ─────────────────────────────────────────
 const getBPClass = (sys: string, dia: string) => {
