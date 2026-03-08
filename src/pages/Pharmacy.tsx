@@ -396,6 +396,43 @@ const Pharmacy = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Dispense Confirmation Dialog */}
+      <AlertDialog open={!!dispenseConfirm} onOpenChange={(open) => !open && setDispenseConfirm(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Confirm Dispensing</AlertDialogTitle>
+            <AlertDialogDescription asChild>
+              <div className="space-y-3">
+                <p>Are you sure you want to dispense this medication? This action will deduct stock and cannot be undone.</p>
+                {dispenseConfirm && (
+                  <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
+                    <p><strong>Medication:</strong> {dispenseConfirm.prescription?.medication_name}</p>
+                    <p><strong>Patient:</strong> {dispenseConfirm.prescription?.patient?.profile?.full_name}</p>
+                    <p><strong>Quantity to dispense:</strong> {dispenseConfirm.prescription?.quantity}</p>
+                    {dispenseConfirm.inventoryItem ? (
+                      <p><strong>Current stock:</strong> {dispenseConfirm.inventoryItem.quantity} → {dispenseConfirm.inventoryItem.quantity - dispenseConfirm.prescription?.quantity} after dispensing</p>
+                    ) : (
+                      <p className="text-destructive font-medium">⚠ Medication not found in inventory</p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => {
+              if (dispenseConfirm?.prescription) {
+                handleDispense(dispenseConfirm.prescription);
+              }
+              setDispenseConfirm(null);
+            }}>
+              Confirm Dispense
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
