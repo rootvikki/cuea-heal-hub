@@ -15,6 +15,7 @@ import { StationQueue } from "@/components/StationQueue";
 import { Camera, Search, Clock, CheckCircle, AlertCircle, FileImage } from "lucide-react";
 import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
+import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 
 const Imaging = () => {
   const { toast } = useToast();
