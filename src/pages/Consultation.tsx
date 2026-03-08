@@ -958,8 +958,8 @@ const Consultation = () => {
                                   value={encounter.historyOfPresentIllness}
                                   onChange={(e) => setEncounter({ ...encounter, historyOfPresentIllness: e.target.value })}
                                   placeholder="Describe the onset, progression, and character of symptoms..."
-                                  rows={3}
-                                  className="text-sm resize-y"
+                                  rows={4}
+                                  className="text-base resize-y"
                                 />
                               </Field>
 
