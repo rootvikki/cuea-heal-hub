@@ -341,7 +341,7 @@ const Consultation = () => {
       const { data } = await supabase
         .from("tickets")
         .select("*, patients!inner(*, profiles!inner(full_name, phone, date_of_birth, gender))")
-        .in("workflow_stage", ["waiting_for_doctor", "in_consult", "triage"])
+        .in("workflow_stage", ["waiting_for_doctor", "in_consult"])
         .order("priority", { ascending: false })
         .order("created_at", { ascending: true });
 
@@ -372,7 +372,7 @@ const Consultation = () => {
             sonnerToast.info("New patient ready for consultation");
           }
         }
-        queryClient.invalidateQueries({ queryKey: ["station-queue", "waiting_for_doctor", "in_consult", "triage"] });
+        queryClient.invalidateQueries({ queryKey: ["station-queue", "waiting_for_doctor", "in_consult"] });
         fetchQueue();
       })
       .subscribe((status) => setIsLive(status === "SUBSCRIBED"));
