@@ -461,12 +461,13 @@ const Laboratory = () => {
               </div>
             ) : (
               <div className="space-y-2">
-                <Label>Result Value *</Label>
+                <Label className="text-sm font-semibold">Result Value *</Label>
                 <Input
                   value={resultValue}
                   onChange={(e) => setResultValue(e.target.value)}
                   placeholder="e.g., Positive, 5.2 mmol/L"
                   disabled={selectedOrder?.status === "completed"}
+                  className="h-12 text-base"
                 />
                 {selectedOrder?.test?.normal_range && (
                   <p className="text-sm text-muted-foreground">Normal Range: {selectedOrder.test.normal_range}</p>
