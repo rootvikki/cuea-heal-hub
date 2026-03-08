@@ -38,6 +38,11 @@ const Pharmacy = () => {
   const [stockCardItem, setStockCardItem] = useState<any>(null);
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [dispenseConfirm, setDispenseConfirm] = useState<any>(null);
+  const [queueCollapsed, setQueueCollapsed] = useState(false);
+
+  useEffect(() => {
+    if (selectedTicket) setQueueCollapsed(true);
+  }, [selectedTicket]);
   const [formData, setFormData] = useState({
     drugName: "", genericName: "", batchNumber: "", quantity: "", unitPrice: "",
     expiryDate: "", reorderLevel: "50", strengthSize: "", packageType: "",
