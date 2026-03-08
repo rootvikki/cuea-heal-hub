@@ -207,14 +207,14 @@ export function AppSidebar() {
         </ScrollArea>
       </SidebarContent>
 
-      <SidebarFooter className="border-t border-sidebar-border p-4">
+      <SidebarFooter className="border-t border-sidebar-border p-4 overflow-visible">
         <Button
           variant="outline"
           onClick={handleLogout}
-          className="w-full justify-start gap-2 min-w-0"
+          className="w-full justify-start gap-2 overflow-visible"
         >
           <LogOut className="h-4 w-4 shrink-0" />
-          <span className="truncate group-data-[collapsible=icon]:hidden">Logout</span>
+          <span>Logout</span>
         </Button>
       </SidebarFooter>
     </Sidebar>
