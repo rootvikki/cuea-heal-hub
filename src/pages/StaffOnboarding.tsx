@@ -294,52 +294,60 @@ export default function StaffOnboarding() {
         <CardContent>
           {/* Step 1: Basic Info */}
           {currentStep === 1 && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div className="space-y-2">
-                  <Label htmlFor="email">Email Address *</Label>
+                  <Label htmlFor="email" className="text-sm font-semibold">Email Address *</Label>
                   <Input
                     id="email"
                     type="email"
                     placeholder="staff@cuea.edu"
                     value={formData.email}
                     onChange={e => updateFormData("email", e.target.value)}
+                    className="h-12 text-base"
                   />
+                  <p className="text-xs text-muted-foreground">Used for login and notifications</p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="payrollNumber">Payroll Number *</Label>
+                  <Label htmlFor="payrollNumber" className="text-sm font-semibold">Payroll Number *</Label>
                   <Input
                     id="payrollNumber"
                     placeholder="e.g. PAY-0001"
                     value={formData.payrollNumber}
                     onChange={e => updateFormData("payrollNumber", e.target.value)}
+                    className="h-12 text-base"
                   />
+                  <p className="text-xs text-muted-foreground">Unique staff identifier</p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="fullName">Full Name *</Label>
+                  <Label htmlFor="fullName" className="text-sm font-semibold">Full Name *</Label>
                   <Input
                     id="fullName"
                     placeholder="Dr. John Doe"
                     value={formData.fullName}
                     onChange={e => updateFormData("fullName", e.target.value)}
+                    className="h-12 text-base"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="phone">Phone Number</Label>
+                  <Label htmlFor="phone" className="text-sm font-semibold">Phone Number</Label>
                   <Input
                     id="phone"
                     placeholder="+254 700 000 000"
                     value={formData.phone}
                     onChange={e => updateFormData("phone", e.target.value)}
+                    className="h-12 text-base"
                   />
+                  <p className="text-xs text-muted-foreground">Format: +254 7XX XXX XXX</p>
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="nationalId">National ID</Label>
+                  <Label htmlFor="nationalId" className="text-sm font-semibold">National ID</Label>
                   <Input
                     id="nationalId"
                     placeholder="12345678"
                     value={formData.nationalId}
                     onChange={e => updateFormData("nationalId", e.target.value)}
+                    className="h-12 text-base"
                   />
                 </div>
               </div>
