@@ -60,7 +60,6 @@ export function validatePatientForm(data: {
   fullName: string;
   email: string;
   phone: string;
-  password: string;
   nationalId: string;
   nextOfKinName: string;
   nextOfKinPhone: string;
@@ -75,9 +74,6 @@ export function validatePatientForm(data: {
   }
   if (!isValidKenyanPhone(data.phone)) {
     errors.push({ field: "phone", message: "Invalid phone number (use format 07XXXXXXXX)" });
-  }
-  if (!isValidPassword(data.password)) {
-    errors.push({ field: "password", message: "Password must be 8+ chars with at least one letter and number" });
   }
   if (data.nationalId && !isValidNationalId(data.nationalId)) {
     errors.push({ field: "nationalId", message: "Invalid National ID / Passport number" });

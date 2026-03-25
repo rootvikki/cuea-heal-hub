@@ -54,14 +54,14 @@ Deno.serve(async (req) => {
 
     const body = await req.json();
     const {
-      fullName, phone, email, password, dateOfBirth, gender,
+      fullName, phone, email, dateOfBirth, gender,
       nationalId, nationality, postalAddress, address,
       patientType, payrollNumber, admissionNumber, visitReason,
       insuranceProvider, insuranceNumber,
       nextOfKinName, nextOfKinRelationship, nextOfKinPhone,
     } = body;
 
-    if (!fullName || !email || !password) {
+    if (!fullName || !email) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -72,9 +72,12 @@ Deno.serve(async (req) => {
     let userId: string;
     let existingPatientRecord: { id: string; patient_id: string } | null = null;
 
+    // Auto-generate a secure random password
+    const autoPassword = crypto.randomUUID().replace(/-/g, "") + "Aa1!";
+
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
-      password,
+      password: autoPassword,
       email_confirm: true,
       user_metadata: { full_name: fullName, phone },
     });
