@@ -114,7 +114,7 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
       const response = await supabase.functions.invoke("register-patient", {
         body: {
           fullName: formData.fullName, phone: formData.phone, email: formData.email,
-          password: formData.password, dateOfBirth: formData.dateOfBirth || null,
+          dateOfBirth: formData.dateOfBirth || null,
           gender: formData.gender || null, nationalId: formData.nationalId || null,
           nationality: formData.nationality || null, postalAddress: formData.postalAddress || null,
           address: formData.address || null, patientType: formData.patientType || "outsider",
