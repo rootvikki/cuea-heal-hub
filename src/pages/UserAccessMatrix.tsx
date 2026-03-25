@@ -1,14 +1,26 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { logAuditEvent } from "@/lib/auditLog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { Search, Shield, Loader2, Info, Grid3X3 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Search, Shield, Loader2, Info, Grid3X3, Users } from "lucide-react";
 
 type AppRole = "admin" | "doctor" | "nurse" | "receptionist" | "lab_technician" | "pharmacist" | "finance_officer" | "patient" | "super_admin" | "system_admin" | "radiologist" | "cashier" | "accountant" | "hr_admin" | "auditor" | "clinical_officer" | "records_officer" | "ward_manager";
 
@@ -22,36 +34,21 @@ interface UserWithRoles {
   payroll_number: string;
 }
 
-// Role categories for grouping columns
+interface PendingToggle {
+  userId: string;
+  userName: string;
+  role: string;
+  hasRole: boolean;
+}
+
 const ROLE_GROUPS = [
-  {
-    label: "Administration",
-    roles: ["super_admin", "system_admin", "admin", "hr_admin"],
-  },
-  {
-    label: "Clinical",
-    roles: ["doctor", "clinical_officer", "nurse", "ward_manager"],
-  },
-  {
-    label: "Diagnostics",
-    roles: ["lab_technician", "radiologist"],
-  },
-  {
-    label: "Support Services",
-    roles: ["receptionist", "pharmacist"],
-  },
-  {
-    label: "Finance",
-    roles: ["finance_officer", "cashier", "accountant"],
-  },
-  {
-    label: "Records & Audit",
-    roles: ["records_officer", "auditor"],
-  },
-  {
-    label: "Patient",
-    roles: ["patient"],
-  },
+  { label: "Administration", roles: ["super_admin", "system_admin", "admin", "hr_admin"] },
+  { label: "Clinical", roles: ["doctor", "clinical_officer", "nurse", "ward_manager"] },
+  { label: "Diagnostics", roles: ["lab_technician", "radiologist"] },
+  { label: "Support Services", roles: ["receptionist", "pharmacist"] },
+  { label: "Finance", roles: ["finance_officer", "cashier", "accountant"] },
+  { label: "Records & Audit", roles: ["records_officer", "auditor"] },
+  { label: "Patient", roles: ["patient"] },
 ];
 
 const ROLE_META: Record<string, { label: string; short: string; color: string; description: string }> = {
@@ -75,7 +72,6 @@ const ROLE_META: Record<string, { label: string; short: string; color: string; d
   patient: { label: "Patient", short: "PAT", color: "bg-gray-500", description: "Patient portal access only" },
 };
 
-// Module access mapping: which roles can access which modules
 const MODULE_ACCESS: Record<string, string[]> = {
   "Dashboard": ["all"],
   "Reception": ["receptionist", "admin", "super_admin"],
@@ -102,6 +98,7 @@ const MODULE_ACCESS: Record<string, string[]> = {
 };
 
 const ALL_ROLES = ROLE_GROUPS.flatMap(g => g.roles);
+const STAFF_ROLES = ["doctor", "nurse", "lab_technician", "pharmacist", "receptionist", "finance_officer", "admin", "super_admin", "system_admin", "radiologist", "cashier", "accountant", "hr_admin", "auditor", "clinical_officer", "records_officer", "ward_manager"];
 
 export default function UserAccessMatrix() {
   const { toast } = useToast();
@@ -112,6 +109,15 @@ export default function UserAccessMatrix() {
   const [isLoading, setIsLoading] = useState(true);
   const [togglingCell, setTogglingCell] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"roles" | "modules">("roles");
+
+  // Confirmation dialog state
+  const [pendingToggle, setPendingToggle] = useState<PendingToggle | null>(null);
+
+  // Bulk assignment state
+  const [selectedUsers, setSelectedUsers] = useState<Set<string>>(new Set());
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  const [bulkRole, setBulkRole] = useState<string>("");
+  const [isBulkAssigning, setIsBulkAssigning] = useState(false);
 
   const fetchUsers = useCallback(async () => {
     setIsLoading(true);
@@ -144,13 +150,26 @@ export default function UserAccessMatrix() {
     setFilteredUsers(filtered);
   }, [users, searchQuery, filterRole]);
 
-  const toggleRole = async (userId: string, role: string, hasRole: boolean) => {
+  const handleToggleClick = (userId: string, role: string, hasRole: boolean) => {
+    const user = users.find(u => u.user_id === userId);
+    setPendingToggle({
+      userId,
+      userName: user?.full_name || user?.email || "Unknown",
+      role,
+      hasRole,
+    });
+  };
+
+  const confirmToggle = async () => {
+    if (!pendingToggle) return;
+    const { userId, role, hasRole } = pendingToggle;
+    setPendingToggle(null);
+
     const cellKey = `${userId}-${role}`;
     setTogglingCell(cellKey);
 
     try {
       if (hasRole) {
-        // Remove role
         const { error } = await supabase
           .from("user_roles")
           .delete()
@@ -158,19 +177,18 @@ export default function UserAccessMatrix() {
           .eq("role", role as AppRole);
         if (error) throw error;
 
-        // Update local state immediately
         setUsers(prev => prev.map(u =>
-          u.user_id === userId
-            ? { ...u, roles: u.roles.filter(r => r !== role) }
-            : u
+          u.user_id === userId ? { ...u, roles: u.roles.filter(r => r !== role) } : u
         ));
 
-        toast({
-          title: "Role removed",
-          description: `${ROLE_META[role]?.label} removed successfully`,
+        await logAuditEvent({
+          action: "role_removed",
+          module: "Access Matrix",
+          details: { target_user_id: userId, role, target_user_name: pendingToggle.userName },
         });
+
+        toast({ title: "Role removed", description: `${ROLE_META[role]?.label} removed successfully` });
       } else {
-        // Add role
         const { error } = await supabase.from("user_roles").insert({
           user_id: userId,
           role: role as AppRole,
@@ -184,9 +202,7 @@ export default function UserAccessMatrix() {
           throw error;
         }
 
-        // Also create staff record for staff roles
-        const staffRoles = ["doctor", "nurse", "lab_technician", "pharmacist", "receptionist", "finance_officer", "admin", "super_admin", "system_admin", "radiologist", "cashier", "accountant", "hr_admin", "auditor", "clinical_officer", "records_officer", "ward_manager"];
-        if (staffRoles.includes(role)) {
+        if (STAFF_ROLES.includes(role)) {
           const staffNumber = `STAFF-${Date.now().toString().slice(-6)}`;
           await supabase.from("staff").upsert({
             user_id: userId,
@@ -196,15 +212,16 @@ export default function UserAccessMatrix() {
         }
 
         setUsers(prev => prev.map(u =>
-          u.user_id === userId
-            ? { ...u, roles: [...(u.roles || []), role] }
-            : u
+          u.user_id === userId ? { ...u, roles: [...(u.roles || []), role] } : u
         ));
 
-        toast({
-          title: "Role assigned",
-          description: `${ROLE_META[role]?.label} assigned successfully`,
+        await logAuditEvent({
+          action: "role_assigned",
+          module: "Access Matrix",
+          details: { target_user_id: userId, role, target_user_name: pendingToggle.userName },
         });
+
+        toast({ title: "Role assigned", description: `${ROLE_META[role]?.label} assigned successfully` });
       }
     } catch (error: any) {
       toast({ title: "Error updating role", description: error.message, variant: "destructive" });
@@ -213,25 +230,147 @@ export default function UserAccessMatrix() {
     }
   };
 
+  const toggleUserSelection = (userId: string) => {
+    setSelectedUsers(prev => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId); else next.add(userId);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedUsers.size === filteredUsers.length) {
+      setSelectedUsers(new Set());
+    } else {
+      setSelectedUsers(new Set(filteredUsers.map(u => u.user_id)));
+    }
+  };
+
+  const handleBulkAssign = async () => {
+    if (!bulkRole || selectedUsers.size === 0) return;
+    setIsBulkAssigning(true);
+
+    let successCount = 0;
+    let skipCount = 0;
+
+    try {
+      for (const userId of selectedUsers) {
+        const user = users.find(u => u.user_id === userId);
+        if (user?.roles?.includes(bulkRole)) {
+          skipCount++;
+          continue;
+        }
+
+        const { error } = await supabase.from("user_roles").insert({
+          user_id: userId,
+          role: bulkRole as AppRole,
+        });
+
+        if (error) {
+          if (error.code === "23505") { skipCount++; continue; }
+          throw error;
+        }
+
+        if (STAFF_ROLES.includes(bulkRole)) {
+          const staffNumber = `STAFF-${Date.now().toString().slice(-6)}`;
+          await supabase.from("staff").upsert({
+            user_id: userId,
+            staff_id: staffNumber,
+            department_id: null,
+          }, { onConflict: "user_id", ignoreDuplicates: true });
+        }
+
+        successCount++;
+      }
+
+      await logAuditEvent({
+        action: "bulk_role_assigned",
+        module: "Access Matrix",
+        details: { role: bulkRole, users_count: successCount, skipped: skipCount },
+      });
+
+      toast({
+        title: "Bulk assignment complete",
+        description: `${ROLE_META[bulkRole]?.label} assigned to ${successCount} user(s). ${skipCount} skipped (already had role).`,
+      });
+
+      setSelectedUsers(new Set());
+      setBulkDialogOpen(false);
+      setBulkRole("");
+      fetchUsers();
+    } catch (error: any) {
+      toast({ title: "Bulk assignment error", description: error.message, variant: "destructive" });
+    } finally {
+      setIsBulkAssigning(false);
+    }
+  };
+
   const getRoleCount = (role: string) => users.filter(u => u.roles?.includes(role)).length;
 
-  // Check if a role grants access to a module
   const roleHasModuleAccess = (role: string, module: string) => {
     const allowedRoles = MODULE_ACCESS[module];
     if (!allowedRoles) return false;
     return allowedRoles.includes("all") || allowedRoles.includes(role) || role === "super_admin" || role === "admin";
   };
 
-  // Check if a user has access to a module (through any of their roles)
-  const userHasModuleAccess = (user: UserWithRoles, module: string) => {
-    const allowedRoles = MODULE_ACCESS[module];
-    if (!allowedRoles) return false;
-    if (allowedRoles.includes("all")) return true;
-    return user.roles?.some(r => allowedRoles.includes(r) || r === "super_admin" || r === "admin");
-  };
-
   return (
     <div className="space-y-6">
+      {/* Confirmation Dialog */}
+      <AlertDialog open={!!pendingToggle} onOpenChange={(open) => { if (!open) setPendingToggle(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {pendingToggle?.hasRole ? "Remove Role" : "Assign Role"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to <strong>{pendingToggle?.hasRole ? "remove" : "assign"}</strong> the{" "}
+              <strong>{ROLE_META[pendingToggle?.role || ""]?.label}</strong> role{" "}
+              {pendingToggle?.hasRole ? "from" : "to"}{" "}
+              <strong>{pendingToggle?.userName}</strong>?
+              {!pendingToggle?.hasRole && " This will grant them access to the associated modules immediately."}
+              {pendingToggle?.hasRole && " They will lose access to the associated modules immediately."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmToggle}>
+              {pendingToggle?.hasRole ? "Remove Role" : "Assign Role"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Bulk Assign Dialog */}
+      <AlertDialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Bulk Assign Role</AlertDialogTitle>
+            <AlertDialogDescription>
+              Assign a role to {selectedUsers.size} selected user(s). Users who already have the role will be skipped.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div className="py-4">
+            <Select value={bulkRole} onValueChange={setBulkRole}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select a role to assign" />
+              </SelectTrigger>
+              <SelectContent>
+                {ALL_ROLES.map(role => (
+                  <SelectItem key={role} value={role}>{ROLE_META[role]?.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isBulkAssigning}>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleBulkAssign} disabled={!bulkRole || isBulkAssigning}>
+              {isBulkAssigning ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Assign to {selectedUsers.size} user(s)
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       {/* Header */}
       <div>
         <h1 className="text-3xl font-bold text-foreground flex items-center gap-2">
@@ -279,6 +418,19 @@ export default function UserAccessMatrix() {
               </SelectContent>
             </Select>
           </div>
+          {/* Bulk action toolbar */}
+          {viewMode === "roles" && selectedUsers.size > 0 && (
+            <div className="mt-4 flex items-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/20">
+              <Users className="h-4 w-4 text-primary" />
+              <span className="text-sm font-medium">{selectedUsers.size} user(s) selected</span>
+              <Button size="sm" onClick={() => setBulkDialogOpen(true)}>
+                Bulk Assign Role
+              </Button>
+              <Button size="sm" variant="ghost" onClick={() => setSelectedUsers(new Set())}>
+                Clear Selection
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
@@ -314,7 +466,6 @@ export default function UserAccessMatrix() {
           <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
         </div>
       ) : viewMode === "roles" ? (
-        /* ROLE ASSIGNMENT MATRIX */
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2">
@@ -323,7 +474,7 @@ export default function UserAccessMatrix() {
             </CardTitle>
             <CardDescription className="flex items-center gap-1">
               <Info className="h-3.5 w-3.5" />
-              Click any checkbox to instantly toggle a role. Hover column headers for role descriptions.
+              Click any checkbox to toggle a role. Use row checkboxes for bulk assignment.
             </CardDescription>
           </CardHeader>
           <CardContent className="p-0">
@@ -331,23 +482,23 @@ export default function UserAccessMatrix() {
               <div className="min-w-[1200px]">
                 <table className="w-full text-sm">
                   <thead>
-                    {/* Group header row */}
                     <tr className="border-b bg-muted/30">
-                      <th className="sticky left-0 bg-muted/30 z-20 p-2 w-[240px] min-w-[240px]" />
+                      <th className="sticky left-0 bg-muted/30 z-20 p-2 w-[280px] min-w-[280px]" />
                       {ROLE_GROUPS.map(group => (
-                        <th
-                          key={group.label}
-                          colSpan={group.roles.length}
-                          className="p-1.5 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider border-l border-border"
-                        >
+                        <th key={group.label} colSpan={group.roles.length} className="p-1.5 text-center text-xs font-bold text-muted-foreground uppercase tracking-wider border-l border-border">
                           {group.label}
                         </th>
                       ))}
                     </tr>
-                    {/* Role header row */}
                     <tr className="border-b bg-muted/50">
-                      <th className="sticky left-0 bg-muted/50 z-20 p-2 text-left font-semibold w-[240px] min-w-[240px]">
-                        User
+                      <th className="sticky left-0 bg-muted/50 z-20 p-2 text-left font-semibold w-[280px] min-w-[280px]">
+                        <div className="flex items-center gap-2">
+                          <Checkbox
+                            checked={filteredUsers.length > 0 && selectedUsers.size === filteredUsers.length}
+                            onCheckedChange={toggleSelectAll}
+                          />
+                          <span>User</span>
+                        </div>
                       </th>
                       {ROLE_GROUPS.flatMap(group =>
                         group.roles.map((role, i) => (
@@ -380,22 +531,29 @@ export default function UserAccessMatrix() {
                     ) : (
                       filteredUsers.map((user, idx) => {
                         const userRoleSet = new Set(user.roles || []);
+                        const isSelected = selectedUsers.has(user.user_id);
                         return (
                           <tr
                             key={user.user_id}
-                            className={`border-b hover:bg-muted/30 transition-colors ${idx % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}
+                            className={`border-b hover:bg-muted/30 transition-colors ${isSelected ? 'bg-primary/5' : idx % 2 === 0 ? 'bg-background' : 'bg-muted/10'}`}
                           >
-                            <td className="sticky left-0 z-10 p-2 bg-inherit border-r border-border w-[240px] min-w-[240px]">
-                              <div className="flex flex-col">
-                                <span className="font-medium text-sm truncate max-w-[220px]">
-                                  {user.full_name || "—"}
-                                </span>
-                                <span className="text-xs text-muted-foreground truncate max-w-[220px]">
-                                  {user.email}
-                                </span>
-                                {user.payroll_number && (
-                                  <span className="text-[10px] text-muted-foreground/70">{user.payroll_number}</span>
-                                )}
+                            <td className="sticky left-0 z-10 p-2 bg-inherit border-r border-border w-[280px] min-w-[280px]">
+                              <div className="flex items-center gap-2">
+                                <Checkbox
+                                  checked={isSelected}
+                                  onCheckedChange={() => toggleUserSelection(user.user_id)}
+                                />
+                                <div className="flex flex-col">
+                                  <span className="font-medium text-sm truncate max-w-[220px]">
+                                    {user.full_name || "—"}
+                                  </span>
+                                  <span className="text-xs text-muted-foreground truncate max-w-[220px]">
+                                    {user.email}
+                                  </span>
+                                  {user.payroll_number && (
+                                    <span className="text-[10px] text-muted-foreground/70">{user.payroll_number}</span>
+                                  )}
+                                </div>
                               </div>
                             </td>
                             {ROLE_GROUPS.flatMap(group =>
@@ -404,16 +562,13 @@ export default function UserAccessMatrix() {
                                 const cellKey = `${user.user_id}-${role}`;
                                 const isToggling = togglingCell === cellKey;
                                 return (
-                                  <td
-                                    key={role}
-                                    className={`p-1.5 text-center ${i === 0 ? 'border-l border-border' : ''} ${hasRole ? 'bg-primary/5' : ''}`}
-                                  >
+                                  <td key={role} className={`p-1.5 text-center ${i === 0 ? 'border-l border-border' : ''} ${hasRole ? 'bg-primary/5' : ''}`}>
                                     {isToggling ? (
                                       <Loader2 className="h-4 w-4 animate-spin mx-auto text-muted-foreground" />
                                     ) : (
                                       <Checkbox
                                         checked={hasRole}
-                                        onCheckedChange={() => toggleRole(user.user_id, role, hasRole)}
+                                        onCheckedChange={() => handleToggleClick(user.user_id, role, hasRole)}
                                         className={`mx-auto ${hasRole ? 'data-[state=checked]:bg-primary data-[state=checked]:border-primary' : ''}`}
                                       />
                                     )}
@@ -432,7 +587,6 @@ export default function UserAccessMatrix() {
           </CardContent>
         </Card>
       ) : (
-        /* MODULE ACCESS VIEW */
         <Card>
           <CardHeader className="pb-2">
             <CardTitle className="flex items-center gap-2">
