@@ -71,6 +71,7 @@ export function AppSidebar() {
     { title: "User Management", url: "/admin/users", icon: Users, roles: ["admin", "super_admin"] },
     { title: "Staff Onboarding", url: "/admin/onboard-staff", icon: UserPlus, roles: ["admin", "super_admin", "hr_admin"] },
     { title: "Role Management", url: "/admin/roles", icon: ShieldCheck, roles: ["super_admin"] },
+    { title: "Access Matrix", url: "/admin/access-matrix", icon: Shield, roles: ["super_admin"] },
     { title: "Staff", url: "/staff", icon: UserCog, roles: ["admin", "super_admin"] },
     { title: "Audit Logs", url: "/admin/audit-logs", icon: FileSearch, roles: ["admin", "super_admin"] },
     { title: "Reports", url: "/reports", icon: BarChart3, roles: ["admin", "super_admin", "finance_officer"] },

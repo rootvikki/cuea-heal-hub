@@ -36,6 +36,7 @@ import Dental from "./pages/Dental";
 import NotFound from "./pages/NotFound";
 import AuditLogs from "./pages/AuditLogs";
 import Reception from "./pages/Reception";
+import UserAccessMatrix from "./pages/UserAccessMatrix";
 
 const queryClient = new QueryClient();
 
@@ -94,6 +95,7 @@ const App = () => (
           <Route path="/admin/onboard-staff" element={<ProtectedLayout allowedRoles={ADMIN_ROLES}><StaffOnboarding /></ProtectedLayout>} />
           <Route path="/admin/users" element={<ProtectedLayout allowedRoles={ADMIN_ROLES}><AdminUserManagement /></ProtectedLayout>} />
           <Route path="/admin/roles" element={<ProtectedLayout allowedRoles={["super_admin"]}><RoleManagement /></ProtectedLayout>} />
+          <Route path="/admin/access-matrix" element={<ProtectedLayout allowedRoles={["super_admin"]}><UserAccessMatrix /></ProtectedLayout>} />
           <Route path="/admin/audit-logs" element={<ProtectedLayout allowedRoles={["super_admin", "auditor"]}><AuditLogs /></ProtectedLayout>} />
 
           {/* Reports & Settings */}
