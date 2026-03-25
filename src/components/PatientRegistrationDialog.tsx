@@ -43,7 +43,7 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [formData, setFormData] = useState({
-    fullName: "", phone: "", email: "", password: "", dateOfBirth: "", gender: "",
+    fullName: "", phone: "", email: "", dateOfBirth: "", gender: "",
     nationalId: "", nationality: "Kenyan", postalAddress: "", address: "",
     patientType: "" as "" | "cuea_staff" | "cuea_student" | "outsider",
     payrollNumber: "", admissionNumber: "", visitReason: "outpatient" as "outpatient" | "dental",
@@ -81,10 +81,9 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
 
   const contactFilled = useMemo(() => {
     let filled = 0;
-    const total = 3;
+    const total = 2;
     if (formData.phone) filled++;
     if (formData.email) filled++;
-    if (formData.password) filled++;
     return { filled, total };
   }, [formData]);
 
@@ -101,7 +100,7 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
     e.preventDefault();
     const errors = validatePatientForm({
       fullName: formData.fullName, email: formData.email, phone: formData.phone,
-      password: formData.password, nationalId: formData.nationalId,
+      nationalId: formData.nationalId,
       nextOfKinName: formData.nextOfKinName, nextOfKinPhone: formData.nextOfKinPhone,
     });
     if (errors.length > 0) {
@@ -115,7 +114,7 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
       const response = await supabase.functions.invoke("register-patient", {
         body: {
           fullName: formData.fullName, phone: formData.phone, email: formData.email,
-          password: formData.password, dateOfBirth: formData.dateOfBirth || null,
+          dateOfBirth: formData.dateOfBirth || null,
           gender: formData.gender || null, nationalId: formData.nationalId || null,
           nationality: formData.nationality || null, postalAddress: formData.postalAddress || null,
           address: formData.address || null, patientType: formData.patientType || "outsider",
@@ -148,7 +147,7 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
         fullName: formData.fullName,
       };
       setFormData({
-        fullName: "", phone: "", email: "", password: "", dateOfBirth: "", gender: "",
+        fullName: "", phone: "", email: "", dateOfBirth: "", gender: "",
         nationalId: "", nationality: "Kenyan", postalAddress: "", address: "",
         patientType: "", payrollNumber: "", admissionNumber: "", visitReason: "outpatient",
         insuranceProvider: "", insuranceNumber: "",
@@ -295,19 +294,14 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
                 <p className="text-xs text-muted-foreground">Used for portal login and notifications</p>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold">Password *</Label>
-                <Input type="password" required minLength={6} value={formData.password} onChange={(e) => update("password", e.target.value)} className="h-12 text-base" />
-                <p className="text-xs text-muted-foreground">Minimum 6 characters — for patient portal access</p>
-              </div>
-              {formData.patientType === "cuea_staff" && formData.insuranceProvider && (
+            {formData.patientType === "cuea_staff" && formData.insuranceProvider && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
                 <div className="space-y-2">
                   <Label className="text-sm font-semibold">Insurance Member Number</Label>
                   <Input value={formData.insuranceNumber} onChange={(e) => update("insuranceNumber", e.target.value)} className="h-12 text-base" placeholder="e.g. INS-123456" />
                 </div>
-              )}
-            </div>
+              </div>
+            )}
           </div>
 
           <Separator />
