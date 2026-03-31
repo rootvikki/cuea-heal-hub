@@ -220,8 +220,8 @@ const Dashboard = () => {
   const renderPharmacistDashboard = () => (
     <>
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
-        <StatCard title="Pending Prescriptions" value={stats.pendingRx} icon={Pill} description="Awaiting dispensing" color="text-primary" />
-        <StatCard title="Low Stock Alerts" value={stats.lowStock} icon={AlertTriangle} description="Below reorder level" color="text-destructive" />
+        <StatCard title="Pending Prescriptions" value={stats.pendingRx} icon={Pill} description="Awaiting dispensing" color="text-primary" onClick={() => navigate("/pharmacy")} />
+        <StatCard title="Low Stock Alerts" value={stats.lowStock} icon={AlertTriangle} description="Below reorder level" color="text-destructive" onClick={() => navigate("/pharmacy")} />
       </div>
       <Card>
         <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
