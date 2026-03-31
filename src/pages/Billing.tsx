@@ -229,7 +229,7 @@ const Billing = () => {
     doc.text(`Patient Type: ${(selectedPatientInfo.patient_type || "outsider").replace("_", " ").toUpperCase()}`, 120, 68);
     doc.text(`Date: ${new Date().toLocaleDateString()}`, 120, 76);
 
-    const tableData = selectedPatientCharges.map((c, i) => [
+    const tableData = editableCharges.map((c, i) => [
       (i + 1).toString(),
       c.description,
       (c.billing_stage || "-").replace("_", " "),
