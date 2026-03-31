@@ -235,8 +235,8 @@ const Dashboard = () => {
   const renderRadiologistDashboard = () => (
     <>
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
-        <StatCard title="Pending Studies" value={stats.pendingImaging} icon={Camera} description="Awaiting processing" color="text-warning" />
-        <StatCard title="Completed Today" value={stats.completedToday} icon={Activity} description="Reports submitted" color="text-success" />
+        <StatCard title="Pending Studies" value={stats.pendingImaging} icon={Camera} description="Awaiting processing" color="text-warning" onClick={() => navigate("/imaging")} />
+        <StatCard title="Completed Today" value={stats.completedToday} icon={Activity} description="Reports submitted" color="text-success" onClick={() => navigate("/imaging")} />
       </div>
       <Card>
         <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
