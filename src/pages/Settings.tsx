@@ -327,7 +327,47 @@ const Settings = () => {
         )}
 
         {isSuperAdmin && (
-          <TabsContent value="config" className="mt-6">
+          <TabsContent value="config" className="mt-6 space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Timer className="h-5 w-5 text-primary" /> Session Inactivity Timeout
+                </CardTitle>
+                <CardDescription>
+                  Set how long users can be inactive before being automatically logged out
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-end gap-4">
+                  <div className="space-y-2 w-64">
+                    <Label>Timeout Duration</Label>
+                    <Select value={idleTimeout} onValueChange={setIdleTimeout}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1 minute</SelectItem>
+                        <SelectItem value="2">2 minutes</SelectItem>
+                        <SelectItem value="3">3 minutes</SelectItem>
+                        <SelectItem value="5">5 minutes</SelectItem>
+                        <SelectItem value="10">10 minutes</SelectItem>
+                        <SelectItem value="15">15 minutes</SelectItem>
+                        <SelectItem value="20">20 minutes</SelectItem>
+                        <SelectItem value="30">30 minutes</SelectItem>
+                        <SelectItem value="60">1 hour</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button onClick={saveIdleTimeout} disabled={savingIdle}>
+                    {savingIdle && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                    Save Timeout
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-3">
+                  Users will see a 6-second warning countdown before being signed out. Currently set to <strong>{idleTimeout} minute{idleTimeout !== "1" ? "s" : ""}</strong>.
+                </p>
+              </CardContent>
+            </Card>
             <AdminTemplates />
           </TabsContent>
         )}
