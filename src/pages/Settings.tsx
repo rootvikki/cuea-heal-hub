@@ -45,7 +45,10 @@ const Settings = () => {
     const roles = data?.map(r => r.role) || [];
     const isAdmin = roles.includes("super_admin") || roles.includes("admin");
     setIsSuperAdmin(isAdmin);
-    if (isAdmin) fetchMpesaConfig();
+    if (isAdmin) {
+      fetchMpesaConfig();
+      fetchIdleTimeout();
+    }
   };
 
   const fetchMpesaConfig = async () => {
