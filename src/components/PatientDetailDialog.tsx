@@ -485,8 +485,8 @@ export const PatientDetailDialog = ({
               </ScrollArea>
             </TabsContent>}
 
-            {/* Labs */}
-            <TabsContent value="labs">
+            {/* Labs - doctors only */}
+            {isDoctor && <TabsContent value="labs">
               <ScrollArea className="h-[500px]">
                 {labOrders.length === 0 ? (
                   <p className="text-center py-8 text-muted-foreground">
