@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle,
@@ -14,7 +14,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
 import {
-  Search, UserPlus, ClipboardList, Calendar, Radio, User, ArrowRight, Clock, Plus, Loader2,
+  Search, UserPlus, ClipboardList, Calendar, Radio, User, ArrowRight, Clock, Loader2,
 } from "lucide-react";
 import { PatientRegistrationDialog } from "@/components/PatientRegistrationDialog";
 import { inferPathFromStage, WorkflowTimeline } from "@/components/WorkflowTimeline";
@@ -59,11 +59,8 @@ const Reception = () => {
   const [search, setSearch] = useState("");
   const [isLive, setIsLive] = useState(false);
   const [checkInDialogOpen, setCheckInDialogOpen] = useState(false);
-  const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
   const [selectedPatientForCheckIn, setSelectedPatientForCheckIn] = useState<any>(null);
   const [checkInForm, setCheckInForm] = useState({ departmentId: "", priority: "1" });
-  const [appointmentForm, setAppointmentForm] = useState({ patientId: "", departmentId: "", appointmentDate: "", reason: "" });
-  const [aptPatientSearch, setAptPatientSearch] = useState("");
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [isCheckingInAppointment, setIsCheckingInAppointment] = useState<string | null>(null);
 
@@ -265,31 +262,7 @@ const Reception = () => {
   };
 
   // Schedule appointment
-  const handleScheduleAppointment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const { error } = await supabase.from("appointments").insert({
-      patient_id: appointmentForm.patientId,
-      department_id: appointmentForm.departmentId,
-      appointment_date: appointmentForm.appointmentDate,
-      reason: appointmentForm.reason,
-      status: "scheduled",
-    });
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Appointment scheduled" });
-      setAppointmentDialogOpen(false);
-      setAppointmentForm({ patientId: "", departmentId: "", appointmentDate: "", reason: "" });
-      setAptPatientSearch("");
-      refetchAppointments();
-    }
-  };
 
-  const filteredAptPatients = patients.filter((p: any) => {
-    if (!aptPatientSearch) return true;
-    const s = aptPatientSearch.toLowerCase();
-    return p.patient_id?.toLowerCase().includes(s) || p.profile?.full_name?.toLowerCase().includes(s);
-  });
 
   // After patient registration, auto-open check-in dialog
   const handlePatientRegistered = (data: { patientRecordId: string; patientId: string; visitReason: string; existing: boolean; fullName: string }) => {
@@ -406,9 +379,7 @@ const Reception = () => {
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Calendar className="h-5 w-5" /> Today's Appointments ({todayAppointments.length})
               </CardTitle>
-              <Button variant="outline" size="sm" className="gap-1" onClick={() => setAppointmentDialogOpen(true)}>
-                <Plus className="h-4 w-4" /> Schedule
-              </Button>
+            
             </div>
           </CardHeader>
           <CardContent>
@@ -544,58 +515,6 @@ const Reception = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Schedule Appointment Dialog */}
-      <Dialog open={appointmentDialogOpen} onOpenChange={(open) => { setAppointmentDialogOpen(open); if (!open) setAptPatientSearch(""); }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Schedule Appointment</DialogTitle>
-            <DialogDescription>Book a future appointment for a patient</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleScheduleAppointment} className="space-y-5">
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold">Patient *</Label>
-              <div className="relative mb-2">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search patient..." value={aptPatientSearch} onChange={(e) => setAptPatientSearch(e.target.value)} className="pl-10 h-12" />
-              </div>
-              <Select value={appointmentForm.patientId} onValueChange={(v) => setAppointmentForm({ ...appointmentForm, patientId: v })} required>
-                <SelectTrigger className="h-12"><SelectValue placeholder="Select patient" /></SelectTrigger>
-                <SelectContent>
-                  {filteredAptPatients.slice(0, 50).map((p: any) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      <div className="flex items-center gap-2">
-                        <User className="h-3.5 w-3.5 text-muted-foreground" />
-                        {p.patient_id} — {patientDisplayName(p.profile, p.patient_id)}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold">Department *</Label>
-              <Select value={appointmentForm.departmentId} onValueChange={(v) => setAppointmentForm({ ...appointmentForm, departmentId: v })} required>
-                <SelectTrigger className="h-12"><SelectValue placeholder="Select department" /></SelectTrigger>
-                <SelectContent>
-                  {departments.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold">Date & Time *</Label>
-              <Input type="datetime-local" value={appointmentForm.appointmentDate} onChange={(e) => setAppointmentForm({ ...appointmentForm, appointmentDate: e.target.value })} required className="h-12" />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold">Reason</Label>
-              <Textarea value={appointmentForm.reason} onChange={(e) => setAppointmentForm({ ...appointmentForm, reason: e.target.value })} placeholder="Reason for visit..." rows={2} />
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setAppointmentDialogOpen(false)}>Cancel</Button>
-              <Button type="submit">Schedule</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
