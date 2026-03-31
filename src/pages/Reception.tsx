@@ -59,11 +59,8 @@ const Reception = () => {
   const [search, setSearch] = useState("");
   const [isLive, setIsLive] = useState(false);
   const [checkInDialogOpen, setCheckInDialogOpen] = useState(false);
-  const [appointmentDialogOpen, setAppointmentDialogOpen] = useState(false);
   const [selectedPatientForCheckIn, setSelectedPatientForCheckIn] = useState<any>(null);
   const [checkInForm, setCheckInForm] = useState({ departmentId: "", priority: "1" });
-  const [appointmentForm, setAppointmentForm] = useState({ patientId: "", departmentId: "", appointmentDate: "", reason: "" });
-  const [aptPatientSearch, setAptPatientSearch] = useState("");
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [isCheckingInAppointment, setIsCheckingInAppointment] = useState<string | null>(null);
 
