@@ -189,8 +189,8 @@ const Dashboard = () => {
   const renderNurseDashboard = () => (
     <>
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
-        <StatCard title="Triage Queue" value={stats.triageQueue} icon={Heart} description="Awaiting triage" color="text-destructive" />
-        <StatCard title="Active Patients" value={stats.activeTickets} icon={ClipboardList} description="In facility" color="text-primary" />
+        <StatCard title="Triage Queue" value={stats.triageQueue} icon={Heart} description="Awaiting triage" color="text-destructive" onClick={() => navigate("/vitals")} />
+        <StatCard title="Active Patients" value={stats.activeTickets} icon={ClipboardList} description="In facility" color="text-primary" onClick={() => navigate("/queue")} />
       </div>
       <Card>
         <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
