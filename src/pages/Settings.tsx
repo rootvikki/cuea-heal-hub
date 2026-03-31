@@ -346,6 +346,7 @@ const Settings = () => {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
+                        <SelectItem value="0.167">10 seconds (Testing)</SelectItem>
                         <SelectItem value="1">1 minute</SelectItem>
                         <SelectItem value="2">2 minutes</SelectItem>
                         <SelectItem value="3">3 minutes</SelectItem>
@@ -364,7 +365,12 @@ const Settings = () => {
                   </Button>
                 </div>
                 <p className="text-xs text-muted-foreground mt-3">
-                  Users will see a 6-second warning countdown before being signed out. Currently set to <strong>{idleTimeout} minute{idleTimeout !== "1" ? "s" : ""}</strong>.
+                  Users will see a 6-second warning countdown before being signed out. Currently set to{" "}
+                  <strong>
+                    {parseFloat(idleTimeout) < 1
+                      ? `${Math.round(parseFloat(idleTimeout) * 60)} seconds`
+                      : `${idleTimeout} minute${idleTimeout !== "1" ? "s" : ""}`}
+                  </strong>.
                 </p>
               </CardContent>
             </Card>
