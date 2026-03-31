@@ -250,8 +250,8 @@ const Dashboard = () => {
   const renderFinanceDashboard = () => (
     <>
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
-        <StatCard title="Pending Invoices" value={stats.pendingPayments} icon={Receipt} description="Awaiting payment" color="text-warning" />
-        <StatCard title="Paid Today" value={stats.paidToday} icon={DollarSign} description="Payments received" color="text-success" />
+        <StatCard title="Pending Invoices" value={stats.pendingPayments} icon={Receipt} description="Awaiting payment" color="text-warning" onClick={() => navigate("/billing")} />
+        <StatCard title="Paid Today" value={stats.paidToday} icon={DollarSign} description="Payments received" color="text-success" onClick={() => navigate("/billing")} />
       </div>
       <Card>
         <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
