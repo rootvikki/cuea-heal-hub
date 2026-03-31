@@ -15,7 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useQueueTransition } from "@/hooks/useQueueTransition";
 import { StationQueue } from "@/components/StationQueue";
-import { Receipt, CreditCard, Smartphone, FileText, DollarSign } from "lucide-react";
+import { Receipt, CreditCard, Smartphone, FileText, DollarSign, Plus, Trash2, Pencil } from "lucide-react";
 import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { PatientSummaryCard } from "@/components/PatientSummaryCard";
@@ -30,12 +30,15 @@ const Billing = () => {
   const [chargeSheetOpen, setChargeSheetOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [selectedPatientCharges, setSelectedPatientCharges] = useState<any[]>([]);
+  const [editableCharges, setEditableCharges] = useState<any[]>([]);
   const [selectedPatientInfo, setSelectedPatientInfo] = useState<any>(null);
   const [paymentPhone, setPaymentPhone] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("mpesa");
   const [processingPayment, setProcessingPayment] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [queueCollapsed, setQueueCollapsed] = useState(false);
+  const [newItemDesc, setNewItemDesc] = useState("");
+  const [newItemAmount, setNewItemAmount] = useState("");
 
   useEffect(() => {
     if (selectedTicket) setQueueCollapsed(true);
@@ -123,21 +126,83 @@ const Billing = () => {
     const { data: profile } = await supabase.from("profiles").select("full_name, phone").eq("user_id", patient?.user_id).single();
 
     setSelectedPatientCharges(charges || []);
+    setEditableCharges((charges || []).map((c: any) => ({ ...c, _edited: false, _isNew: false })));
     setSelectedPatientInfo({ ...patient, profile, ticket });
+    setNewItemDesc("");
+    setNewItemAmount("");
     setChargeSheetOpen(true);
+  };
+
+  // Editable charge helpers
+  const updateChargeAmount = (index: number, newAmount: string) => {
+    setEditableCharges(prev => prev.map((c, i) => i === index ? { ...c, amount: parseFloat(newAmount) || 0, _edited: true } : c));
+  };
+
+  const updateChargeDescription = (index: number, desc: string) => {
+    setEditableCharges(prev => prev.map((c, i) => i === index ? { ...c, description: desc, _edited: true } : c));
+  };
+
+  const removeCharge = (index: number) => {
+    setEditableCharges(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const addNewCharge = () => {
+    if (!newItemDesc.trim() || !newItemAmount.trim()) return;
+    const newCharge = {
+      id: `new-${Date.now()}`,
+      description: newItemDesc.trim(),
+      amount: parseFloat(newItemAmount) || 0,
+      billing_stage: "manual",
+      patient_id: selectedPatientInfo?.ticket?.patient_id,
+      ticket_id: selectedPatientInfo?.ticket?.id,
+      service_type: "custom",
+      _isNew: true,
+      _edited: false,
+    };
+    setEditableCharges(prev => [...prev, newCharge]);
+    setNewItemDesc("");
+    setNewItemAmount("");
   };
 
   const handleGenerateAndPay = async () => {
     if (!selectedPatientInfo?.ticket?.id) return;
+
+    // Save new/edited charges to DB first
+    for (const charge of editableCharges) {
+      if (charge._isNew) {
+        await supabase.from("service_charges").insert({
+          description: charge.description,
+          amount: charge.amount,
+          billing_stage: "manual",
+          patient_id: charge.patient_id,
+          ticket_id: charge.ticket_id,
+          encounter_id: charge.encounter_id || null,
+          service_type: "custom",
+        });
+      } else if (charge._edited) {
+        await supabase.from("service_charges").update({
+          description: charge.description,
+          amount: charge.amount,
+        }).eq("id", charge.id);
+      }
+    }
+
+    // Delete removed charges
+    const currentIds = editableCharges.filter(c => !c._isNew).map(c => c.id);
+    const removedIds = selectedPatientCharges.filter(c => !currentIds.includes(c.id)).map(c => c.id);
+    for (const id of removedIds) {
+      await supabase.from("service_charges").delete().eq("id", id);
+    }
+
     await generateInvoiceFromCharges(selectedPatientInfo.ticket.id);
     setChargeSheetOpen(false);
     fetchInvoices();
   };
 
   const generateChargeSheetPDF = () => {
-    if (!selectedPatientInfo || selectedPatientCharges.length === 0) return;
+    if (!selectedPatientInfo || editableCharges.length === 0) return;
     const doc = new jsPDF();
-    const total = selectedPatientCharges.reduce((s, c) => s + (c.amount || 0), 0);
+    const total = editableCharges.reduce((s, c) => s + (c.amount || 0), 0);
     const regId = selectedPatientInfo.admission_number || selectedPatientInfo.payroll_number || selectedPatientInfo.national_id || selectedPatientInfo.patient_id;
 
     // CUEA Header
@@ -164,7 +229,7 @@ const Billing = () => {
     doc.text(`Patient Type: ${(selectedPatientInfo.patient_type || "outsider").replace("_", " ").toUpperCase()}`, 120, 68);
     doc.text(`Date: ${new Date().toLocaleDateString()}`, 120, 76);
 
-    const tableData = selectedPatientCharges.map((c, i) => [
+    const tableData = editableCharges.map((c, i) => [
       (i + 1).toString(),
       c.description,
       (c.billing_stage || "-").replace("_", " "),
@@ -383,24 +448,82 @@ const Billing = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>#</TableHead>
-                    <TableHead>Service</TableHead>
-                    <TableHead>Stage</TableHead>
-                    <TableHead>Amount (KES)</TableHead>
+                    <TableHead className="w-10">#</TableHead>
+                    <TableHead>Service Description</TableHead>
+                    <TableHead className="w-24">Stage</TableHead>
+                    <TableHead className="w-36">Amount (KES)</TableHead>
+                    <TableHead className="w-12"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {selectedPatientCharges.map((charge, idx) => (
+                  {editableCharges.map((charge, idx) => (
                     <TableRow key={charge.id}>
-                      <TableCell>{idx + 1}</TableCell>
-                      <TableCell>{charge.description}</TableCell>
-                      <TableCell className="capitalize">{charge.billing_stage?.replace("_", " ") || "-"}</TableCell>
-                      <TableCell>{charge.amount.toLocaleString()}</TableCell>
+                      <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
+                      <TableCell>
+                        <Input
+                          value={charge.description}
+                          onChange={(e) => updateChargeDescription(idx, e.target.value)}
+                          className="h-8 text-sm"
+                        />
+                      </TableCell>
+                      <TableCell className="capitalize text-xs text-muted-foreground">{charge.billing_stage?.replace("_", " ") || "-"}</TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={charge.amount}
+                          onChange={(e) => updateChargeAmount(idx, e.target.value)}
+                          className="h-8 text-sm font-medium"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => removeCharge(idx)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
-                  <TableRow className="font-bold">
+                  {/* Add new item row */}
+                  <TableRow className="bg-muted/30">
+                    <TableCell className="text-muted-foreground">
+                      <Plus className="h-4 w-4" />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        placeholder="New item description..."
+                        value={newItemDesc}
+                        onChange={(e) => setNewItemDesc(e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">manual</TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="0"
+                        value={newItemAmount}
+                        onChange={(e) => setNewItemAmount(e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-primary hover:text-primary"
+                        onClick={addNewCharge}
+                        disabled={!newItemDesc.trim() || !newItemAmount.trim()}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                  <TableRow className="font-bold border-t-2">
                     <TableCell colSpan={3} className="text-right">TOTAL BILL</TableCell>
-                    <TableCell>KES {selectedPatientCharges.reduce((s, c) => s + (c.amount || 0), 0).toLocaleString()}</TableCell>
+                    <TableCell colSpan={2}>KES {editableCharges.reduce((s, c) => s + (c.amount || 0), 0).toLocaleString()}</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
