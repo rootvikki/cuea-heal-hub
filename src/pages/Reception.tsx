@@ -379,9 +379,7 @@ const Reception = () => {
               <CardTitle className="flex items-center gap-2 text-lg">
                 <Calendar className="h-5 w-5" /> Today's Appointments ({todayAppointments.length})
               </CardTitle>
-              <Button variant="outline" size="sm" className="gap-1" onClick={() => setAppointmentDialogOpen(true)}>
-                <Plus className="h-4 w-4" /> Schedule
-              </Button>
+            
             </div>
           </CardHeader>
           <CardContent>
