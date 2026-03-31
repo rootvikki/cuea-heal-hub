@@ -448,24 +448,82 @@ const Billing = () => {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>#</TableHead>
-                    <TableHead>Service</TableHead>
-                    <TableHead>Stage</TableHead>
-                    <TableHead>Amount (KES)</TableHead>
+                    <TableHead className="w-10">#</TableHead>
+                    <TableHead>Service Description</TableHead>
+                    <TableHead className="w-24">Stage</TableHead>
+                    <TableHead className="w-36">Amount (KES)</TableHead>
+                    <TableHead className="w-12"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {selectedPatientCharges.map((charge, idx) => (
+                  {editableCharges.map((charge, idx) => (
                     <TableRow key={charge.id}>
-                      <TableCell>{idx + 1}</TableCell>
-                      <TableCell>{charge.description}</TableCell>
-                      <TableCell className="capitalize">{charge.billing_stage?.replace("_", " ") || "-"}</TableCell>
-                      <TableCell>{charge.amount.toLocaleString()}</TableCell>
+                      <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
+                      <TableCell>
+                        <Input
+                          value={charge.description}
+                          onChange={(e) => updateChargeDescription(idx, e.target.value)}
+                          className="h-8 text-sm"
+                        />
+                      </TableCell>
+                      <TableCell className="capitalize text-xs text-muted-foreground">{charge.billing_stage?.replace("_", " ") || "-"}</TableCell>
+                      <TableCell>
+                        <Input
+                          type="number"
+                          min="0"
+                          step="1"
+                          value={charge.amount}
+                          onChange={(e) => updateChargeAmount(idx, e.target.value)}
+                          className="h-8 text-sm font-medium"
+                        />
+                      </TableCell>
+                      <TableCell>
+                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => removeCharge(idx)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </TableCell>
                     </TableRow>
                   ))}
-                  <TableRow className="font-bold">
+                  {/* Add new item row */}
+                  <TableRow className="bg-muted/30">
+                    <TableCell className="text-muted-foreground">
+                      <Plus className="h-4 w-4" />
+                    </TableCell>
+                    <TableCell>
+                      <Input
+                        placeholder="New item description..."
+                        value={newItemDesc}
+                        onChange={(e) => setNewItemDesc(e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">manual</TableCell>
+                    <TableCell>
+                      <Input
+                        type="number"
+                        min="0"
+                        step="1"
+                        placeholder="0"
+                        value={newItemAmount}
+                        onChange={(e) => setNewItemAmount(e.target.value)}
+                        className="h-8 text-sm"
+                      />
+                    </TableCell>
+                    <TableCell>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 text-primary hover:text-primary"
+                        onClick={addNewCharge}
+                        disabled={!newItemDesc.trim() || !newItemAmount.trim()}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                  <TableRow className="font-bold border-t-2">
                     <TableCell colSpan={3} className="text-right">TOTAL BILL</TableCell>
-                    <TableCell>KES {selectedPatientCharges.reduce((s, c) => s + (c.amount || 0), 0).toLocaleString()}</TableCell>
+                    <TableCell colSpan={2}>KES {editableCharges.reduce((s, c) => s + (c.amount || 0), 0).toLocaleString()}</TableCell>
                   </TableRow>
                 </TableBody>
               </Table>
