@@ -580,7 +580,7 @@ export const PatientDetailDialog = ({
                   </div>
                 )}
               </ScrollArea>
-            </TabsContent>
+            </TabsContent>}
           </Tabs>
         )}
       </DialogContent>
