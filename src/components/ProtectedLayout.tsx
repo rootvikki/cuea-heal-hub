@@ -76,6 +76,7 @@ const ProtectedLayout = ({ children, allowedRoles }: ProtectedLayoutProps) => {
           </main>
         </div>
       </div>
+      <IdleTimeout />
     </SidebarProvider>
   );
 };

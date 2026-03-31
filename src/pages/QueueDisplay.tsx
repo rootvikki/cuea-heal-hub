@@ -133,6 +133,14 @@ const QueueDisplay = () => {
       <header className="bg-primary text-primary-foreground py-4 px-6 shadow-lg">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
           <div className="flex items-center gap-4">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="text-primary-foreground hover:bg-primary-foreground/20"
+              onClick={() => navigate("/dashboard")}
+            >
+              <ArrowLeft className="h-5 w-5" />
+            </Button>
             <img src="/favicon.png" alt="CUEA Logo" className="w-12 h-12 rounded-full bg-white p-1" />
             <div>
               <h1 className="text-2xl font-bold">CUEA Health Center</h1>
