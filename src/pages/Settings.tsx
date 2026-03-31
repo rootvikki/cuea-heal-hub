@@ -93,6 +93,37 @@ const Settings = () => {
     }
   };
 
+  const fetchIdleTimeout = async () => {
+    const { data } = await supabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", "idle_timeout_minutes")
+      .maybeSingle();
+    if (data?.value) setIdleTimeout(data.value);
+  };
+
+  const saveIdleTimeout = async () => {
+    setSavingIdle(true);
+    try {
+      const { data: existing } = await supabase
+        .from("system_settings")
+        .select("id")
+        .eq("key", "idle_timeout_minutes")
+        .maybeSingle();
+
+      if (existing) {
+        await supabase.from("system_settings").update({ value: idleTimeout }).eq("key", "idle_timeout_minutes");
+      } else {
+        await supabase.from("system_settings").insert({ key: "idle_timeout_minutes", value: idleTimeout });
+      }
+      toast({ title: "Saved", description: `Inactivity timeout set to ${idleTimeout} minutes` });
+    } catch (err: any) {
+      toast({ title: "Save failed", description: err.message, variant: "destructive" });
+    } finally {
+      setSavingIdle(false);
+    }
+  };
+
   const fetchAnalytics = async () => {
     const [patientsRes, appointmentsRes, encountersRes, invoicesRes, prescriptionsRes, inventoryRes, labOrdersRes] = await Promise.all([
       supabase.from("patients").select("id", { count: "exact", head: true }),
