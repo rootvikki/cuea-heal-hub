@@ -30,6 +30,8 @@ const Settings = () => {
   const [mpesaEnvironment, setMpesaEnvironment] = useState("sandbox");
   const [savingMpesa, setSavingMpesa] = useState(false);
   const [mpesaConfigured, setMpesaConfigured] = useState(false);
+  const [idleTimeout, setIdleTimeout] = useState("5");
+  const [savingIdle, setSavingIdle] = useState(false);
 
   useEffect(() => {
     fetchAnalytics();
