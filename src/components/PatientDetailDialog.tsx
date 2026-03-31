@@ -539,10 +539,10 @@ export const PatientDetailDialog = ({
                   </div>
                 )}
               </ScrollArea>
-            </TabsContent>
+            </TabsContent>}
 
-            {/* Prescriptions */}
-            <TabsContent value="prescriptions">
+            {/* Prescriptions - doctors only */}
+            {isDoctor && <TabsContent value="prescriptions">
               <ScrollArea className="h-[500px]">
                 {prescriptions.length === 0 ? (
                   <p className="text-center py-8 text-muted-foreground">
