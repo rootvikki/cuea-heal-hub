@@ -200,9 +200,9 @@ const Billing = () => {
   };
 
   const generateChargeSheetPDF = () => {
-    if (!selectedPatientInfo || selectedPatientCharges.length === 0) return;
+    if (!selectedPatientInfo || editableCharges.length === 0) return;
     const doc = new jsPDF();
-    const total = selectedPatientCharges.reduce((s, c) => s + (c.amount || 0), 0);
+    const total = editableCharges.reduce((s, c) => s + (c.amount || 0), 0);
     const regId = selectedPatientInfo.admission_number || selectedPatientInfo.payroll_number || selectedPatientInfo.national_id || selectedPatientInfo.patient_id;
 
     // CUEA Header
