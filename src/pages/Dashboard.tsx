@@ -121,10 +121,10 @@ const Dashboard = () => {
   const renderAdminDashboard = () => (
     <>
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Total Patients" value={stats.totalPatients} icon={Users} description="Registered patients" color="text-primary" />
-        <StatCard title="Today's Appointments" value={stats.todayAppointments} icon={Calendar} description="Scheduled for today" color="text-accent" />
-        <StatCard title="Active Queue" value={stats.activeTickets} icon={ClipboardList} description="Patients in queue" color="text-warning" />
-        <StatCard title="Pending Payments" value={stats.pendingPayments} icon={DollarSign} description="Awaiting payment" color="text-destructive" />
+        <StatCard title="Total Patients" value={stats.totalPatients} icon={Users} description="Registered patients" color="text-primary" onClick={() => navigate("/patients")} />
+        <StatCard title="Today's Appointments" value={stats.todayAppointments} icon={Calendar} description="Scheduled for today" color="text-accent" onClick={() => navigate("/appointments")} />
+        <StatCard title="Active Queue" value={stats.activeTickets} icon={ClipboardList} description="Patients in queue" color="text-warning" onClick={() => navigate("/queue")} />
+        <StatCard title="Pending Payments" value={stats.pendingPayments} icon={DollarSign} description="Awaiting payment" color="text-destructive" onClick={() => navigate("/billing")} />
       </div>
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
@@ -169,9 +169,9 @@ const Dashboard = () => {
   const renderDoctorDashboard = () => (
     <>
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
-        <StatCard title="My Queue" value={stats.myQueue} icon={Stethoscope} description="Patients waiting" color="text-primary" />
-        <StatCard title="Pending Lab Results" value={stats.pendingLabs} icon={TestTube} description="Awaiting results" color="text-warning" />
-        <StatCard title="Pending Imaging" value={stats.pendingImaging} icon={Camera} description="Awaiting results" color="text-accent" />
+        <StatCard title="My Queue" value={stats.myQueue} icon={Stethoscope} description="Patients waiting" color="text-primary" onClick={() => navigate("/consultation")} />
+        <StatCard title="Pending Lab Results" value={stats.pendingLabs} icon={TestTube} description="Awaiting results" color="text-warning" onClick={() => navigate("/laboratory")} />
+        <StatCard title="Pending Imaging" value={stats.pendingImaging} icon={Camera} description="Awaiting results" color="text-accent" onClick={() => navigate("/imaging")} />
       </div>
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
@@ -189,8 +189,8 @@ const Dashboard = () => {
   const renderNurseDashboard = () => (
     <>
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
-        <StatCard title="Triage Queue" value={stats.triageQueue} icon={Heart} description="Awaiting triage" color="text-destructive" />
-        <StatCard title="Active Patients" value={stats.activeTickets} icon={ClipboardList} description="In facility" color="text-primary" />
+        <StatCard title="Triage Queue" value={stats.triageQueue} icon={Heart} description="Awaiting triage" color="text-destructive" onClick={() => navigate("/vitals")} />
+        <StatCard title="Active Patients" value={stats.activeTickets} icon={ClipboardList} description="In facility" color="text-primary" onClick={() => navigate("/queue")} />
       </div>
       <Card>
         <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
@@ -205,8 +205,8 @@ const Dashboard = () => {
   const renderLabDashboard = () => (
     <>
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
-        <StatCard title="Pending Orders" value={stats.pendingLabs} icon={TestTube} description="Awaiting results" color="text-warning" />
-        <StatCard title="Completed Today" value={stats.completedToday} icon={Activity} description="Results entered" color="text-success" />
+        <StatCard title="Pending Orders" value={stats.pendingLabs} icon={TestTube} description="Awaiting results" color="text-warning" onClick={() => navigate("/laboratory")} />
+        <StatCard title="Completed Today" value={stats.completedToday} icon={Activity} description="Results entered" color="text-success" onClick={() => navigate("/laboratory")} />
       </div>
       <Card>
         <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
@@ -220,8 +220,8 @@ const Dashboard = () => {
   const renderPharmacistDashboard = () => (
     <>
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
-        <StatCard title="Pending Prescriptions" value={stats.pendingRx} icon={Pill} description="Awaiting dispensing" color="text-primary" />
-        <StatCard title="Low Stock Alerts" value={stats.lowStock} icon={AlertTriangle} description="Below reorder level" color="text-destructive" />
+        <StatCard title="Pending Prescriptions" value={stats.pendingRx} icon={Pill} description="Awaiting dispensing" color="text-primary" onClick={() => navigate("/pharmacy")} />
+        <StatCard title="Low Stock Alerts" value={stats.lowStock} icon={AlertTriangle} description="Below reorder level" color="text-destructive" onClick={() => navigate("/pharmacy")} />
       </div>
       <Card>
         <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
@@ -235,8 +235,8 @@ const Dashboard = () => {
   const renderRadiologistDashboard = () => (
     <>
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
-        <StatCard title="Pending Studies" value={stats.pendingImaging} icon={Camera} description="Awaiting processing" color="text-warning" />
-        <StatCard title="Completed Today" value={stats.completedToday} icon={Activity} description="Reports submitted" color="text-success" />
+        <StatCard title="Pending Studies" value={stats.pendingImaging} icon={Camera} description="Awaiting processing" color="text-warning" onClick={() => navigate("/imaging")} />
+        <StatCard title="Completed Today" value={stats.completedToday} icon={Activity} description="Reports submitted" color="text-success" onClick={() => navigate("/imaging")} />
       </div>
       <Card>
         <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
@@ -250,8 +250,8 @@ const Dashboard = () => {
   const renderFinanceDashboard = () => (
     <>
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
-        <StatCard title="Pending Invoices" value={stats.pendingPayments} icon={Receipt} description="Awaiting payment" color="text-warning" />
-        <StatCard title="Paid Today" value={stats.paidToday} icon={DollarSign} description="Payments received" color="text-success" />
+        <StatCard title="Pending Invoices" value={stats.pendingPayments} icon={Receipt} description="Awaiting payment" color="text-warning" onClick={() => navigate("/billing")} />
+        <StatCard title="Paid Today" value={stats.paidToday} icon={DollarSign} description="Payments received" color="text-success" onClick={() => navigate("/billing")} />
       </div>
       <Card>
         <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
@@ -266,10 +266,10 @@ const Dashboard = () => {
   const renderReceptionistDashboard = () => (
     <>
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Total Patients" value={stats.totalPatients} icon={Users} description="Registered" color="text-primary" />
-        <StatCard title="Today's Appointments" value={stats.todayAppointments} icon={Calendar} description="Scheduled" color="text-accent" />
-        <StatCard title="Active Queue" value={stats.activeTickets} icon={ClipboardList} description="In facility" color="text-warning" />
-        <StatCard title="Pending Payments" value={stats.pendingPayments} icon={DollarSign} description="Awaiting" color="text-destructive" />
+        <StatCard title="Total Patients" value={stats.totalPatients} icon={Users} description="Registered" color="text-primary" onClick={() => navigate("/patients")} />
+        <StatCard title="Today's Appointments" value={stats.todayAppointments} icon={Calendar} description="Scheduled" color="text-accent" onClick={() => navigate("/appointments")} />
+        <StatCard title="Active Queue" value={stats.activeTickets} icon={ClipboardList} description="In facility" color="text-warning" onClick={() => navigate("/queue")} />
+        <StatCard title="Pending Payments" value={stats.pendingPayments} icon={DollarSign} description="Awaiting" color="text-destructive" onClick={() => navigate("/billing")} />
       </div>
       <Card>
         <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
@@ -334,10 +334,13 @@ const Dashboard = () => {
 };
 
 // Reusable stat card
-const StatCard = ({ title, value, icon: Icon, description, color }: {
-  title: string; value: number | undefined; icon: any; description: string; color: string;
+const StatCard = ({ title, value, icon: Icon, description, color, onClick }: {
+  title: string; value: number | undefined; icon: any; description: string; color: string; onClick?: () => void;
 }) => (
-  <Card className="hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-default">
+  <Card
+    className={`hover:shadow-lg hover:scale-[1.02] transition-all duration-200 ${onClick ? "cursor-pointer active:scale-[0.98]" : "cursor-default"}`}
+    onClick={onClick}
+  >
     <CardHeader className="flex flex-row items-center justify-between pb-2">
       <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
       <div className="p-2 rounded-full bg-muted">
