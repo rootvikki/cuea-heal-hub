@@ -15,7 +15,7 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import { useQueueTransition } from "@/hooks/useQueueTransition";
 import { StationQueue } from "@/components/StationQueue";
-import { Receipt, CreditCard, Smartphone, FileText, DollarSign } from "lucide-react";
+import { Receipt, CreditCard, Smartphone, FileText, DollarSign, Plus, Trash2, Pencil } from "lucide-react";
 import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { PatientSummaryCard } from "@/components/PatientSummaryCard";
