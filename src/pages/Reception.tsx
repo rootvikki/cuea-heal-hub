@@ -262,31 +262,7 @@ const Reception = () => {
   };
 
   // Schedule appointment
-  const handleScheduleAppointment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    const { error } = await supabase.from("appointments").insert({
-      patient_id: appointmentForm.patientId,
-      department_id: appointmentForm.departmentId,
-      appointment_date: appointmentForm.appointmentDate,
-      reason: appointmentForm.reason,
-      status: "scheduled",
-    });
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Appointment scheduled" });
-      setAppointmentDialogOpen(false);
-      setAppointmentForm({ patientId: "", departmentId: "", appointmentDate: "", reason: "" });
-      setAptPatientSearch("");
-      refetchAppointments();
-    }
-  };
 
-  const filteredAptPatients = patients.filter((p: any) => {
-    if (!aptPatientSearch) return true;
-    const s = aptPatientSearch.toLowerCase();
-    return p.patient_id?.toLowerCase().includes(s) || p.profile?.full_name?.toLowerCase().includes(s);
-  });
 
   // After patient registration, auto-open check-in dialog
   const handlePatientRegistered = (data: { patientRecordId: string; patientId: string; visitReason: string; existing: boolean; fullName: string }) => {
