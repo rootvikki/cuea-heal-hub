@@ -63,6 +63,7 @@ async function fetchDisplayTickets(): Promise<TicketWithDetails[]> {
 }
 
 const QueueDisplay = () => {
+  const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [isLive, setIsLive] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
