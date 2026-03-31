@@ -266,10 +266,10 @@ const Dashboard = () => {
   const renderReceptionistDashboard = () => (
     <>
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-4">
-        <StatCard title="Total Patients" value={stats.totalPatients} icon={Users} description="Registered" color="text-primary" />
-        <StatCard title="Today's Appointments" value={stats.todayAppointments} icon={Calendar} description="Scheduled" color="text-accent" />
-        <StatCard title="Active Queue" value={stats.activeTickets} icon={ClipboardList} description="In facility" color="text-warning" />
-        <StatCard title="Pending Payments" value={stats.pendingPayments} icon={DollarSign} description="Awaiting" color="text-destructive" />
+        <StatCard title="Total Patients" value={stats.totalPatients} icon={Users} description="Registered" color="text-primary" onClick={() => navigate("/patients")} />
+        <StatCard title="Today's Appointments" value={stats.todayAppointments} icon={Calendar} description="Scheduled" color="text-accent" onClick={() => navigate("/appointments")} />
+        <StatCard title="Active Queue" value={stats.activeTickets} icon={ClipboardList} description="In facility" color="text-warning" onClick={() => navigate("/queue")} />
+        <StatCard title="Pending Payments" value={stats.pendingPayments} icon={DollarSign} description="Awaiting" color="text-destructive" onClick={() => navigate("/billing")} />
       </div>
       <Card>
         <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
