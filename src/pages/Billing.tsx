@@ -30,12 +30,15 @@ const Billing = () => {
   const [chargeSheetOpen, setChargeSheetOpen] = useState(false);
   const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
   const [selectedPatientCharges, setSelectedPatientCharges] = useState<any[]>([]);
+  const [editableCharges, setEditableCharges] = useState<any[]>([]);
   const [selectedPatientInfo, setSelectedPatientInfo] = useState<any>(null);
   const [paymentPhone, setPaymentPhone] = useState("");
   const [paymentMethod, setPaymentMethod] = useState("mpesa");
   const [processingPayment, setProcessingPayment] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [queueCollapsed, setQueueCollapsed] = useState(false);
+  const [newItemDesc, setNewItemDesc] = useState("");
+  const [newItemAmount, setNewItemAmount] = useState("");
 
   useEffect(() => {
     if (selectedTicket) setQueueCollapsed(true);
