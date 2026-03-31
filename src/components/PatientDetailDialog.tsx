@@ -420,7 +420,7 @@ export const PatientDetailDialog = ({
                   </div>
                 )}
               </ScrollArea>
-            </TabsContent>
+            </TabsContent>}
 
             {/* Encounters - doctors only */}
             {isDoctor && <TabsContent value="encounters">
