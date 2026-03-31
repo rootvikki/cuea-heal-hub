@@ -1,9 +1,11 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Radio, Users, Clock, ArrowRight } from "lucide-react";
+import { Radio, Users, Clock, ArrowRight, ArrowLeft } from "lucide-react";
 import { toast as sonnerToast } from "sonner";
 
 interface TicketWithDetails {

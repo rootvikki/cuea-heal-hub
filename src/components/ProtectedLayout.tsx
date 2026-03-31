@@ -7,6 +7,7 @@ import { useUser } from "@/contexts/UserContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { PageBreadcrumb } from "@/components/PageBreadcrumb";
+import IdleTimeout from "@/components/IdleTimeout";
 
 interface ProtectedLayoutProps {
   children: React.ReactNode;
