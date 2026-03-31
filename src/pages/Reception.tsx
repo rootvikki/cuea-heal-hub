@@ -515,58 +515,6 @@ const Reception = () => {
         </DialogContent>
       </Dialog>
 
-      {/* Schedule Appointment Dialog */}
-      <Dialog open={appointmentDialogOpen} onOpenChange={(open) => { setAppointmentDialogOpen(open); if (!open) setAptPatientSearch(""); }}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Schedule Appointment</DialogTitle>
-            <DialogDescription>Book a future appointment for a patient</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleScheduleAppointment} className="space-y-5">
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold">Patient *</Label>
-              <div className="relative mb-2">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input placeholder="Search patient..." value={aptPatientSearch} onChange={(e) => setAptPatientSearch(e.target.value)} className="pl-10 h-12" />
-              </div>
-              <Select value={appointmentForm.patientId} onValueChange={(v) => setAppointmentForm({ ...appointmentForm, patientId: v })} required>
-                <SelectTrigger className="h-12"><SelectValue placeholder="Select patient" /></SelectTrigger>
-                <SelectContent>
-                  {filteredAptPatients.slice(0, 50).map((p: any) => (
-                    <SelectItem key={p.id} value={p.id}>
-                      <div className="flex items-center gap-2">
-                        <User className="h-3.5 w-3.5 text-muted-foreground" />
-                        {p.patient_id} — {patientDisplayName(p.profile, p.patient_id)}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold">Department *</Label>
-              <Select value={appointmentForm.departmentId} onValueChange={(v) => setAppointmentForm({ ...appointmentForm, departmentId: v })} required>
-                <SelectTrigger className="h-12"><SelectValue placeholder="Select department" /></SelectTrigger>
-                <SelectContent>
-                  {departments.map((d: any) => <SelectItem key={d.id} value={d.id}>{d.name}</SelectItem>)}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold">Date & Time *</Label>
-              <Input type="datetime-local" value={appointmentForm.appointmentDate} onChange={(e) => setAppointmentForm({ ...appointmentForm, appointmentDate: e.target.value })} required className="h-12" />
-            </div>
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold">Reason</Label>
-              <Textarea value={appointmentForm.reason} onChange={(e) => setAppointmentForm({ ...appointmentForm, reason: e.target.value })} placeholder="Reason for visit..." rows={2} />
-            </div>
-            <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" onClick={() => setAppointmentDialogOpen(false)}>Cancel</Button>
-              <Button type="submit">Schedule</Button>
-            </div>
-          </form>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 };
