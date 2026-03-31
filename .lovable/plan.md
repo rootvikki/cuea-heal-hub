@@ -1,36 +1,34 @@
 
 
-# Enhanced User Access Matrix
+# Three Enhancements
 
-Adding three improvements to the existing User Access Matrix at `/admin/access-matrix`.
+## 1. Remove Lovable Badge
+The "Edit with Lovable" badge is currently visible. Will use the `set_badge_visibility` tool to hide it. The `lovable-tagger` in `vite.config.ts` is a dev-only tool and doesn't affect production.
 
-## Changes
+## 2. Queue Display -- Back to Dashboard Button
+Add a "Back to Dashboard" button in the `QueueDisplay.tsx` header using `useNavigate` to go to `/dashboard`.
 
-### 1. Confirmation Dialog Before Role Toggle
-Add an `AlertDialog` that asks "Are you sure you want to [assign/remove] [Role Name] for [User Name]?" before executing the toggle. Prevents accidental clicks.
+**File**: `src/pages/QueueDisplay.tsx`
+- Import `useNavigate`, `Button`, and `ArrowLeft` icon
+- Add a button in the header next to the logo
 
-- File: `src/pages/UserAccessMatrix.tsx`
-- Add state for pending toggle action (`pendingToggle`)
-- Show `AlertDialog` with role name, user name, and action (assign/remove)
-- Only call `toggleRole` on confirm
+## 3. Auto-Logout After 5 Minutes Inactivity
+Create an `IdleTimeout` component that:
+- Tracks mouse, keyboard, scroll, and touch events
+- After 5 minutes (300s) of inactivity, shows a modal countdown (6 seconds)
+- If no interaction during countdown, signs out via `supabase.auth.signOut()` and redirects to `/auth`
+- If user interacts, resets the timer
 
-### 2. Audit Logging for Role Changes
-Log every role assignment/removal to the `audit_logs` table using the existing `logAuditEvent` utility.
+**New file**: `src/components/IdleTimeout.tsx`
+- Uses `useEffect` with event listeners for activity detection
+- Shows an `AlertDialog` with a 6-second countdown
+- Calls `supabase.auth.signOut()` on expiry
 
-- File: `src/pages/UserAccessMatrix.tsx`
-- Import `logAuditEvent` from `@/lib/auditLog`
-- After successful toggle, log with module `"Access Matrix"`, action `"role_assigned"` or `"role_removed"`, and details including target user and role
+**File**: `src/components/ProtectedLayout.tsx`
+- Import and render `<IdleTimeout />` inside the layout so it applies to all authenticated pages
 
-### 3. Bulk Role Assignment
-Add a toolbar action to assign a selected role to multiple users at once.
-
-- File: `src/pages/UserAccessMatrix.tsx`
-- Add row selection via checkboxes in the first column
-- Add a "Bulk Assign Role" button that opens a dialog with role selector
-- On confirm, iterate selected users and insert roles (skipping duplicates)
-- Clear selection after completion
-
-### Technical Details
-
-All changes are confined to `src/pages/UserAccessMatrix.tsx`. No database migrations needed — uses existing `user_roles` table and `audit_logs` table with current RLS policies.
+### Technical Notes
+- No database changes needed
+- The idle timer only runs on protected pages (inside `ProtectedLayout`)
+- Queue Display gets a simple navigation button, no idle timer (it's a public page)
 
