@@ -133,8 +133,67 @@ const Billing = () => {
     setChargeSheetOpen(true);
   };
 
+  // Editable charge helpers
+  const updateChargeAmount = (index: number, newAmount: string) => {
+    setEditableCharges(prev => prev.map((c, i) => i === index ? { ...c, amount: parseFloat(newAmount) || 0, _edited: true } : c));
+  };
+
+  const updateChargeDescription = (index: number, desc: string) => {
+    setEditableCharges(prev => prev.map((c, i) => i === index ? { ...c, description: desc, _edited: true } : c));
+  };
+
+  const removeCharge = (index: number) => {
+    setEditableCharges(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const addNewCharge = () => {
+    if (!newItemDesc.trim() || !newItemAmount.trim()) return;
+    const newCharge = {
+      id: `new-${Date.now()}`,
+      description: newItemDesc.trim(),
+      amount: parseFloat(newItemAmount) || 0,
+      billing_stage: "manual",
+      patient_id: selectedPatientInfo?.ticket?.patient_id,
+      ticket_id: selectedPatientInfo?.ticket?.id,
+      service_type: "custom",
+      _isNew: true,
+      _edited: false,
+    };
+    setEditableCharges(prev => [...prev, newCharge]);
+    setNewItemDesc("");
+    setNewItemAmount("");
+  };
+
   const handleGenerateAndPay = async () => {
     if (!selectedPatientInfo?.ticket?.id) return;
+
+    // Save new/edited charges to DB first
+    for (const charge of editableCharges) {
+      if (charge._isNew) {
+        await supabase.from("service_charges").insert({
+          description: charge.description,
+          amount: charge.amount,
+          billing_stage: "manual",
+          patient_id: charge.patient_id,
+          ticket_id: charge.ticket_id,
+          encounter_id: charge.encounter_id || null,
+          service_type: "custom",
+        });
+      } else if (charge._edited) {
+        await supabase.from("service_charges").update({
+          description: charge.description,
+          amount: charge.amount,
+        }).eq("id", charge.id);
+      }
+    }
+
+    // Delete removed charges
+    const currentIds = editableCharges.filter(c => !c._isNew).map(c => c.id);
+    const removedIds = selectedPatientCharges.filter(c => !currentIds.includes(c.id)).map(c => c.id);
+    for (const id of removedIds) {
+      await supabase.from("service_charges").delete().eq("id", id);
+    }
+
     await generateInvoiceFromCharges(selectedPatientInfo.ticket.id);
     setChargeSheetOpen(false);
     fetchInvoices();
