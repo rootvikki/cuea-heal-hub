@@ -1531,51 +1531,53 @@ const Consultation = () => {
                     className="pl-10 h-12 text-base"
                   />
                 </div>
-                {drugSearchTerm && pharmacyInventory.some(item => {
-                  const fullName = item.strength_size ? `${item.drug_name} ${item.strength_size}` : item.drug_name;
-                  return item.drug_name.toLowerCase().includes(drugSearchTerm.toLowerCase()) || (item.generic_name || "").toLowerCase().includes(drugSearchTerm.toLowerCase());
-                }) && !pharmacyInventory.some(item => {
-                  const fullName = item.strength_size ? `${item.drug_name} ${item.strength_size}` : item.drug_name;
-                  return fullName === drugSearchTerm;
-                }) && (
-                  <div className="border rounded-lg max-h-36 overflow-auto shadow-sm">
-                    {pharmacyInventory
-                      .filter(item =>
-                        item.drug_name.toLowerCase().includes(drugSearchTerm.toLowerCase()) ||
-                        (item.generic_name || "").toLowerCase().includes(drugSearchTerm.toLowerCase())
+                {(() => {
+                  const searchLower = drugSearchTerm.toLowerCase();
+                  const matchedItems = drugSearchTerm
+                    ? pharmacyInventory.filter(item =>
+                        item.drug_name.toLowerCase().includes(searchLower) ||
+                        (item.generic_name || "").toLowerCase().includes(searchLower)
                       )
-                      .slice(0, 10)
-                      .map(item => (
-                        <div
-                          key={item.id}
-                          className="p-2 hover:bg-muted cursor-pointer border-b last:border-b-0 text-sm transition-colors"
-                          onClick={() => {
-                            const fullName = item.strength_size ? `${item.drug_name} ${item.strength_size}` : item.drug_name;
-                            setCurrentPrescription({ ...currentPrescription, medication_name: fullName });
-                            setDrugSearchTerm(fullName);
-                          }}
-                        >
-                          <div className="flex justify-between items-center">
-                            <span className="font-medium text-xs">{item.drug_name}</span>
-                            <Badge variant={item.quantity <= 10 ? "destructive" : "outline"} className="text-[10px]">
-                              Stock: {item.quantity}
-                            </Badge>
+                    : [];
+                  const selectedFullName = currentPrescription.medication_name;
+                  const isExactMatch = selectedFullName && matchedItems.some(item => {
+                    const fn = item.strength_size ? `${item.drug_name} ${item.strength_size}` : item.drug_name;
+                    return fn === selectedFullName;
+                  });
+                  const showDropdown = drugSearchTerm.length >= 1 && !isExactMatch;
+
+                  return showDropdown ? (
+                    <div className="border rounded-lg max-h-40 overflow-auto shadow-sm bg-popover">
+                      {matchedItems.length > 0 ? matchedItems.slice(0, 10).map(item => {
+                        const fullName = item.strength_size ? `${item.drug_name} ${item.strength_size}` : item.drug_name;
+                        return (
+                          <div
+                            key={item.id}
+                            className="p-2.5 hover:bg-muted cursor-pointer border-b last:border-b-0 text-sm transition-colors"
+                            onClick={() => {
+                              setCurrentPrescription({ ...currentPrescription, medication_name: fullName });
+                              setDrugSearchTerm(fullName);
+                            }}
+                          >
+                            <div className="flex justify-between items-center">
+                              <span className="font-medium text-xs">{item.drug_name}</span>
+                              <Badge variant={item.quantity <= 10 ? "destructive" : "outline"} className="text-[10px]">
+                                Stock: {item.quantity}
+                              </Badge>
+                            </div>
+                            <div className="text-[11px] text-muted-foreground mt-0.5">
+                              {item.generic_name && <span>{item.generic_name} · </span>}
+                              {item.strength_size && <span>{item.strength_size} · </span>}
+                              KES {item.unit_price}
+                            </div>
                           </div>
-                          <div className="text-[11px] text-muted-foreground mt-0.5">
-                            {item.generic_name && <span>{item.generic_name} · </span>}
-                            {item.strength_size && <span>{item.strength_size} · </span>}
-                            KES {item.unit_price}
-                          </div>
-                        </div>
-                      ))}
-                    {pharmacyInventory.filter(item =>
-                      item.drug_name.toLowerCase().includes(drugSearchTerm.toLowerCase()) ||
-                      (item.generic_name || "").toLowerCase().includes(drugSearchTerm.toLowerCase())
-                    ).length === 0 && (
-                      <p className="p-3 text-xs text-muted-foreground text-center">No matching drugs</p>
-                    )}
-                  </div>
-                )}
+                        );
+                      }) : (
+                        <p className="p-3 text-xs text-muted-foreground text-center">No matching drugs in inventory</p>
+                      )}
+                    </div>
+                  ) : null;
+                })()}
                 {currentPrescription.medication_name && (
                   <p className="text-[11px] text-[hsl(var(--success))] flex items-center gap-1"><CheckCircle2 className="h-3 w-3" /> {currentPrescription.medication_name}</p>
                 )}
