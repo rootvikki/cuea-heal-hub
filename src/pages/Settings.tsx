@@ -6,7 +6,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { BarChart3, TrendingUp, Users, DollarSign, Activity, Settings2, Smartphone, Loader2, CheckCircle2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { BarChart3, TrendingUp, Users, DollarSign, Activity, Settings2, Smartphone, Loader2, CheckCircle2, Timer } from "lucide-react";
 import { AdminTemplates } from "@/components/AdminTemplates";
 import { useToast } from "@/hooks/use-toast";
 
@@ -29,6 +30,8 @@ const Settings = () => {
   const [mpesaEnvironment, setMpesaEnvironment] = useState("sandbox");
   const [savingMpesa, setSavingMpesa] = useState(false);
   const [mpesaConfigured, setMpesaConfigured] = useState(false);
+  const [idleTimeout, setIdleTimeout] = useState("5");
+  const [savingIdle, setSavingIdle] = useState(false);
 
   useEffect(() => {
     fetchAnalytics();
@@ -42,7 +45,10 @@ const Settings = () => {
     const roles = data?.map(r => r.role) || [];
     const isAdmin = roles.includes("super_admin") || roles.includes("admin");
     setIsSuperAdmin(isAdmin);
-    if (isAdmin) fetchMpesaConfig();
+    if (isAdmin) {
+      fetchMpesaConfig();
+      fetchIdleTimeout();
+    }
   };
 
   const fetchMpesaConfig = async () => {
@@ -84,6 +90,37 @@ const Settings = () => {
       toast({ title: "Save failed", description: err.message, variant: "destructive" });
     } finally {
       setSavingMpesa(false);
+    }
+  };
+
+  const fetchIdleTimeout = async () => {
+    const { data } = await supabase
+      .from("system_settings")
+      .select("value")
+      .eq("key", "idle_timeout_minutes")
+      .maybeSingle();
+    if (data?.value) setIdleTimeout(data.value);
+  };
+
+  const saveIdleTimeout = async () => {
+    setSavingIdle(true);
+    try {
+      const { data: existing } = await supabase
+        .from("system_settings")
+        .select("id")
+        .eq("key", "idle_timeout_minutes")
+        .maybeSingle();
+
+      if (existing) {
+        await supabase.from("system_settings").update({ value: idleTimeout }).eq("key", "idle_timeout_minutes");
+      } else {
+        await supabase.from("system_settings").insert({ key: "idle_timeout_minutes", value: idleTimeout });
+      }
+      toast({ title: "Saved", description: `Inactivity timeout set to ${idleTimeout} minutes` });
+    } catch (err: any) {
+      toast({ title: "Save failed", description: err.message, variant: "destructive" });
+    } finally {
+      setSavingIdle(false);
     }
   };
 
@@ -290,7 +327,47 @@ const Settings = () => {
         )}
 
         {isSuperAdmin && (
-          <TabsContent value="config" className="mt-6">
+          <TabsContent value="config" className="mt-6 space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Timer className="h-5 w-5 text-primary" /> Session Inactivity Timeout
+                </CardTitle>
+                <CardDescription>
+                  Set how long users can be inactive before being automatically logged out
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-end gap-4">
+                  <div className="space-y-2 w-64">
+                    <Label>Timeout Duration</Label>
+                    <Select value={idleTimeout} onValueChange={setIdleTimeout}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="1">1 minute</SelectItem>
+                        <SelectItem value="2">2 minutes</SelectItem>
+                        <SelectItem value="3">3 minutes</SelectItem>
+                        <SelectItem value="5">5 minutes</SelectItem>
+                        <SelectItem value="10">10 minutes</SelectItem>
+                        <SelectItem value="15">15 minutes</SelectItem>
+                        <SelectItem value="20">20 minutes</SelectItem>
+                        <SelectItem value="30">30 minutes</SelectItem>
+                        <SelectItem value="60">1 hour</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button onClick={saveIdleTimeout} disabled={savingIdle}>
+                    {savingIdle && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+                    Save Timeout
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground mt-3">
+                  Users will see a 6-second warning countdown before being signed out. Currently set to <strong>{idleTimeout} minute{idleTimeout !== "1" ? "s" : ""}</strong>.
+                </p>
+              </CardContent>
+            </Card>
             <AdminTemplates />
           </TabsContent>
         )}

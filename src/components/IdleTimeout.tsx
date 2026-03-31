@@ -11,15 +11,37 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 
-const IDLE_TIMEOUT_MS = 5 * 60 * 1000; // 5 minutes
+const DEFAULT_IDLE_MINUTES = 5;
 const COUNTDOWN_SECONDS = 6;
 
 const IdleTimeout = () => {
   const navigate = useNavigate();
   const [showWarning, setShowWarning] = useState(false);
   const [countdown, setCountdown] = useState(COUNTDOWN_SECONDS);
+  const [idleMinutes, setIdleMinutes] = useState(DEFAULT_IDLE_MINUTES);
   const idleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const idleTimeoutMs = useRef(DEFAULT_IDLE_MINUTES * 60 * 1000);
+
+  // Fetch admin-configured timeout from system_settings
+  useEffect(() => {
+    const fetchTimeout = async () => {
+      const { data } = await supabase
+        .from("system_settings")
+        .select("value")
+        .eq("key", "idle_timeout_minutes")
+        .maybeSingle();
+
+      if (data?.value) {
+        const minutes = parseInt(data.value, 10);
+        if (!isNaN(minutes) && minutes >= 1) {
+          setIdleMinutes(minutes);
+          idleTimeoutMs.current = minutes * 60 * 1000;
+        }
+      }
+    };
+    fetchTimeout();
+  }, []);
 
   const logout = useCallback(async () => {
     clearTimers();
@@ -47,18 +69,17 @@ const IdleTimeout = () => {
 
   const resetIdleTimer = useCallback(() => {
     if (showWarning) {
-      // User interacted during countdown — cancel it
       if (countdownTimer.current) clearInterval(countdownTimer.current);
       setShowWarning(false);
     }
     if (idleTimer.current) clearTimeout(idleTimer.current);
-    idleTimer.current = setTimeout(startCountdown, IDLE_TIMEOUT_MS);
+    idleTimer.current = setTimeout(startCountdown, idleTimeoutMs.current);
   }, [showWarning, startCountdown]);
 
   useEffect(() => {
     const events = ["mousemove", "mousedown", "keydown", "scroll", "touchstart"];
     events.forEach((e) => window.addEventListener(e, resetIdleTimer));
-    idleTimer.current = setTimeout(startCountdown, IDLE_TIMEOUT_MS);
+    idleTimer.current = setTimeout(startCountdown, idleTimeoutMs.current);
 
     return () => {
       events.forEach((e) => window.removeEventListener(e, resetIdleTimer));
@@ -72,7 +93,7 @@ const IdleTimeout = () => {
         <AlertDialogHeader>
           <AlertDialogTitle>Session Timeout</AlertDialogTitle>
           <AlertDialogDescription>
-            You've been inactive for 5 minutes. You will be logged out in{" "}
+            You've been inactive for {idleMinutes} minute{idleMinutes !== 1 ? "s" : ""}. You will be logged out in{" "}
             <span className="font-bold text-destructive">{countdown}</span> seconds.
           </AlertDialogDescription>
         </AlertDialogHeader>
