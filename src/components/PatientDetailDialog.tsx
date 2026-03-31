@@ -75,12 +75,14 @@ export const PatientDetailDialog = ({
         .select("*")
         .eq("user_id", pat.user_id)
         .single(),
-      supabase
-        .from("vitals")
-        .select("*")
-        .eq("patient_id", patientId)
-        .order("recorded_at", { ascending: false })
-        .limit(10),
+      isDoctor
+        ? supabase
+            .from("vitals")
+            .select("*")
+            .eq("patient_id", patientId)
+            .order("recorded_at", { ascending: false })
+            .limit(10)
+        : Promise.resolve({ data: [] }),
       isDoctor
         ? supabase
             .from("encounters")
@@ -89,18 +91,22 @@ export const PatientDetailDialog = ({
             .order("encounter_date", { ascending: false })
             .limit(20)
         : Promise.resolve({ data: [] }),
-      supabase
-        .from("lab_orders")
-        .select("*, test:lab_tests_catalog(test_name, unit, normal_range)")
-        .eq("patient_id", patientId)
-        .order("created_at", { ascending: false })
-        .limit(20),
-      supabase
-        .from("prescriptions")
-        .select("*")
-        .eq("patient_id", patientId)
-        .order("created_at", { ascending: false })
-        .limit(20),
+      isDoctor
+        ? supabase
+            .from("lab_orders")
+            .select("*, test:lab_tests_catalog(test_name, unit, normal_range)")
+            .eq("patient_id", patientId)
+            .order("created_at", { ascending: false })
+            .limit(20)
+        : Promise.resolve({ data: [] }),
+      isDoctor
+        ? supabase
+            .from("prescriptions")
+            .select("*")
+            .eq("patient_id", patientId)
+            .order("created_at", { ascending: false })
+            .limit(20)
+        : Promise.resolve({ data: [] }),
     ]);
 
 
