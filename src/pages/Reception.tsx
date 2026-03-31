@@ -14,7 +14,7 @@ import {
 import { useToast } from "@/hooks/use-toast";
 import { toast as sonnerToast } from "sonner";
 import {
-  Search, UserPlus, ClipboardList, Calendar, Radio, User, ArrowRight, Clock, Plus, Loader2,
+  Search, UserPlus, ClipboardList, Calendar, Radio, User, ArrowRight, Clock, Loader2,
 } from "lucide-react";
 import { PatientRegistrationDialog } from "@/components/PatientRegistrationDialog";
 import { inferPathFromStage, WorkflowTimeline } from "@/components/WorkflowTimeline";
