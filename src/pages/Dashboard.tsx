@@ -169,9 +169,9 @@ const Dashboard = () => {
   const renderDoctorDashboard = () => (
     <>
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
-        <StatCard title="My Queue" value={stats.myQueue} icon={Stethoscope} description="Patients waiting" color="text-primary" />
-        <StatCard title="Pending Lab Results" value={stats.pendingLabs} icon={TestTube} description="Awaiting results" color="text-warning" />
-        <StatCard title="Pending Imaging" value={stats.pendingImaging} icon={Camera} description="Awaiting results" color="text-accent" />
+        <StatCard title="My Queue" value={stats.myQueue} icon={Stethoscope} description="Patients waiting" color="text-primary" onClick={() => navigate("/consultation")} />
+        <StatCard title="Pending Lab Results" value={stats.pendingLabs} icon={TestTube} description="Awaiting results" color="text-warning" onClick={() => navigate("/laboratory")} />
+        <StatCard title="Pending Imaging" value={stats.pendingImaging} icon={Camera} description="Awaiting results" color="text-accent" onClick={() => navigate("/imaging")} />
       </div>
       <div className="grid gap-6 md:grid-cols-2">
         <Card>
