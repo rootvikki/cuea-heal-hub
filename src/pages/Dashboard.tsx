@@ -334,10 +334,13 @@ const Dashboard = () => {
 };
 
 // Reusable stat card
-const StatCard = ({ title, value, icon: Icon, description, color }: {
-  title: string; value: number | undefined; icon: any; description: string; color: string;
+const StatCard = ({ title, value, icon: Icon, description, color, onClick }: {
+  title: string; value: number | undefined; icon: any; description: string; color: string; onClick?: () => void;
 }) => (
-  <Card className="hover:shadow-lg hover:scale-[1.02] transition-all duration-200 cursor-default">
+  <Card
+    className={`hover:shadow-lg hover:scale-[1.02] transition-all duration-200 ${onClick ? "cursor-pointer active:scale-[0.98]" : "cursor-default"}`}
+    onClick={onClick}
+  >
     <CardHeader className="flex flex-row items-center justify-between pb-2">
       <CardTitle className="text-sm font-medium text-muted-foreground">{title}</CardTitle>
       <div className="p-2 rounded-full bg-muted">
