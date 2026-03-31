@@ -205,8 +205,8 @@ const Dashboard = () => {
   const renderLabDashboard = () => (
     <>
       <div className="grid gap-4 grid-cols-2 lg:grid-cols-3">
-        <StatCard title="Pending Orders" value={stats.pendingLabs} icon={TestTube} description="Awaiting results" color="text-warning" />
-        <StatCard title="Completed Today" value={stats.completedToday} icon={Activity} description="Results entered" color="text-success" />
+        <StatCard title="Pending Orders" value={stats.pendingLabs} icon={TestTube} description="Awaiting results" color="text-warning" onClick={() => navigate("/laboratory")} />
+        <StatCard title="Completed Today" value={stats.completedToday} icon={Activity} description="Results entered" color="text-success" onClick={() => navigate("/laboratory")} />
       </div>
       <Card>
         <CardHeader><CardTitle>Quick Actions</CardTitle></CardHeader>
