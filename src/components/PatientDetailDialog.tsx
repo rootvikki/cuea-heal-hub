@@ -37,7 +37,8 @@ export const PatientDetailDialog = ({
   onOpenChange,
 }: PatientDetailDialogProps) => {
   const { hasAnyRole } = useUser();
-  const isDoctor = hasAnyRole(["doctor", "clinical_officer"]);
+  const isDoctor = hasAnyRole(["doctor", "clinical_officer", "super_admin"]);
+  const isClinicalStaff = hasAnyRole(["doctor", "clinical_officer", "nurse", "ward_manager", "super_admin", "admin"]);
   const [loading, setLoading] = useState(true);
   const [patient, setPatient] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
