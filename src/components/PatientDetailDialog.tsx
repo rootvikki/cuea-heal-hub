@@ -138,12 +138,12 @@ export const PatientDetailDialog = ({
           </p>
         ) : (
           <Tabs defaultValue="demographics" className="space-y-4">
-            <TabsList className={`grid w-full ${isDoctor ? 'grid-cols-5' : 'grid-cols-4'}`}>
+            <TabsList className={`grid w-full ${isDoctor ? 'grid-cols-5' : 'grid-cols-1'}`}>
               <TabsTrigger value="demographics">Profile</TabsTrigger>
-              <TabsTrigger value="vitals">Vitals</TabsTrigger>
+              {isDoctor && <TabsTrigger value="vitals">Vitals</TabsTrigger>}
               {isDoctor && <TabsTrigger value="encounters">Visits</TabsTrigger>}
-              <TabsTrigger value="labs">Labs</TabsTrigger>
-              <TabsTrigger value="prescriptions">Rx</TabsTrigger>
+              {isDoctor && <TabsTrigger value="labs">Labs</TabsTrigger>}
+              {isDoctor && <TabsTrigger value="prescriptions">Rx</TabsTrigger>}
             </TabsList>
 
             {/* Demographics */}
