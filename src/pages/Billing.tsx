@@ -126,7 +126,10 @@ const Billing = () => {
     const { data: profile } = await supabase.from("profiles").select("full_name, phone").eq("user_id", patient?.user_id).single();
 
     setSelectedPatientCharges(charges || []);
+    setEditableCharges((charges || []).map((c: any) => ({ ...c, _edited: false, _isNew: false })));
     setSelectedPatientInfo({ ...patient, profile, ticket });
+    setNewItemDesc("");
+    setNewItemAmount("");
     setChargeSheetOpen(true);
   };
 
