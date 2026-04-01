@@ -37,6 +37,8 @@ import NotFound from "./pages/NotFound";
 import AuditLogs from "./pages/AuditLogs";
 import Reception from "./pages/Reception";
 import UserAccessMatrix from "./pages/UserAccessMatrix";
+import StaffRegistration from "./pages/StaffRegistration";
+import StaffApplications from "./pages/StaffApplications";
 
 const queryClient = new QueryClient();
 
@@ -64,6 +66,7 @@ const App = () => (
           <Route path="/auth" element={<Auth />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/queue-display" element={<QueueDisplay />} />
+          <Route path="/staff-registration" element={<StaffRegistration />} />
 
           {/* Dashboard - all authenticated users */}
           <Route path="/dashboard" element={<ProtectedLayout><Dashboard /></ProtectedLayout>} />
@@ -97,6 +100,7 @@ const App = () => (
           <Route path="/admin/roles" element={<ProtectedLayout allowedRoles={["super_admin"]}><RoleManagement /></ProtectedLayout>} />
           <Route path="/admin/access-matrix" element={<ProtectedLayout allowedRoles={["super_admin"]}><UserAccessMatrix /></ProtectedLayout>} />
           <Route path="/admin/audit-logs" element={<ProtectedLayout allowedRoles={["super_admin", "auditor"]}><AuditLogs /></ProtectedLayout>} />
+          <Route path="/admin/staff-applications" element={<ProtectedLayout allowedRoles={ADMIN_ROLES}><StaffApplications /></ProtectedLayout>} />
 
           {/* Reports & Settings */}
           <Route path="/reports" element={<ProtectedLayout allowedRoles={ALL_STAFF}><Reports /></ProtectedLayout>} />

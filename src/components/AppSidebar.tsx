@@ -70,6 +70,7 @@ export function AppSidebar() {
   const adminItems = [
     { title: "User Management", url: "/admin/users", icon: Users, roles: ["admin", "super_admin"] },
     { title: "Staff Onboarding", url: "/admin/onboard-staff", icon: UserPlus, roles: ["admin", "super_admin", "hr_admin"] },
+    { title: "Staff Applications", url: "/admin/staff-applications", icon: ClipboardList, roles: ["admin", "super_admin"] },
     { title: "Role Management", url: "/admin/roles", icon: ShieldCheck, roles: ["super_admin"] },
     { title: "Access Matrix", url: "/admin/access-matrix", icon: Shield, roles: ["super_admin"] },
     { title: "Staff", url: "/staff", icon: UserCog, roles: ["admin", "super_admin"] },
