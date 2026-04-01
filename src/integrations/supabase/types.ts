@@ -1921,6 +1921,60 @@ export type Database = {
           },
         ]
       }
+      staff_applications: {
+        Row: {
+          created_at: string
+          desired_role: string
+          email: string
+          full_name: string
+          id: string
+          license_number: string | null
+          national_id: string | null
+          notes: string | null
+          phone: string
+          preferred_shift: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          specialization: string | null
+          status: string
+          years_of_experience: number | null
+        }
+        Insert: {
+          created_at?: string
+          desired_role: string
+          email: string
+          full_name: string
+          id?: string
+          license_number?: string | null
+          national_id?: string | null
+          notes?: string | null
+          phone: string
+          preferred_shift?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          specialization?: string | null
+          status?: string
+          years_of_experience?: number | null
+        }
+        Update: {
+          created_at?: string
+          desired_role?: string
+          email?: string
+          full_name?: string
+          id?: string
+          license_number?: string | null
+          national_id?: string | null
+          notes?: string | null
+          phone?: string
+          preferred_shift?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          specialization?: string | null
+          status?: string
+          years_of_experience?: number | null
+        }
+        Relationships: []
+      }
       system_settings: {
         Row: {
           created_at: string
