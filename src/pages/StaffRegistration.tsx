@@ -113,7 +113,7 @@ const StaffRegistration = () => {
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             CUEA Infirmary
           </h1>
-          <p className="text-muted-foreground mt-2">Staff Application Form</p>
+          <p className="text-muted-foreground mt-2">Staff Information Form</p>
         </div>
 
         <Card className="shadow-xl">
