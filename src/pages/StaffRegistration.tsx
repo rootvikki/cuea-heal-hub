@@ -3,9 +3,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, CheckCircle, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -25,14 +24,6 @@ const ROLE_OPTIONS = [
   { value: "hr_admin", label: "HR Admin" },
 ];
 
-const SHIFT_OPTIONS = [
-  { value: "all_day", label: "All Day (8AM - 5PM)" },
-  { value: "morning", label: "Morning (6AM - 2PM)" },
-  { value: "afternoon", label: "Afternoon (2PM - 10PM)" },
-  { value: "night", label: "Night (10PM - 6AM)" },
-  { value: "flexible", label: "Flexible" },
-];
-
 const StaffRegistration = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -43,22 +34,33 @@ const StaffRegistration = () => {
     email: "",
     phone: "",
     national_id: "",
-    desired_role: "",
+    payroll_number: "",
+    roles: [] as string[],
     specialization: "",
     license_number: "",
-    years_of_experience: "",
-    preferred_shift: "",
-    notes: "",
   });
 
   const handleChange = (field: string, value: string) => {
     setForm(prev => ({ ...prev, [field]: value }));
   };
 
+  const toggleRole = (role: string) => {
+    setForm(prev => ({
+      ...prev,
+      roles: prev.roles.includes(role)
+        ? prev.roles.filter(r => r !== role)
+        : [...prev.roles, role],
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!form.full_name || !form.email || !form.phone || !form.desired_role) {
-      toast({ title: "Missing fields", description: "Please fill in all required fields.", variant: "destructive" });
+    if (!form.full_name || !form.email || !form.phone || form.roles.length === 0) {
+      toast({ title: "Missing fields", description: "Please fill in all required fields and select at least one role.", variant: "destructive" });
+      return;
+    }
+    if (!form.email.endsWith("@cuea.edu") && !form.email.endsWith("@cuea.ac.ke")) {
+      toast({ title: "Invalid email", description: "Please use your CUEA email address.", variant: "destructive" });
       return;
     }
 
@@ -69,12 +71,10 @@ const StaffRegistration = () => {
         email: form.email,
         phone: form.phone,
         national_id: form.national_id || null,
-        desired_role: form.desired_role,
+        desired_role: form.roles.join(", "),
         specialization: form.specialization || null,
         license_number: form.license_number || null,
-        years_of_experience: form.years_of_experience ? parseInt(form.years_of_experience) : null,
-        preferred_shift: form.preferred_shift || null,
-        notes: form.notes || null,
+        notes: form.payroll_number ? `Payroll: ${form.payroll_number}` : null,
       } as any);
 
       if (error) throw error;
@@ -119,11 +119,10 @@ const StaffRegistration = () => {
         <Card className="shadow-xl">
           <CardHeader>
             <CardTitle>Staff Details Registration</CardTitle>
-            <CardDescription>Please fill in your details below so the admin can set up your account in the system.</CardDescription>
+            <CardDescription>Please fill in your details so the admin can set up your system account.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
-              {/* Personal Info */}
               <div>
                 <h3 className="font-semibold text-base mb-4 text-primary">Personal Information</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -132,8 +131,8 @@ const StaffRegistration = () => {
                     <Input className="h-12 text-base" placeholder="John Doe" value={form.full_name} onChange={e => handleChange("full_name", e.target.value)} required />
                   </div>
                   <div className="space-y-2">
-                    <Label>Email Address *</Label>
-                    <Input className="h-12 text-base" type="email" placeholder="john@example.com" value={form.email} onChange={e => handleChange("email", e.target.value)} required />
+                    <Label>CUEA Email Address *</Label>
+                    <Input className="h-12 text-base" type="email" placeholder="john@cuea.edu" value={form.email} onChange={e => handleChange("email", e.target.value)} required />
                   </div>
                   <div className="space-y-2">
                     <Label>Phone Number *</Label>
@@ -143,55 +142,38 @@ const StaffRegistration = () => {
                     <Label>National ID</Label>
                     <Input className="h-12 text-base" placeholder="12345678" value={form.national_id} onChange={e => handleChange("national_id", e.target.value)} />
                   </div>
+                  <div className="space-y-2">
+                    <Label>Payroll Number</Label>
+                    <Input className="h-12 text-base" placeholder="e.g. P001" value={form.payroll_number} onChange={e => handleChange("payroll_number", e.target.value)} />
+                  </div>
                 </div>
               </div>
 
-              {/* Professional Info */}
               <div>
                 <h3 className="font-semibold text-base mb-4 text-primary">Professional Information</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                  <div className="space-y-2">
-                    <Label>Desired Role *</Label>
-                    <Select value={form.desired_role} onValueChange={v => handleChange("desired_role", v)}>
-                      <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Select a role" /></SelectTrigger>
-                      <SelectContent>
-                        {ROLE_OPTIONS.map(r => <SelectItem key={r.value} value={r.value}>{r.label}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
+                <div className="space-y-4">
+                  <div className="space-y-3">
+                    <Label>Current Role(s) * <span className="text-muted-foreground font-normal text-sm">(select all that apply)</span></Label>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+                      {ROLE_OPTIONS.map(r => (
+                        <label key={r.value} className="flex items-center gap-2 cursor-pointer p-2 rounded-md border hover:bg-accent/50 transition-colors">
+                          <Checkbox checked={form.roles.includes(r.value)} onCheckedChange={() => toggleRole(r.value)} />
+                          <span className="text-sm">{r.label}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Specialization</Label>
-                    <Input className="h-12 text-base" placeholder="e.g. Pediatrics, Radiology" value={form.specialization} onChange={e => handleChange("specialization", e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>License Number</Label>
-                    <Input className="h-12 text-base" placeholder="Professional license #" value={form.license_number} onChange={e => handleChange("license_number", e.target.value)} />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Years of Experience</Label>
-                    <Input className="h-12 text-base" type="number" min="0" max="50" placeholder="e.g. 5" value={form.years_of_experience} onChange={e => handleChange("years_of_experience", e.target.value)} />
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div className="space-y-2">
+                      <Label>Specialization</Label>
+                      <Input className="h-12 text-base" placeholder="e.g. Pediatrics, Radiology" value={form.specialization} onChange={e => handleChange("specialization", e.target.value)} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>License Number</Label>
+                      <Input className="h-12 text-base" placeholder="Professional license #" value={form.license_number} onChange={e => handleChange("license_number", e.target.value)} />
+                    </div>
                   </div>
                 </div>
-              </div>
-
-              {/* Availability */}
-              <div>
-                <h3 className="font-semibold text-base mb-4 text-primary">Availability</h3>
-                <div className="space-y-2">
-                  <Label>Preferred Shift</Label>
-                  <Select value={form.preferred_shift} onValueChange={v => handleChange("preferred_shift", v)}>
-                    <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Select preferred shift" /></SelectTrigger>
-                    <SelectContent>
-                      {SHIFT_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-
-              {/* Notes */}
-              <div className="space-y-2">
-                <Label>Additional Notes</Label>
-                <Textarea className="text-base" rows={4} placeholder="Tell us anything else about yourself..." value={form.notes} onChange={e => handleChange("notes", e.target.value)} />
               </div>
 
               <div className="flex gap-4 pt-2">
@@ -199,7 +181,7 @@ const StaffRegistration = () => {
                   <ArrowLeft className="mr-2 h-4 w-4" /> Back to Login
                 </Button>
                 <Button type="submit" className="h-12 flex-1" disabled={loading}>
-                  {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting...</> : "Submit Application"}
+                  {loading ? <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Submitting...</> : "Submit Details"}
                 </Button>
               </div>
             </form>
