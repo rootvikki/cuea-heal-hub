@@ -188,6 +188,16 @@ const Auth = () => {
               >
                 Forgot your password?
               </Button>
+              <div className="text-center pt-2 border-t">
+                <Button
+                  type="button"
+                  variant="link"
+                  className="text-primary font-medium"
+                  onClick={() => navigate("/staff-registration")}
+                >
+                  Staff? Apply to join our team →
+                </Button>
+              </div>
             </form>
           )}
 
