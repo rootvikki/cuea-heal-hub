@@ -118,8 +118,8 @@ const StaffRegistration = () => {
 
         <Card className="shadow-xl">
           <CardHeader>
-            <CardTitle>Apply to Join Our Team</CardTitle>
-            <CardDescription>Fill in your details below. The administration team will review your application and contact you.</CardDescription>
+            <CardTitle>Staff Details Registration</CardTitle>
+            <CardDescription>Please fill in your details below so the admin can set up your account in the system.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
