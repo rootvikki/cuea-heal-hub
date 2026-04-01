@@ -37,6 +37,8 @@ import NotFound from "./pages/NotFound";
 import AuditLogs from "./pages/AuditLogs";
 import Reception from "./pages/Reception";
 import UserAccessMatrix from "./pages/UserAccessMatrix";
+import StaffRegistration from "./pages/StaffRegistration";
+import StaffApplications from "./pages/StaffApplications";
 
 const queryClient = new QueryClient();
 
