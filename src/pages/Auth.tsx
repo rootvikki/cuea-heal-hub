@@ -195,7 +195,7 @@ const Auth = () => {
                   className="text-primary font-medium"
                   onClick={() => navigate("/staff-registration")}
                 >
-                  Staff? Apply to join our team →
+                  Staff? Register your details here →
                 </Button>
               </div>
             </form>

@@ -92,9 +92,9 @@ const StaffRegistration = () => {
         <Card className="w-full max-w-lg shadow-xl text-center">
           <CardContent className="pt-10 pb-10 space-y-6">
             <CheckCircle className="w-20 h-20 mx-auto text-green-500" />
-            <h2 className="text-2xl font-bold">Application Submitted!</h2>
+            <h2 className="text-2xl font-bold">Details Submitted!</h2>
             <p className="text-muted-foreground text-base">
-              Thank you, <strong>{form.full_name}</strong>. Your application has been received and will be reviewed by our administration team. You will be contacted via email at <strong>{form.email}</strong>.
+              Thank you, <strong>{form.full_name}</strong>. Your details have been received. The admin will use this information to set up your account. You will receive your login credentials via email at <strong>{form.email}</strong>.
             </p>
             <Button onClick={() => navigate("/auth")} variant="outline" className="h-12">
               <ArrowLeft className="mr-2 h-4 w-4" /> Back to Login
@@ -113,13 +113,13 @@ const StaffRegistration = () => {
           <h1 className="text-3xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
             CUEA Infirmary
           </h1>
-          <p className="text-muted-foreground mt-2">Staff Application Form</p>
+          <p className="text-muted-foreground mt-2">Staff Information Form</p>
         </div>
 
         <Card className="shadow-xl">
           <CardHeader>
-            <CardTitle>Apply to Join Our Team</CardTitle>
-            <CardDescription>Fill in your details below. The administration team will review your application and contact you.</CardDescription>
+            <CardTitle>Staff Details Registration</CardTitle>
+            <CardDescription>Please fill in your details below so the admin can set up your account in the system.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-6">
