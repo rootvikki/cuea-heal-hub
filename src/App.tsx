@@ -100,6 +100,7 @@ const App = () => (
           <Route path="/admin/roles" element={<ProtectedLayout allowedRoles={["super_admin"]}><RoleManagement /></ProtectedLayout>} />
           <Route path="/admin/access-matrix" element={<ProtectedLayout allowedRoles={["super_admin"]}><UserAccessMatrix /></ProtectedLayout>} />
           <Route path="/admin/audit-logs" element={<ProtectedLayout allowedRoles={["super_admin", "auditor"]}><AuditLogs /></ProtectedLayout>} />
+          <Route path="/admin/staff-applications" element={<ProtectedLayout allowedRoles={ADMIN_ROLES}><StaffApplications /></ProtectedLayout>} />
 
           {/* Reports & Settings */}
           <Route path="/reports" element={<ProtectedLayout allowedRoles={ALL_STAFF}><Reports /></ProtectedLayout>} />
