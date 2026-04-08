@@ -15,6 +15,7 @@ interface CreateUserRequest {
   departmentId?: string;
   adminUserId: string;
   payrollNumber?: string;
+  password?: string;
 }
 
 function generateTempPassword(): string {
