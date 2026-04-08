@@ -41,7 +41,7 @@ const Auth = () => {
       // Check if user is suspended
       const { data: profileData } = await supabase
         .from("profiles")
-        .select("status")
+        .select("status, must_change_password")
         .eq("user_id", data.user.id)
         .maybeSingle();
 
@@ -52,6 +52,12 @@ const Auth = () => {
           description: "Your account has been suspended. Please contact your administrator.",
           variant: "destructive",
         });
+        return;
+      }
+
+      // Check if user must change password on first login
+      if ((profileData as any)?.must_change_password) {
+        navigate("/change-password");
         return;
       }
 
