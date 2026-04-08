@@ -98,7 +98,7 @@ const StaffApplications = () => {
         .update({ status: "approved", reviewed_by: user?.id, reviewed_at: new Date().toISOString() } as any)
         .eq("id", app.id);
 
-      toast({ title: "Application Approved", description: `${app.full_name} has been onboarded. Temporary password: ${res.data.tempPassword}` });
+      toast({ title: "Application Approved", description: `${app.full_name} has been onboarded with password: Cuea@2026! (must change on first login)` });
       setSelected(null);
       fetchApplications();
     } catch (error: any) {
