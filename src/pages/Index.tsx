@@ -9,8 +9,8 @@ const Index = () => {
   return (
     <div className="min-h-screen bg-gradient-hero flex items-center justify-center p-4">
       <div className="max-w-4xl mx-auto text-center space-y-8">
-        <div className="w-24 h-24 mx-auto bg-white rounded-full flex items-center justify-center shadow-xl">
-          <Hospital className="w-12 h-12 text-primary" />
+        <div className="w-24 h-24 mx-auto bg-white rounded-full flex items-center justify-center shadow-xl overflow-hidden">
+          <img src={cueaLogo} alt="CUEA Logo" className="w-20 h-20 object-contain" />
         </div>
         <div className="space-y-4">
           <h1 className="text-5xl font-bold text-white">CUEA Health Center</h1>
