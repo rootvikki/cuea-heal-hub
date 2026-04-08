@@ -13,7 +13,7 @@ const Index = () => {
           <img src={cueaLogo} alt="CUEA Logo" className="w-20 h-20 object-contain" />
         </div>
         <div className="space-y-4">
-          <h1 className="text-5xl font-bold text-white">CUEA Health Center</h1>
+          <h1 className="text-5xl font-bold text-white">CUEA INFIRMARY</h1>
           <p className="text-xl text-white/90 max-w-2xl mx-auto">
             Catholic University of Eastern Africa - Infirmary Management System
           </p>
