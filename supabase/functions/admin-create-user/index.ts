@@ -76,10 +76,6 @@ serve(async (req) => {
     // Set must_change_password flag on profile
     await supabase.from("profiles").update({ must_change_password: true } as any).eq("user_id", userId);
 
-    if (authError) throw new Error(`Failed to create user: ${authError.message}`);
-
-    const userId = authData.user.id;
-
     // Remove default patient role and add specified roles
     await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", "patient");
 
