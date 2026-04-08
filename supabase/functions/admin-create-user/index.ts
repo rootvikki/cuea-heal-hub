@@ -34,7 +34,7 @@ serve(async (req) => {
 
   try {
     const body: CreateUserRequest = await req.json();
-    const { email, fullName, phone, roles, departmentId, adminUserId, payrollNumber } = body;
+    const { email, fullName, phone, roles, departmentId, adminUserId, payrollNumber, password: customPassword } = body;
 
     if (!email || !fullName || !roles || roles.length === 0 || !adminUserId) {
       throw new Error("Missing required fields: email, fullName, roles, adminUserId");
