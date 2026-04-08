@@ -39,6 +39,7 @@ import Reception from "./pages/Reception";
 import UserAccessMatrix from "./pages/UserAccessMatrix";
 import StaffRegistration from "./pages/StaffRegistration";
 import StaffApplications from "./pages/StaffApplications";
+import ChangePassword from "./pages/ChangePassword";
 
 const queryClient = new QueryClient();
 
@@ -67,6 +68,7 @@ const App = () => (
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/queue-display" element={<QueueDisplay />} />
           <Route path="/staff-registration" element={<StaffRegistration />} />
+          <Route path="/change-password" element={<ChangePassword />} />
 
           {/* Dashboard - all authenticated users */}
           <Route path="/dashboard" element={<ProtectedLayout><Dashboard /></ProtectedLayout>} />

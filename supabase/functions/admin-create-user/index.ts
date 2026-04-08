@@ -15,6 +15,7 @@ interface CreateUserRequest {
   departmentId?: string;
   adminUserId: string;
   payrollNumber?: string;
+  password?: string;
 }
 
 function generateTempPassword(): string {
@@ -33,7 +34,7 @@ serve(async (req) => {
 
   try {
     const body: CreateUserRequest = await req.json();
-    const { email, fullName, phone, roles, departmentId, adminUserId, payrollNumber } = body;
+    const { email, fullName, phone, roles, departmentId, adminUserId, payrollNumber, password: customPassword } = body;
 
     if (!email || !fullName || !roles || roles.length === 0 || !adminUserId) {
       throw new Error("Missing required fields: email, fullName, roles, adminUserId");
@@ -59,18 +60,21 @@ serve(async (req) => {
       );
     }
 
-    const tempPassword = generateTempPassword();
+    const tempPassword = customPassword || generateTempPassword();
 
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
       password: tempPassword,
       email_confirm: true,
-      user_metadata: { full_name: fullName, phone: phone || "" },
+      user_metadata: { full_name: fullName, phone: phone || "", must_change_password: true },
     });
 
     if (authError) throw new Error(`Failed to create user: ${authError.message}`);
 
     const userId = authData.user.id;
+
+    // Set must_change_password flag on profile
+    await supabase.from("profiles").update({ must_change_password: true } as any).eq("user_id", userId);
 
     // Remove default patient role and add specified roles
     await supabase.from("user_roles").delete().eq("user_id", userId).eq("role", "patient");

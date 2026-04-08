@@ -1690,6 +1690,7 @@ export type Database = {
           gender: string | null
           id: string
           last_login_at: string | null
+          must_change_password: boolean | null
           phone: string | null
           status: string | null
           updated_at: string | null
@@ -1709,6 +1710,7 @@ export type Database = {
           gender?: string | null
           id?: string
           last_login_at?: string | null
+          must_change_password?: boolean | null
           phone?: string | null
           status?: string | null
           updated_at?: string | null
@@ -1728,6 +1730,7 @@ export type Database = {
           gender?: string | null
           id?: string
           last_login_at?: string | null
+          must_change_password?: boolean | null
           phone?: string | null
           status?: string | null
           updated_at?: string | null

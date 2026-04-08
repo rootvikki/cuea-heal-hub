@@ -69,15 +69,22 @@ const StaffApplications = () => {
   const handleApprove = async (app: StaffApplication) => {
     setActionLoading(true);
     try {
-      // Call admin-create-user edge function
+      // Parse roles from comma-separated desired_role field
+      const roles = app.desired_role.split(",").map(r => r.trim().replace(/ /g, "_").toLowerCase()).filter(Boolean);
+      // Extract payroll number from notes if present
+      const payrollMatch = app.notes?.match(/Payroll:\s*(.+)/i);
+      const payrollNumber = payrollMatch ? payrollMatch[1].trim() : undefined;
+
       const { data: { session } } = await supabase.auth.getSession();
       const res = await supabase.functions.invoke("admin-create-user", {
         body: {
           email: app.email,
           fullName: app.full_name,
           phone: app.phone,
-          roles: [app.desired_role],
+          roles: roles.length > 0 ? roles : [app.desired_role],
           adminUserId: user?.id,
+          payrollNumber,
+          password: "Cuea@2026!",
         },
       });
 
@@ -91,7 +98,7 @@ const StaffApplications = () => {
         .update({ status: "approved", reviewed_by: user?.id, reviewed_at: new Date().toISOString() } as any)
         .eq("id", app.id);
 
-      toast({ title: "Application Approved", description: `${app.full_name} has been onboarded. Temporary password: ${res.data.tempPassword}` });
+      toast({ title: "Application Approved", description: `${app.full_name} has been onboarded with password: Cuea@2026! (must change on first login)` });
       setSelected(null);
       fetchApplications();
     } catch (error: any) {
