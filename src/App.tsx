@@ -39,6 +39,7 @@ import Reception from "./pages/Reception";
 import UserAccessMatrix from "./pages/UserAccessMatrix";
 import StaffRegistration from "./pages/StaffRegistration";
 import StaffApplications from "./pages/StaffApplications";
+import ChangePassword from "./pages/ChangePassword";
 
 const queryClient = new QueryClient();
 
