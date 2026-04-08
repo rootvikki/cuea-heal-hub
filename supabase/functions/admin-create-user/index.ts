@@ -60,14 +60,21 @@ serve(async (req) => {
       );
     }
 
-    const tempPassword = generateTempPassword();
+    const tempPassword = customPassword || generateTempPassword();
 
     const { data: authData, error: authError } = await supabase.auth.admin.createUser({
       email,
       password: tempPassword,
       email_confirm: true,
-      user_metadata: { full_name: fullName, phone: phone || "" },
+      user_metadata: { full_name: fullName, phone: phone || "", must_change_password: true },
     });
+
+    if (authError) throw new Error(`Failed to create user: ${authError.message}`);
+
+    const userId = authData.user.id;
+
+    // Set must_change_password flag on profile
+    await supabase.from("profiles").update({ must_change_password: true } as any).eq("user_id", userId);
 
     if (authError) throw new Error(`Failed to create user: ${authError.message}`);
 
