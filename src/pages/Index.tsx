@@ -1,6 +1,7 @@
 import { useNavigate } from "react-router-dom";
 import { Button } from "@/components/ui/button";
-import { Hospital, ArrowRight, Monitor } from "lucide-react";
+import { ArrowRight, Monitor } from "lucide-react";
+import cueaLogo from "@/assets/cuea-logo.png";
 
 const Index = () => {
   const navigate = useNavigate();
