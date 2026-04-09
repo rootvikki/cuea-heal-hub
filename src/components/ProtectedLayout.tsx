@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { PageBreadcrumb } from "@/components/PageBreadcrumb";
 import IdleTimeout from "@/components/IdleTimeout";
+import ImpersonationBanner from "@/components/ImpersonationBanner";
 
 interface ProtectedLayoutProps {
   children: React.ReactNode;
