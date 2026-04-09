@@ -62,6 +62,7 @@ const ProtectedLayout = ({ children, allowedRoles }: ProtectedLayoutProps) => {
 
   return (
     <SidebarProvider>
+      <ImpersonationBanner />
       <div className="flex min-h-screen w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
