@@ -68,6 +68,8 @@ const ALL_ROLES: { value: AppRole; label: string }[] = [
 
 const AdminUserManagement = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const { startImpersonation } = useUser();
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserWithRoles[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
