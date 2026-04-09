@@ -1,61 +1,34 @@
 
 
-## Staff Self-Registration Page
+## Impersonate User Feature
 
 ### What
-A public-facing page (`/staff-registration`) where prospective staff members can fill in their personal and professional details. The super admin then reviews these submissions from an admin panel and onboards approved applicants.
+A client-side impersonation system that lets admins (super_admin/admin) temporarily view the app as any other user — seeing their roles, sidebar, and dashboard — then switch back to their admin session with one click. This does NOT involve actual Supabase auth session switching (which would require knowing user passwords). Instead, it overrides the UserContext state locally.
 
-### Database
+### How It Works
 
-**New table: `staff_applications`**
-- `id` (uuid, PK)
-- `full_name` (text, required)
-- `email` (text, required)
-- `phone` (text, required)
-- `national_id` (text)
-- `desired_role` (text, required) — the role they're applying for
-- `specialization` (text)
-- `license_number` (text)
-- `years_of_experience` (integer)
-- `preferred_shift` (text)
-- `notes` (text) — additional info / cover message
-- `status` (text, default `'pending'`) — pending / approved / rejected
-- `reviewed_by` (uuid)
-- `reviewed_at` (timestamptz)
-- `created_at` (timestamptz, default now())
+1. **UserContext gets impersonation state** — new fields: `impersonatedUserId`, `startImpersonation(userId)`, `stopImpersonation()`, `isImpersonating`. When impersonating, the context fetches and serves the target user's roles and profile instead of the admin's own.
 
-**RLS policies:**
-- Public INSERT (anon + authenticated) — anyone can submit an application
-- Public SELECT own row by email (so they see a confirmation)
-- Admin/super_admin can SELECT all, UPDATE status
+2. **"Login As" button in Admin User Management** — adds a new action in the user dropdown menu on `/admin/users`. Only visible to super_admin/admin. Clicking it calls `startImpersonation(userId)` and navigates to `/dashboard`.
 
-### New Pages & Routes
+3. **Impersonation banner** — a persistent top bar (yellow/amber) shown across all pages when impersonating, displaying "Viewing as [User Name] ([Role])" with a "Back to Admin" button. Placed in `ProtectedLayout`.
 
-1. **`/staff-registration`** (public, no auth required)
-   - Clean, professional form with the hospital branding
-   - Sections: Personal Info (name, email, phone, national ID), Professional Info (desired role, specialization, license number, years of experience), Availability (preferred shift), Additional Notes
-   - On submit → inserts into `staff_applications` → shows success confirmation
-   - Big, touch-friendly inputs (h-12) per design standards
+4. **Role/access override** — during impersonation, `roles`, `profile`, `isAdmin`, `hasRole()`, `hasAnyRole()` all reflect the impersonated user's data. The sidebar updates automatically to show only what that user would see.
 
-2. **`/admin/staff-applications`** (super_admin + admin only)
-   - Table listing all pending applications with filters (status, role)
-   - Click to view full details in a dialog
-   - Actions: Approve (opens existing StaffOnboarding flow pre-filled) or Reject (with reason)
-   - Approve action → calls `admin-create-user` edge function with the applicant's data, then updates application status to `approved`
+5. **Stop impersonation** — clicking "Back to Admin" restores the original admin roles/profile and navigates back to `/admin/users`.
 
-### Changes to Existing Files
+### Files to Change
 
-- **`src/App.tsx`**: Add two new routes — `/staff-registration` (public) and `/admin/staff-applications` (admin-protected)
-- **`src/components/AppSidebar.tsx`**: Add "Staff Applications" menu item under Administration section
-- **`src/pages/Auth.tsx`**: Add a link/button "Staff? Apply here" pointing to `/staff-registration`
+| File | Change |
+|------|--------|
+| `src/contexts/UserContext.tsx` | Add impersonation state, `startImpersonation()`, `stopImpersonation()`, override roles/profile when active |
+| `src/pages/AdminUserManagement.tsx` | Add "Login As" dropdown menu item |
+| `src/components/ProtectedLayout.tsx` | Add impersonation warning banner |
+| `src/components/ImpersonationBanner.tsx` | New component — amber banner with user info and "Back to Admin" button |
 
-### New Files
-- `src/pages/StaffRegistration.tsx` — the public application form
-- `src/pages/StaffApplications.tsx` — the admin review dashboard
-
-### Technical Details
-- No authentication required for the registration form — uses Supabase anon key with public INSERT RLS
-- Form validation using existing `validation.ts` utilities
-- The admin review page fetches from `staff_applications` and provides approve/reject workflows
-- Approving triggers the existing `admin-create-user` edge function to create the account and assign roles
+### Security Notes
+- The actual Supabase session remains the admin's — all database queries still execute with admin's auth token and RLS policies
+- This is a UI-level view-as feature, not a true auth session switch
+- Only super_admin and admin roles can trigger impersonation
+- Audit log entry created when impersonation starts/stops
 
