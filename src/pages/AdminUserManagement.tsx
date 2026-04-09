@@ -489,6 +489,9 @@ const AdminUserManagement = () => {
                               <DropdownMenuItem onClick={() => openPasswordDialog(user)}>
                                 <KeyRound className="mr-2 h-4 w-4" />Change Password
                               </DropdownMenuItem>
+                              <DropdownMenuItem onClick={async () => { await startImpersonation(user.user_id); navigate("/dashboard"); }}>
+                                <Eye className="mr-2 h-4 w-4" />Login As
+                              </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem onClick={() => handleSuspendToggle(user)} disabled={suspendLoading}>
                                 <Ban className="mr-2 h-4 w-4" />
