@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { logAuditEvent } from "@/lib/auditLog";
+import { useUser } from "@/contexts/UserContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,7 +26,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Loader2, UserPlus, Search, MoreHorizontal, Shield, KeyRound, Users, RefreshCw, Pencil, Ban, Trash2, CheckCircle, XCircle,
+  Loader2, UserPlus, Search, MoreHorizontal, Shield, KeyRound, Users, RefreshCw, Pencil, Ban, Trash2, CheckCircle, XCircle, Eye,
 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import { format } from "date-fns";
@@ -66,6 +68,8 @@ const ALL_ROLES: { value: AppRole; label: string }[] = [
 
 const AdminUserManagement = () => {
   const { toast } = useToast();
+  const navigate = useNavigate();
+  const { startImpersonation } = useUser();
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserWithRoles[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -484,6 +488,9 @@ const AdminUserManagement = () => {
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => openPasswordDialog(user)}>
                                 <KeyRound className="mr-2 h-4 w-4" />Change Password
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={async () => { await startImpersonation(user.user_id); navigate("/dashboard"); }}>
+                                <Eye className="mr-2 h-4 w-4" />Login As
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
                               <DropdownMenuItem onClick={() => handleSuspendToggle(user)} disabled={suspendLoading}>
