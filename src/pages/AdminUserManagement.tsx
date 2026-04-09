@@ -26,7 +26,7 @@ import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import {
-  Loader2, UserPlus, Search, MoreHorizontal, Shield, KeyRound, Users, RefreshCw, Pencil, Ban, Trash2, CheckCircle, XCircle,
+  Loader2, UserPlus, Search, MoreHorizontal, Shield, KeyRound, Users, RefreshCw, Pencil, Ban, Trash2, CheckCircle, XCircle, Eye,
 } from "lucide-react";
 import type { Database } from "@/integrations/supabase/types";
 import { format } from "date-fns";
