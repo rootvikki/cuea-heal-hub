@@ -34,11 +34,14 @@ serve(async (req) => {
       if (s.value) settingsMap[s.key] = s.value;
     }
 
-    const consumerKey = settingsMap["mpesa_consumer_key"] || Deno.env.get("MPESA_CONSUMER_KEY");
-    const consumerSecret = settingsMap["mpesa_consumer_secret"] || Deno.env.get("MPESA_CONSUMER_SECRET");
-    const shortCode = settingsMap["mpesa_shortcode"] || Deno.env.get("MPESA_SHORTCODE");
-    const passkey = settingsMap["mpesa_passkey"] || Deno.env.get("MPESA_PASSKEY");
-    const environment = settingsMap["mpesa_environment"] || "sandbox";
+    // Trim credentials to remove any accidental whitespace/newlines
+    const consumerKey = (settingsMap["mpesa_consumer_key"] || Deno.env.get("MPESA_CONSUMER_KEY") || "").trim();
+    const consumerSecret = (settingsMap["mpesa_consumer_secret"] || Deno.env.get("MPESA_CONSUMER_SECRET") || "").trim();
+    const shortCode = (settingsMap["mpesa_shortcode"] || Deno.env.get("MPESA_SHORTCODE") || "").trim();
+    const passkey = (settingsMap["mpesa_passkey"] || Deno.env.get("MPESA_PASSKEY") || "").trim();
+    const environment = (settingsMap["mpesa_environment"] || "sandbox").trim();
+
+    console.log(`Credentials check - key len: ${consumerKey.length}, secret len: ${consumerSecret.length}, shortcode: ${shortCode}, passkey len: ${passkey.length}, env: ${environment}`);
 
     if (!consumerKey || !consumerSecret || !shortCode || !passkey) {
       throw new Error("M-Pesa credentials not configured");
@@ -75,12 +78,16 @@ serve(async (req) => {
 
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
-      console.error("Token generation failed:", errorText);
-      throw new Error("Failed to get M-Pesa access token");
+      console.error(`Token generation failed (status ${tokenResponse.status}):`, errorText);
+      throw new Error(`M-Pesa OAuth failed: ${errorText.slice(0, 200)}. Check your Consumer Key & Secret match the '${environment}' environment.`);
     }
 
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData.access_token;
+    if (!accessToken) {
+      console.error("No access_token in response:", JSON.stringify(tokenData));
+      throw new Error("M-Pesa returned no access token. Verify your Consumer Key & Secret.");
+    }
 
     // Generate timestamp
     const timestamp = new Date()
