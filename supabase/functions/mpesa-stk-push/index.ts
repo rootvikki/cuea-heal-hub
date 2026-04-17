@@ -78,12 +78,16 @@ serve(async (req) => {
 
     if (!tokenResponse.ok) {
       const errorText = await tokenResponse.text();
-      console.error("Token generation failed:", errorText);
-      throw new Error("Failed to get M-Pesa access token");
+      console.error(`Token generation failed (status ${tokenResponse.status}):`, errorText);
+      throw new Error(`M-Pesa OAuth failed: ${errorText.slice(0, 200)}. Check your Consumer Key & Secret match the '${environment}' environment.`);
     }
 
     const tokenData = await tokenResponse.json();
     const accessToken = tokenData.access_token;
+    if (!accessToken) {
+      console.error("No access_token in response:", JSON.stringify(tokenData));
+      throw new Error("M-Pesa returned no access token. Verify your Consumer Key & Secret.");
+    }
 
     // Generate timestamp
     const timestamp = new Date()
