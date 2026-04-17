@@ -94,7 +94,7 @@ export const PatientDetailDialog = ({
       isDoctor
         ? supabase
             .from("lab_orders")
-            .select("*, test:lab_tests_catalog(test_name, unit, normal_range)")
+            .select("*, test:lab_tests_catalog(test_name, unit, normal_range), lab_result_fields(id, field_name, field_value, unit, reference_range, flag, sort_order)")
             .eq("patient_id", patientId)
             .order("created_at", { ascending: false })
             .limit(20)
