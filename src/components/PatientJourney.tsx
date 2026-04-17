@@ -29,7 +29,7 @@ export function PatientJourney({ ticketId, patientId }: PatientJourneyProps) {
     const [v, np, lo, io, rx, ch] = await Promise.all([
       supabase.from("vitals").select("*").eq("patient_id", patientId).order("recorded_at", { ascending: false }).limit(5),
       supabase.from("nursing_procedures").select("*").eq("patient_id", patientId).eq("ticket_id", ticketId),
-      supabase.from("lab_orders").select("*, lab_tests_catalog(test_name)").eq("patient_id", patientId).order("created_at", { ascending: false }).limit(20),
+      supabase.from("lab_orders").select("*, lab_tests_catalog(test_name, unit, normal_range), lab_result_fields(id, field_name, field_value, unit, reference_range, flag, sort_order)").eq("patient_id", patientId).order("created_at", { ascending: false }).limit(20),
       supabase.from("imaging_orders").select("*, imaging_catalog(name, modality)").eq("patient_id", patientId).order("created_at", { ascending: false }).limit(10),
       supabase.from("prescriptions").select("*").eq("patient_id", patientId).order("created_at", { ascending: false }).limit(20),
       supabase.from("service_charges").select("*").eq("ticket_id", ticketId),
@@ -103,24 +103,53 @@ export function PatientJourney({ ticketId, patientId }: PatientJourneyProps) {
         <Card>
           <CardHeader className="py-3">
             <CardTitle className="text-sm flex items-center gap-2">
-              <TestTube className="h-4 w-4 text-primary" /> Lab Orders
+              <TestTube className="h-4 w-4 text-primary" /> Lab Orders & Results
             </CardTitle>
           </CardHeader>
           <CardContent className="text-sm">
             {labOrders.length === 0 ? (
               <p className="text-muted-foreground">No lab orders</p>
             ) : (
-              <div className="space-y-2">
-                {labOrders.map(lo => (
-                  <div key={lo.id} className="flex items-center justify-between">
-                    <span>{(lo as any).lab_tests_catalog?.test_name || "Test"}</span>
-                    <div className="flex items-center gap-2">
-                      {lo.result_value && <span className="font-mono">{lo.result_value}</span>}
-                      {lo.flag && <Badge variant={lo.flag === "H" ? "destructive" : "secondary"}>{lo.flag}</Badge>}
-                      <Badge variant={lo.status === "completed" ? "default" : "outline"}>{lo.status}</Badge>
+              <div className="space-y-3">
+                {labOrders.map(lo => {
+                  const fields = ((lo as any).lab_result_fields || []).slice().sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0));
+                  const testName = (lo as any).lab_tests_catalog?.test_name || "Test";
+                  const testUnit = (lo as any).lab_tests_catalog?.unit;
+                  const testRef = (lo as any).lab_tests_catalog?.normal_range;
+                  return (
+                    <div key={lo.id} className="border rounded p-2 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="font-medium">{testName}</span>
+                        <Badge variant={lo.status === "completed" ? "default" : "outline"}>{lo.status}</Badge>
+                      </div>
+                      {fields.length > 0 ? (
+                        <div className="space-y-1">
+                          {fields.map((f: any) => (
+                            <div key={f.id} className="grid grid-cols-12 gap-2 text-xs items-center">
+                              <span className="col-span-4 text-muted-foreground">{f.field_name}</span>
+                              <span className="col-span-3 font-mono font-medium">{f.field_value || "—"} {f.unit || ""}</span>
+                              <span className="col-span-4 text-muted-foreground">Ref: {f.reference_range || "—"}</span>
+                              <span className="col-span-1">
+                                {f.flag && <Badge variant={f.flag === "H" ? "destructive" : "secondary"} className="text-[10px] px-1">{f.flag}</Badge>}
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      ) : lo.result_value ? (
+                        <div className="p-2 bg-muted rounded text-xs">
+                          <span className="font-mono font-medium">{lo.result_value}</span> {testUnit}
+                          {testRef && <span className="text-muted-foreground ml-2">(ref: {testRef})</span>}
+                          {lo.flag && <Badge variant={lo.flag === "H" ? "destructive" : "secondary"} className="ml-2">{lo.flag}</Badge>}
+                        </div>
+                      ) : (
+                        <p className="text-xs text-muted-foreground italic">Awaiting results...</p>
+                      )}
+                      {lo.result_notes && (
+                        <p className="text-xs text-muted-foreground border-t pt-1">📝 {lo.result_notes}</p>
+                      )}
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </CardContent>
