@@ -34,11 +34,14 @@ serve(async (req) => {
       if (s.value) settingsMap[s.key] = s.value;
     }
 
-    const consumerKey = settingsMap["mpesa_consumer_key"] || Deno.env.get("MPESA_CONSUMER_KEY");
-    const consumerSecret = settingsMap["mpesa_consumer_secret"] || Deno.env.get("MPESA_CONSUMER_SECRET");
-    const shortCode = settingsMap["mpesa_shortcode"] || Deno.env.get("MPESA_SHORTCODE");
-    const passkey = settingsMap["mpesa_passkey"] || Deno.env.get("MPESA_PASSKEY");
-    const environment = settingsMap["mpesa_environment"] || "sandbox";
+    // Trim credentials to remove any accidental whitespace/newlines
+    const consumerKey = (settingsMap["mpesa_consumer_key"] || Deno.env.get("MPESA_CONSUMER_KEY") || "").trim();
+    const consumerSecret = (settingsMap["mpesa_consumer_secret"] || Deno.env.get("MPESA_CONSUMER_SECRET") || "").trim();
+    const shortCode = (settingsMap["mpesa_shortcode"] || Deno.env.get("MPESA_SHORTCODE") || "").trim();
+    const passkey = (settingsMap["mpesa_passkey"] || Deno.env.get("MPESA_PASSKEY") || "").trim();
+    const environment = (settingsMap["mpesa_environment"] || "sandbox").trim();
+
+    console.log(`Credentials check - key len: ${consumerKey.length}, secret len: ${consumerSecret.length}, shortcode: ${shortCode}, passkey len: ${passkey.length}, env: ${environment}`);
 
     if (!consumerKey || !consumerSecret || !shortCode || !passkey) {
       throw new Error("M-Pesa credentials not configured");
