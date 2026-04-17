@@ -494,48 +494,61 @@ export const PatientDetailDialog = ({
                   </p>
                 ) : (
                   <div className="space-y-3">
-                    {labOrders.map((lab) => (
-                      <Card key={lab.id}>
-                        <CardContent className="p-3">
-                          <div className="flex justify-between items-start">
-                            <div>
-                              <p className="text-sm font-medium">
-                                {lab.test?.test_name || "Unknown test"}
-                              </p>
-                              <p className="text-xs text-muted-foreground">
-                                {format(
-                                  new Date(lab.created_at),
-                                  "MMM d, yyyy"
+                    {labOrders.map((lab) => {
+                      const fields = (lab.lab_result_fields || []).slice().sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0));
+                      return (
+                        <Card key={lab.id}>
+                          <CardContent className="p-3 space-y-2">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="text-sm font-medium">
+                                  {lab.test?.test_name || "Unknown test"}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  {format(new Date(lab.created_at), "MMM d, yyyy")}
+                                </p>
+                              </div>
+                              <Badge
+                                variant={lab.status === "completed" ? "default" : "outline"}
+                                className="text-xs"
+                              >
+                                {lab.status}
+                              </Badge>
+                            </div>
+                            {fields.length > 0 ? (
+                              <div className="space-y-1 border-t pt-2">
+                                {fields.map((f: any) => (
+                                  <div key={f.id} className="grid grid-cols-12 gap-2 text-xs items-center">
+                                    <span className="col-span-4 text-muted-foreground">{f.field_name}</span>
+                                    <span className="col-span-3 font-mono font-medium">{f.field_value || "—"} {f.unit || ""}</span>
+                                    <span className="col-span-4 text-muted-foreground">Ref: {f.reference_range || "—"}</span>
+                                    <span className="col-span-1">
+                                      {f.flag && <Badge variant={f.flag === "H" ? "destructive" : "secondary"} className="text-[10px] px-1">{f.flag}</Badge>}
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : lab.result_value ? (
+                              <div className="p-2 bg-muted rounded text-sm">
+                                <span className="font-medium">{lab.result_value}</span>{" "}
+                                {lab.test?.unit}
+                                {lab.test?.normal_range && (
+                                  <span className="text-muted-foreground ml-2">
+                                    (ref: {lab.test.normal_range})
+                                  </span>
                                 )}
-                              </p>
-                            </div>
-                            <Badge
-                              variant={
-                                lab.status === "completed"
-                                  ? "default"
-                                  : "outline"
-                              }
-                              className="text-xs"
-                            >
-                              {lab.status}
-                            </Badge>
-                          </div>
-                          {lab.result_value && (
-                            <div className="mt-2 p-2 bg-muted rounded text-sm">
-                              <span className="font-medium">
-                                {lab.result_value}
-                              </span>{" "}
-                              {lab.test?.unit}
-                              {lab.test?.normal_range && (
-                                <span className="text-muted-foreground ml-2">
-                                  (ref: {lab.test.normal_range})
-                                </span>
-                              )}
-                            </div>
-                          )}
-                        </CardContent>
-                      </Card>
-                    ))}
+                                {lab.flag && <Badge variant={lab.flag === "H" ? "destructive" : "secondary"} className="ml-2">{lab.flag}</Badge>}
+                              </div>
+                            ) : (
+                              <p className="text-xs text-muted-foreground italic">Awaiting results...</p>
+                            )}
+                            {lab.result_notes && (
+                              <p className="text-xs text-muted-foreground border-t pt-1">📝 {lab.result_notes}</p>
+                            )}
+                          </CardContent>
+                        </Card>
+                      );
+                    })}
                   </div>
                 )}
               </ScrollArea>
