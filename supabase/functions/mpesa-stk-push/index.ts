@@ -101,8 +101,8 @@ serve(async (req) => {
       .replace(/[^0-9]/g, "")
       .slice(0, 14);
 
-    // Generate password
-    const password = btoa(`${shortCode}${passkey}${timestamp}`);
+    // Generate password using BusinessShortCode (Store/HQ for till, paybill otherwise)
+    const password = btoa(`${businessShortCode}${passkey}${timestamp}`);
 
     // Callback URL
     const callbackUrl = `${supabaseUrl}/functions/v1/mpesa-callback`;
@@ -117,13 +117,13 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          BusinessShortCode: shortCode,
+          BusinessShortCode: businessShortCode,
           Password: password,
           Timestamp: timestamp,
-          TransactionType: "CustomerPayBillOnline",
+          TransactionType: transactionType,
           Amount: Math.round(amount),
           PartyA: formattedPhone,
-          PartyB: shortCode,
+          PartyB: tillNumber,
           PhoneNumber: formattedPhone,
           CallBackURL: callbackUrl,
           AccountReference: accountReference || invoiceId,
