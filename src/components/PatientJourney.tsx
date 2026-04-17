@@ -29,7 +29,7 @@ export function PatientJourney({ ticketId, patientId }: PatientJourneyProps) {
     const [v, np, lo, io, rx, ch] = await Promise.all([
       supabase.from("vitals").select("*").eq("patient_id", patientId).order("recorded_at", { ascending: false }).limit(5),
       supabase.from("nursing_procedures").select("*").eq("patient_id", patientId).eq("ticket_id", ticketId),
-      supabase.from("lab_orders").select("*, lab_tests_catalog(test_name)").eq("patient_id", patientId).order("created_at", { ascending: false }).limit(20),
+      supabase.from("lab_orders").select("*, lab_tests_catalog(test_name, unit, normal_range), lab_result_fields(id, field_name, field_value, unit, reference_range, flag, sort_order)").eq("patient_id", patientId).order("created_at", { ascending: false }).limit(20),
       supabase.from("imaging_orders").select("*, imaging_catalog(name, modality)").eq("patient_id", patientId).order("created_at", { ascending: false }).limit(10),
       supabase.from("prescriptions").select("*").eq("patient_id", patientId).order("created_at", { ascending: false }).limit(20),
       supabase.from("service_charges").select("*").eq("ticket_id", ticketId),
