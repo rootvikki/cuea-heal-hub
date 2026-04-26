@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { SMTPClient } from "https://deno.land/x/denomailer@1.6.0/mod.ts";
+import { checkDisposableEmail } from "../_shared/disposable-emails.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,6 +39,18 @@ serve(async (req) => {
 
     if (!email || !fullName || !roles || roles.length === 0 || !adminUserId) {
       throw new Error("Missing required fields: email, fullName, roles, adminUserId");
+    }
+
+    // Block disposable / temporary email providers
+    const emailCheck = checkDisposableEmail(email);
+    if (emailCheck.blocked) {
+      return new Response(
+        JSON.stringify({
+          success: false,
+          error: `Email rejected: ${emailCheck.reason}. Please use a legitimate work or institutional email address.`,
+        }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
