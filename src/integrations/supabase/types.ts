@@ -1978,6 +1978,51 @@ export type Database = {
         }
         Relationships: []
       }
+      suspicious_signups: {
+        Row: {
+          created_at: string
+          detected_domain: string | null
+          email: string
+          id: string
+          reason: string
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          signup_metadata: Json | null
+          status: string
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          detected_domain?: string | null
+          email: string
+          id?: string
+          reason: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          signup_metadata?: Json | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          detected_domain?: string | null
+          email?: string
+          id?: string
+          reason?: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          signup_metadata?: Json | null
+          status?: string
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: []
+      }
       system_settings: {
         Row: {
           created_at: string

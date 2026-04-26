@@ -4,7 +4,7 @@ import { useUser } from "@/contexts/UserContext";
 import {
   Home, Users, Calendar, FileText, Pill, TestTube, Receipt, Settings,
   LogOut, ClipboardList, Activity, Camera, Bed, Shield, UserCog,
-  BarChart3, Stethoscope, UserCircle, UserPlus, ShieldCheck, Monitor, FileSearch,
+  BarChart3, Stethoscope, UserCircle, UserPlus, ShieldCheck, Monitor, FileSearch, ShieldAlert,
 } from "lucide-react";
 import {
   Sidebar,
@@ -75,6 +75,7 @@ export function AppSidebar() {
     { title: "Access Matrix", url: "/admin/access-matrix", icon: Shield, roles: ["super_admin"] },
     { title: "Staff", url: "/staff", icon: UserCog, roles: ["admin", "super_admin"] },
     { title: "Audit Logs", url: "/admin/audit-logs", icon: FileSearch, roles: ["admin", "super_admin"] },
+    { title: "Suspicious Signups", url: "/admin/suspicious-signups", icon: ShieldAlert, roles: ["admin", "super_admin"] },
     { title: "Reports", url: "/reports", icon: BarChart3, roles: ["admin", "super_admin", "finance_officer"] },
     { title: "My Profile", url: "/profile", icon: UserCircle, roles: ["all"] },
     { title: "Settings", url: "/settings", icon: Settings, roles: ["admin", "super_admin", "system_admin"] },

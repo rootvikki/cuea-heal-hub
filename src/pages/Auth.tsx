@@ -194,7 +194,10 @@ const Auth = () => {
               >
                 Forgot your password?
               </Button>
-              <div className="text-center pt-2 border-t">
+              <div className="text-center pt-2 border-t space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  🔒 New accounts are created by administrators only. Self-signup is disabled.
+                </p>
                 <Button
                   type="button"
                   variant="link"
