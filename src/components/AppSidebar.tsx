@@ -4,7 +4,7 @@ import { useUser } from "@/contexts/UserContext";
 import {
   Home, Users, Calendar, FileText, Pill, TestTube, Receipt, Settings,
   LogOut, ClipboardList, Activity, Camera, Bed, Shield, UserCog,
-  BarChart3, Stethoscope, UserCircle, UserPlus, ShieldCheck, Monitor, FileSearch,
+  BarChart3, Stethoscope, UserCircle, UserPlus, ShieldCheck, Monitor, FileSearch, ShieldAlert,
 } from "lucide-react";
 import {
   Sidebar,
