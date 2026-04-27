@@ -194,18 +194,10 @@ const Auth = () => {
               >
                 Forgot your password?
               </Button>
-              <div className="text-center pt-2 border-t space-y-2">
+              <div className="text-center pt-2 border-t">
                 <p className="text-xs text-muted-foreground">
-                  🔒 New accounts are created by administrators only. Self-signup is disabled.
+                  🔒 Accounts are created by administrators only. Contact your system administrator for access.
                 </p>
-                <Button
-                  type="button"
-                  variant="link"
-                  className="text-primary font-medium"
-                  onClick={() => navigate("/staff-registration")}
-                >
-                  Staff? Register your details here →
-                </Button>
               </div>
             </form>
           )}
