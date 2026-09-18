@@ -136,7 +136,7 @@ const Queue = () => {
 
     const selectedPatient = patients.find((p: any) => p.id === formData.patientId);
     const isDental = selectedPatient?.visit_reason === "dental";
-    const initialStatus = isDental ? "at_dental" : "checked_in";
+    const initialStatus = isDental ? "at_dental" : "triage";
 
     const ticketNumber = `T-${Date.now().toString().slice(-6)}`;
 
@@ -154,7 +154,7 @@ const Queue = () => {
     } else {
       toast({
         title: "Patient checked in",
-        description: isDental ? `Ticket ${ticketNumber} — routed to Dental` : `Ticket number: ${ticketNumber}`,
+        description: isDental ? `Ticket ${ticketNumber} — routed to Dental` : `Ticket ${ticketNumber} — awaiting Triage`,
       });
       setDialogOpen(false);
       setFormData({ patientId: "", departmentId: "", priority: "1" });
@@ -314,7 +314,9 @@ const Queue = () => {
                       <p className="text-xs text-muted-foreground">Checked in: {new Date(ticket.checked_in_at).toLocaleString()}</p>
                       <WaitTimeBadge checkedInAt={ticket.checked_in_at} />
                     </div>
-                    <Badge className={getStatusColor(ticket.status)}>{ticket.status.replace(/_/g, " ")}</Badge>
+                    <Badge className={getStatusColor(ticket.status)}>
+                      {ticket.status === "triage" ? "Awaiting Triage" : ticket.status.replace(/_/g, " ")}
+                    </Badge>
                   </div>
                   <WorkflowTimeline
                     currentStage={ticket.workflow_stage || ticket.status}
