@@ -320,8 +320,8 @@ const Vitals = () => {
                       <p className="text-xs text-muted-foreground">Enter in meters</p>
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-sm font-semibold">BMI</Label>
-                      <Input readOnly value={bmi || ""} className="bg-muted font-bold h-12 text-base" />
+                      <Label className="text-sm font-semibold">BMI (automatic)</Label>
+                      <Input readOnly value={bmi || ""} className="bg-muted font-bold h-12 text-base" placeholder="Calculated from height and weight" aria-label="Automatically calculated BMI" />
                       {bmi && (
                         <Badge className={`text-xs ${
                           parseFloat(bmi) < 18.5 ? "bg-warning text-warning-foreground" :
@@ -334,6 +334,7 @@ const Vitals = () => {
                            parseFloat(bmi) < 30 ? "Overweight" : "Obese"}
                         </Badge>
                       )}
+                      {!bmi && <p className="text-xs text-muted-foreground">Enter height and weight to calculate BMI</p>}
                     </div>
                     <div className="space-y-2">
                       <Label className="text-sm font-semibold">Blood Pressure</Label>

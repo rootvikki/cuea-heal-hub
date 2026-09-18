@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 const STEP_LABELS: Record<string, string> = {
   checked_in: "Check-in",
   triage: "Triage",
+  triage_in_progress: "Triage",
   waiting_for_doctor: "Consultation",
   at_lab: "Laboratory",
   at_imaging: "Imaging",
@@ -17,6 +18,7 @@ const STEP_LABELS: Record<string, string> = {
 const STAGE_ALIASES: Record<string, string> = {
   checked_in: "checked_in",
   triage: "triage",
+  triage_in_progress: "triage",
   waiting_for_doctor: "waiting_for_doctor",
   in_consult: "waiting_for_doctor",
   at_lab: "at_lab",

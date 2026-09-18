@@ -94,7 +94,7 @@ export function StationQueue({ stationStages, nextStage, title, onSelectPatient,
       return;
     }
     if (!ticket.assigned_to) {
-      const { data, error } = await supabase.rpc("manage_triage_claim", { p_ticket_id: ticket.id, p_action: "claim" });
+      const { data, error } = await supabase.rpc("manage_triage_claim", { _ticket_id: ticket.id, _action: "claim" });
       if (error) return toast.error(error.message);
       ticket = { ...ticket, ...data, assigned_to: staffId, status: "triage_in_progress", workflow_stage: "triage_in_progress" };
       toast.success("Patient claimed for triage");
@@ -104,7 +104,7 @@ export function StationQueue({ stationStages, nextStage, title, onSelectPatient,
   };
 
   const releaseClaim = async (ticket: any) => {
-    const { error } = await supabase.rpc("manage_triage_claim", { p_ticket_id: ticket.id, p_action: "release" });
+    const { error } = await supabase.rpc("manage_triage_claim", { _ticket_id: ticket.id, _action: "release" });
     if (error) return toast.error(error.message);
     if (selectedTicketId === ticket.id) onSelectPatient?.(null);
     toast.success("Patient returned to Awaiting Triage");

@@ -136,6 +136,14 @@ Deno.serve(async (req) => {
           throw new Error("You cannot delete your own account");
         }
 
+        const { data: targetUser } = await supabaseAdmin.auth.admin.getUserById(userId);
+        await supabaseAdmin.from("audit_logs").insert({
+          user_id: caller.id,
+          action: "USER_PERMANENTLY_DELETED",
+          module: "security",
+          details: { target_user_id: userId, target_email: targetUser.user?.email ?? null },
+        });
+
         const { error } = await supabaseAdmin.auth.admin.deleteUser(userId);
         if (error) throw new Error(`Delete failed: ${error.message}`);
 
@@ -151,6 +159,7 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
+    console.error("Admin user action failed", error);
     return new Response(
       JSON.stringify({ success: false, error: error.message }),
       { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }

@@ -496,7 +496,7 @@ export type Database = {
           created_at: string | null
           department_id: string
           diagnosis: string[] | null
-          doctor_id: string
+          doctor_id: string | null
           encounter_date: string | null
           encounter_type: string | null
           follow_up_date: string | null
@@ -515,7 +515,7 @@ export type Database = {
           created_at?: string | null
           department_id: string
           diagnosis?: string[] | null
-          doctor_id: string
+          doctor_id?: string | null
           encounter_date?: string | null
           encounter_type?: string | null
           follow_up_date?: string | null
@@ -534,7 +534,7 @@ export type Database = {
           created_at?: string | null
           department_id?: string
           diagnosis?: string[] | null
-          doctor_id?: string
+          doctor_id?: string | null
           encounter_date?: string | null
           encounter_type?: string | null
           follow_up_date?: string | null
@@ -923,7 +923,7 @@ export type Database = {
       lab_orders: {
         Row: {
           created_at: string | null
-          doctor_id: string
+          doctor_id: string | null
           encounter_id: string
           flag: string | null
           id: string
@@ -938,7 +938,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
-          doctor_id: string
+          doctor_id?: string | null
           encounter_id: string
           flag?: string | null
           id?: string
@@ -953,7 +953,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
-          doctor_id?: string
+          doctor_id?: string | null
           encounter_id?: string
           flag?: string | null
           id?: string
@@ -1601,7 +1601,7 @@ export type Database = {
           dispensed: boolean | null
           dispensed_at: string | null
           dispensed_by: string | null
-          doctor_id: string
+          doctor_id: string | null
           dosage: string
           duration: string
           encounter_id: string
@@ -1617,7 +1617,7 @@ export type Database = {
           dispensed?: boolean | null
           dispensed_at?: string | null
           dispensed_by?: string | null
-          doctor_id: string
+          doctor_id?: string | null
           dosage: string
           duration: string
           encounter_id: string
@@ -1633,7 +1633,7 @@ export type Database = {
           dispensed?: boolean | null
           dispensed_at?: string | null
           dispensed_by?: string | null
-          doctor_id?: string
+          doctor_id?: string | null
           dosage?: string
           duration?: string
           encounter_id?: string

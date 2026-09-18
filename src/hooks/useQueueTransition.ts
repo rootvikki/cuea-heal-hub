@@ -4,6 +4,7 @@ import { toast } from "sonner";
 type TicketStatus = 
   | "checked_in"
   | "triage"
+  | "triage_in_progress"
   | "waiting_for_doctor"
   | "in_consult"
   | "at_dental"
