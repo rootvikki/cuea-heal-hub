@@ -4,4 +4,4 @@
 - [x] Add atomic triage claim/release workflow and clear queue states.
 - [x] Add real-time triage arrival, sound, and desktop alerts.
 - [x] Repair suspicious-user deletion and preserve audit history.
-- [ ] Make automatic BMI calculation clearly visible from entered height and weight.
+- [x] Make automatic BMI calculation clearly visible from entered height and weight.
