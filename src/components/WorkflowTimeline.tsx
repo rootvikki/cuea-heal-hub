@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 const STEP_LABELS: Record<string, string> = {
   checked_in: "Check-in",
   triage: "Triage",
-  triage_in_progress: "Triage",
+  triage_in_progress: "On Triage",
   waiting_for_doctor: "Consultation",
   at_lab: "Laboratory",
   at_imaging: "Imaging",
