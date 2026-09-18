@@ -1,0 +1,1 @@
+ALTER FUNCTION public.manage_triage_claim(uuid, text) SECURITY INVOKER;
