@@ -443,7 +443,7 @@ const Reception = () => {
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-sm">{ticket.ticket_number}</span>
                           <Badge variant="outline" className="text-xs">
-                            {ticket.status === "triage" ? "Awaiting Triage" : ticket.status.replace(/_/g, " ")}
+                            {ticket.status === "triage" ? "Awaiting Triage" : ticket.status === "triage_in_progress" ? "Triage in Progress" : ticket.status.replace(/_/g, " ")}
                           </Badge>
                         </div>
                         <p className="text-sm">{patientDisplayName(ticket.patient?.profile, ticket.patient?.patient_id)}</p>

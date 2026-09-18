@@ -155,7 +155,11 @@ const SuspiciousSignups = () => {
         const res = await supabase.functions.invoke("admin-manage-user", {
           body: { action: "delete", userId: selected.user_id },
         });
-        if (res.error) throw res.error;
+        if (res.error) {
+          let message = res.error.message;
+          try { const body = await res.error.context?.json(); message = body?.error || message; } catch { /* use client message */ }
+          throw new Error(message);
+        }
         if (!res.data.success) throw new Error(res.data.error);
       }
       await updateStatus(selected.id, "actioned", reviewNotes || "User account permanently deleted");

@@ -163,11 +163,11 @@ const Queue = () => {
     }
   };
 
-  type TicketStatus = "checked_in" | "triage" | "waiting_for_doctor" | "in_consult" | "at_pharmacy" | "at_billing" | "checked_out" | "order_placed_lab" | "order_placed_imaging" | "at_lab" | "at_imaging";
+  type TicketStatus = "checked_in" | "triage" | "triage_in_progress" | "waiting_for_doctor" | "in_consult" | "at_pharmacy" | "at_billing" | "checked_out" | "order_placed_lab" | "order_placed_imaging" | "at_lab" | "at_imaging";
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, string> = {
-      checked_in: "bg-muted", triage: "bg-warning", waiting_for_doctor: "bg-status-pending",
+      checked_in: "bg-muted", triage: "bg-warning", triage_in_progress: "bg-status-in-progress", waiting_for_doctor: "bg-status-pending",
       in_consult: "bg-status-in-progress", at_dental: "bg-status-in-progress",
       order_placed_lab: "bg-primary", order_placed_imaging: "bg-primary",
       at_lab: "bg-accent", at_imaging: "bg-accent", at_pharmacy: "bg-success",
@@ -315,7 +315,7 @@ const Queue = () => {
                       <WaitTimeBadge checkedInAt={ticket.checked_in_at} />
                     </div>
                     <Badge className={getStatusColor(ticket.status)}>
-                      {ticket.status === "triage" ? "Awaiting Triage" : ticket.status.replace(/_/g, " ")}
+                      {ticket.status === "triage" ? "Awaiting Triage" : ticket.status === "triage_in_progress" ? "Triage in Progress" : ticket.status.replace(/_/g, " ")}
                     </Badge>
                   </div>
                   <WorkflowTimeline

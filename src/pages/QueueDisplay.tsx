@@ -25,6 +25,7 @@ interface TicketWithDetails {
 const stageLabels: Record<string, string> = {
   checked_in: "Reception",
   triage: "Awaiting Triage",
+  triage_in_progress: "Triage in Progress",
   waiting_for_doctor: "Waiting Room",
   in_consult: "Doctor's Office",
   at_dental: "Dental",
@@ -38,7 +39,7 @@ const stageLabels: Record<string, string> = {
 };
 
 const stageOrder = [
-  "checked_in", "triage", "waiting_for_doctor", "in_consult", "at_dental",
+  "checked_in", "triage", "triage_in_progress", "waiting_for_doctor", "in_consult", "at_dental",
   "at_lab", "at_imaging", "at_pharmacy", "at_billing", "checked_out",
 ];
 
@@ -99,6 +100,7 @@ const QueueDisplay = () => {
     const colors: Record<string, string> = {
       checked_in: "bg-muted text-muted-foreground",
       triage: "bg-warning text-warning-foreground",
+      triage_in_progress: "bg-primary text-primary-foreground",
       waiting_for_doctor: "bg-secondary text-secondary-foreground",
       in_consult: "bg-primary text-primary-foreground",
       at_dental: "bg-primary text-primary-foreground",

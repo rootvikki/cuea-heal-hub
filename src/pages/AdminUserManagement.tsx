@@ -225,7 +225,11 @@ const AdminUserManagement = () => {
           payrollNumber: editForm.payrollNumber || null,
         },
       });
-      if (res.error) throw res.error;
+      if (res.error) {
+        let message = res.error.message;
+        try { const body = await res.error.context?.json(); message = body?.error || message; } catch { /* use client message */ }
+        throw new Error(message);
+      }
       if (!res.data.success) throw new Error(res.data.error);
       logAuditEvent({ action: "UPDATE_PROFILE", module: "user_management", details: { target_user_id: selectedUser.user_id, target_email: selectedUser.email } });
       toast({ title: "Profile updated", description: res.data.message });
