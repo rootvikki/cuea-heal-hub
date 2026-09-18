@@ -2094,6 +2094,7 @@ export type Database = {
           assigned_to: string | null
           checked_in_at: string | null
           checked_out_at: string | null
+          claimed_at: string | null
           created_at: string | null
           department_id: string
           id: string
@@ -2109,6 +2110,7 @@ export type Database = {
           assigned_to?: string | null
           checked_in_at?: string | null
           checked_out_at?: string | null
+          claimed_at?: string | null
           created_at?: string | null
           department_id: string
           id?: string
@@ -2124,6 +2126,7 @@ export type Database = {
           assigned_to?: string | null
           checked_in_at?: string | null
           checked_out_at?: string | null
+          claimed_at?: string | null
           created_at?: string | null
           department_id?: string
           id?: string
@@ -2188,6 +2191,11 @@ export type Database = {
       }
       vitals: {
         Row: {
+          ai_rationale: string | null
+          ai_recommended_checks: string[] | null
+          ai_red_flags: string[] | null
+          ai_reviewed_at: string | null
+          ai_urgency_priority: number | null
           allergies_noted: string | null
           blood_pressure_diastolic: number | null
           blood_pressure_systolic: number | null
@@ -2204,9 +2212,15 @@ export type Database = {
           recorded_by: string | null
           respiratory_rate: number | null
           temperature: number | null
+          urgency_priority: number | null
           weight: number | null
         }
         Insert: {
+          ai_rationale?: string | null
+          ai_recommended_checks?: string[] | null
+          ai_red_flags?: string[] | null
+          ai_reviewed_at?: string | null
+          ai_urgency_priority?: number | null
           allergies_noted?: string | null
           blood_pressure_diastolic?: number | null
           blood_pressure_systolic?: number | null
@@ -2223,9 +2237,15 @@ export type Database = {
           recorded_by?: string | null
           respiratory_rate?: number | null
           temperature?: number | null
+          urgency_priority?: number | null
           weight?: number | null
         }
         Update: {
+          ai_rationale?: string | null
+          ai_recommended_checks?: string[] | null
+          ai_red_flags?: string[] | null
+          ai_reviewed_at?: string | null
+          ai_urgency_priority?: number | null
           allergies_noted?: string | null
           blood_pressure_diastolic?: number | null
           blood_pressure_systolic?: number | null
@@ -2242,6 +2262,7 @@ export type Database = {
           recorded_by?: string | null
           respiratory_rate?: number | null
           temperature?: number | null
+          urgency_priority?: number | null
           weight?: number | null
         }
         Relationships: [
@@ -2343,6 +2364,31 @@ export type Database = {
         }
         Returns: boolean
       }
+      manage_triage_claim: {
+        Args: { _action: string; _ticket_id: string }
+        Returns: {
+          appointment_id: string | null
+          assigned_to: string | null
+          checked_in_at: string | null
+          checked_out_at: string | null
+          claimed_at: string | null
+          created_at: string | null
+          department_id: string
+          id: string
+          patient_id: string
+          priority: number | null
+          status: Database["public"]["Enums"]["ticket_status"] | null
+          ticket_number: string
+          updated_at: string | null
+          workflow_stage: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "tickets"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       next_opd_number: { Args: never; Returns: string }
     }
     Enums: {
@@ -2378,6 +2424,7 @@ export type Database = {
       ticket_status:
         | "checked_in"
         | "triage"
+        | "triage_in_progress"
         | "waiting_for_doctor"
         | "in_consult"
         | "at_dental"
@@ -2550,6 +2597,7 @@ export const Constants = {
       ticket_status: [
         "checked_in",
         "triage",
+        "triage_in_progress",
         "waiting_for_doctor",
         "in_consult",
         "at_dental",

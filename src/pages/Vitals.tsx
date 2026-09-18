@@ -15,6 +15,9 @@ import { Activity, Send, Calendar, Thermometer, HeartPulse, Weight, Ruler, Alert
 import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline, deriveVisitPath } from "@/components/WorkflowTimeline";
 import { PatientSummaryCard } from "@/components/PatientSummaryCard";
+import { TriageArrivalAlerts } from "@/components/TriageArrivalAlerts";
+import { TriageAIRecommendation, type TriageRecommendation } from "@/components/TriageAIRecommendation";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 // ─── Vital range helpers ─────────────────────────────────────────
 const getBPClass = (sys: string, dia: string) => {
@@ -63,6 +66,9 @@ const Vitals = () => {
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [saving, setSaving] = useState(false);
   const [queueCollapsed, setQueueCollapsed] = useState(false);
+  const [urgencyPriority, setUrgencyPriority] = useState("1");
+  const [aiRecommendation, setAiRecommendation] = useState<TriageRecommendation | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
 
   useEffect(() => {
     if (selectedTicket) setQueueCollapsed(true);
@@ -93,6 +99,35 @@ const Vitals = () => {
     setPreviousVitals(data || []);
   };
 
+  const numberOrNull = (value: string) => value ? Number(value) : null;
+
+  const requestAiReview = async () => {
+    if (form.presentingComplaint.trim().length < 3) {
+      return toast({ title: "Presenting complaint required", description: "Record symptoms before requesting an AI review.", variant: "destructive" });
+    }
+    setAiLoading(true);
+    try {
+      const dateOfBirth = selectedTicket?.patient?.profile?.date_of_birth;
+      const age = dateOfBirth ? Math.floor((Date.now() - new Date(dateOfBirth).getTime()) / 31557600000) : null;
+      const { data, error } = await supabase.functions.invoke("triage-recommendation", { body: {
+        presentingComplaint: form.presentingComplaint, allergies: form.allergies || null, age,
+        sex: selectedTicket?.patient?.profile?.gender ?? null,
+        vitals: { temperature: numberOrNull(form.temperature), bloodPressureSystolic: numberOrNull(form.bpSystolic), bloodPressureDiastolic: numberOrNull(form.bpDiastolic), pulseRate: numberOrNull(form.pulseRate), respiratoryRate: numberOrNull(form.respiratoryRate), oxygenSaturation: numberOrNull(form.spo2), weight: numberOrNull(form.weight), heightMetres: numberOrNull(form.height), bmi: bmi ? Number(bmi) : null },
+        previousVitals: previousVitals.map((v) => ({ recordedAt: v.recorded_at, temperature: v.temperature, bloodPressureSystolic: v.blood_pressure_systolic, bloodPressureDiastolic: v.blood_pressure_diastolic, pulseRate: v.pulse_rate, respiratoryRate: v.respiratory_rate, oxygenSaturation: v.oxygen_saturation })),
+      }});
+      if (error) {
+        let message = error.message;
+        try { const body = await error.context?.json(); message = body?.error || message; } catch { /* use client message */ }
+        throw new Error(message);
+      }
+      if (!data?.success) throw new Error(data?.error || "AI review failed");
+      setAiRecommendation(data.recommendation);
+      toast({ title: "AI review ready", description: "Review the suggestion, then choose the final clinical urgency." });
+    } catch (error: any) {
+      toast({ title: "AI review unavailable", description: error.message, variant: "destructive" });
+    } finally { setAiLoading(false); }
+  };
+
   const handleSaveAndAdvance = async () => {
     if (!selectedTicket) return;
     setSaving(true);
@@ -115,6 +150,12 @@ const Vitals = () => {
         respiratory_rate: form.respiratoryRate ? parseInt(form.respiratoryRate) : null,
         oxygen_saturation: form.spo2 ? parseFloat(form.spo2) : null,
         allergies_noted: form.allergies || null, presenting_complaint: form.presentingComplaint || null,
+        urgency_priority: Number(urgencyPriority),
+        ai_urgency_priority: aiRecommendation?.urgencyPriority ?? null,
+        ai_rationale: aiRecommendation?.rationale ?? null,
+        ai_red_flags: aiRecommendation?.redFlags ?? null,
+        ai_recommended_checks: aiRecommendation?.recommendedChecks ?? null,
+        ai_reviewed_at: aiRecommendation ? new Date().toISOString() : null,
       });
       if (vitErr) throw vitErr;
 
@@ -144,13 +185,15 @@ const Vitals = () => {
         });
       }
 
-      await supabase.from("tickets").update({ workflow_stage: "waiting_for_doctor", status: "waiting_for_doctor" }).eq("id", selectedTicket.id);
+      await supabase.from("tickets").update({ workflow_stage: "waiting_for_doctor", status: "waiting_for_doctor", priority: Number(urgencyPriority), assigned_to: null, claimed_at: null }).eq("id", selectedTicket.id);
 
       toast({ title: "Vitals saved", description: "Patient sent to doctor queue" });
       logAuditEvent({ action: "vitals_recorded", module: "triage", details: { patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id, procedures: procedures.length } });
       setSelectedTicket(null);
       setForm({ weight: "", height: "", bpSystolic: "", bpDiastolic: "", pulseRate: "", temperature: "", respiratoryRate: "", spo2: "", allergies: "", presentingComplaint: "", nursingNotes: "", nextVisit: "" });
       setProcedures([]);
+      setUrgencyPriority("1");
+      setAiRecommendation(null);
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     } finally {
@@ -195,21 +238,25 @@ const Vitals = () => {
   return (
     <div className="flex h-screen overflow-hidden">
       <StationQueue
-        stationStages={["checked_in", "triage"]}
+        stationStages={["checked_in", "triage", "triage_in_progress"]}
         nextStage="waiting_for_doctor"
         title="Triage Queue"
         onSelectPatient={setSelectedTicket}
         selectedTicketId={selectedTicket?.id}
         collapsed={queueCollapsed}
         onToggleCollapse={() => setQueueCollapsed(!queueCollapsed)}
+        triageClaimMode
       />
 
       <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        <div>
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
           <h1 className="text-3xl font-bold flex items-center gap-2">
             <Activity className="h-7 w-7 text-primary" /> Nursing / Triage Station
           </h1>
           <p className="text-muted-foreground mt-1">Record vitals, procedures and advance patients</p>
+          </div>
+          <TriageArrivalAlerts />
         </div>
 
         {!selectedTicket ? (
@@ -235,6 +282,19 @@ const Vitals = () => {
             />
 
             <PatientSummaryCard patientId={selectedTicket.patient_id} ticketId={selectedTicket.id} />
+
+            <TriageAIRecommendation recommendation={aiRecommendation} loading={aiLoading} disabled={!form.presentingComplaint.trim()} onReview={requestAiReview} />
+
+            <Card>
+              <CardHeader><CardTitle className="text-base">Final Clinical Urgency</CardTitle></CardHeader>
+              <CardContent className="space-y-2">
+                <Label>The final priority is selected by the attending clinician *</Label>
+                <Select value={urgencyPriority} onValueChange={setUrgencyPriority}>
+                  <SelectTrigger className="max-w-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent><SelectItem value="1">Normal</SelectItem><SelectItem value="2">High</SelectItem><SelectItem value="3">Emergency</SelectItem></SelectContent>
+                </Select>
+              </CardContent>
+            </Card>
 
             {/* Triage Form */}
             <Card>

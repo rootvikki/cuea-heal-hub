@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Radio, Play, CheckCircle, User, ChevronLeft, ChevronRight } from "lucide-react";
+import { Radio, Play, CheckCircle, User, ChevronLeft, ChevronRight, Lock, Undo2 } from "lucide-react";
 import { toast } from "sonner";
 
 interface StationQueueProps {
@@ -15,6 +15,7 @@ interface StationQueueProps {
   selectedTicketId?: string;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  triageClaimMode?: boolean;
 }
 
 async function fetchStationTickets(stationStages: string[]) {
@@ -52,9 +53,10 @@ async function fetchStationTickets(stationStages: string[]) {
   }));
 }
 
-export function StationQueue({ stationStages, nextStage, title, onSelectPatient, selectedTicketId, collapsed = false, onToggleCollapse }: StationQueueProps) {
+export function StationQueue({ stationStages, nextStage, title, onSelectPatient, selectedTicketId, collapsed = false, onToggleCollapse, triageClaimMode = false }: StationQueueProps) {
   const queryClient = useQueryClient();
   const [isLive, setIsLive] = useState(false);
+  const [staffId, setStaffId] = useState<string | null>(null);
 
   const queryKey = ["station-queue", ...stationStages];
 
@@ -63,6 +65,16 @@ export function StationQueue({ stationStages, nextStage, title, onSelectPatient,
     queryFn: () => fetchStationTickets(stationStages),
     refetchInterval: 30000,
   });
+
+  useEffect(() => {
+    if (triageClaimMode) {
+      supabase.auth.getUser().then(async ({ data }) => {
+        if (!data.user) return;
+        const { data: staff } = await supabase.from("staff").select("id").eq("user_id", data.user.id).maybeSingle();
+        setStaffId(staff?.id ?? null);
+      });
+    }
+  }, [triageClaimMode]);
 
   useEffect(() => {
     const channel = supabase
@@ -76,7 +88,27 @@ export function StationQueue({ stationStages, nextStage, title, onSelectPatient,
   }, [queryClient, title]);
 
   const startServing = async (ticket: any) => {
+    if (!triageClaimMode) return onSelectPatient?.(ticket);
+    if (ticket.assigned_to && ticket.assigned_to !== staffId) {
+      toast.error("This patient is already claimed by another clinician");
+      return;
+    }
+    if (!ticket.assigned_to) {
+      const { data, error } = await supabase.rpc("manage_triage_claim", { p_ticket_id: ticket.id, p_action: "claim" });
+      if (error) return toast.error(error.message);
+      ticket = { ...ticket, ...data, assigned_to: staffId, status: "triage_in_progress", workflow_stage: "triage_in_progress" };
+      toast.success("Patient claimed for triage");
+      queryClient.invalidateQueries({ queryKey });
+    }
     onSelectPatient?.(ticket);
+  };
+
+  const releaseClaim = async (ticket: any) => {
+    const { error } = await supabase.rpc("manage_triage_claim", { p_ticket_id: ticket.id, p_action: "release" });
+    if (error) return toast.error(error.message);
+    if (selectedTicketId === ticket.id) onSelectPatient?.(null);
+    toast.success("Patient returned to Awaiting Triage");
+    queryClient.invalidateQueries({ queryKey });
   };
 
   const completeAndAdvance = async (ticketId: string) => {
@@ -154,12 +186,12 @@ export function StationQueue({ stationStages, nextStage, title, onSelectPatient,
                 className={`p-3 rounded-lg border text-sm space-y-2 cursor-pointer transition-colors ${
                   selectedTicketId === ticket.id ? "bg-primary/10 border-primary" : "hover:bg-muted/50"
                 }`}
-                onClick={() => startServing(ticket)}
+                onClick={() => void startServing(ticket)}
               >
                 <div className="flex items-center justify-between">
                   <span className="font-bold">{ticket.ticket_number}</span>
                   <Badge variant={ticket.priority >= 3 ? "destructive" : "outline"} className="text-xs">
-                    {ticket.priority >= 3 ? "URGENT" : "Normal"}
+                    {ticket.priority >= 3 ? "EMERGENCY" : ticket.priority === 2 ? "HIGH" : "Normal"}
                   </Badge>
                 </div>
                 <div className="flex items-center gap-1.5">
@@ -171,13 +203,16 @@ export function StationQueue({ stationStages, nextStage, title, onSelectPatient,
                   </span>
                 </div>
                 <p className="text-xs text-muted-foreground">{ticket.patient?.patient_id}</p>
+                {triageClaimMode && ticket.assigned_to && (
+                  <p className="flex items-center gap-1 text-xs text-primary"><Lock className="h-3 w-3" /> {ticket.assigned_to === staffId ? "Claimed by you" : "In triage"}</p>
+                )}
                 <div className="flex gap-1.5">
-                  <Button size="sm" variant="outline" className="flex-1 h-7 text-xs" onClick={(e) => { e.stopPropagation(); startServing(ticket); }}>
-                    <Play className="h-3 w-3 mr-1" /> Serve
+                  <Button size="sm" variant="outline" disabled={triageClaimMode && !!ticket.assigned_to && ticket.assigned_to !== staffId} className="flex-1 h-7 text-xs" onClick={(e) => { e.stopPropagation(); void startServing(ticket); }}>
+                    <Play className="h-3 w-3 mr-1" /> {triageClaimMode ? (ticket.assigned_to === staffId ? "Resume" : "Claim") : "Serve"}
                   </Button>
-                  <Button size="sm" className="flex-1 h-7 text-xs" onClick={(e) => { e.stopPropagation(); completeAndAdvance(ticket.id); }}>
-                    <CheckCircle className="h-3 w-3 mr-1" /> Done
-                  </Button>
+                  {triageClaimMode ? ticket.assigned_to === staffId && <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={(e) => { e.stopPropagation(); void releaseClaim(ticket); }}><Undo2 className="h-3 w-3 mr-1" /> Release</Button> : (
+                    <Button size="sm" className="flex-1 h-7 text-xs" onClick={(e) => { e.stopPropagation(); void completeAndAdvance(ticket.id); }}><CheckCircle className="h-3 w-3 mr-1" /> Done</Button>
+                  )}
                 </div>
               </div>
             ))
