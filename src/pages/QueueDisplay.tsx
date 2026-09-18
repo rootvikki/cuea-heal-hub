@@ -24,7 +24,7 @@ interface TicketWithDetails {
 
 const stageLabels: Record<string, string> = {
   checked_in: "Reception",
-  triage: "Triage",
+  triage: "Awaiting Triage",
   waiting_for_doctor: "Waiting Room",
   in_consult: "Doctor's Office",
   at_dental: "Dental",

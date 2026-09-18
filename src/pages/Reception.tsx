@@ -185,7 +185,7 @@ const Reception = () => {
       }
 
       const isDental = selectedPatientForCheckIn.visit_reason === "dental";
-      const initialStatus = isDental ? "at_dental" : "checked_in";
+      const initialStatus = isDental ? "at_dental" : "triage";
       const ticketNumber = `T-${Date.now().toString().slice(-6)}`;
 
       const { error } = await supabase.from("tickets").insert({
@@ -240,8 +240,8 @@ const Reception = () => {
         patient_id: patientId,
         department_id: apt.department_id,
         priority: 1,
-        status: isDental ? "at_dental" : "checked_in",
-        workflow_stage: isDental ? "at_dental" : "checked_in",
+        status: isDental ? "at_dental" : "triage",
+        workflow_stage: isDental ? "at_dental" : "triage",
         appointment_id: apt.id,
       });
 
@@ -442,7 +442,9 @@ const Reception = () => {
                       <div className="space-y-0.5">
                         <div className="flex items-center gap-2">
                           <span className="font-bold text-sm">{ticket.ticket_number}</span>
-                          <Badge variant="outline" className="text-xs">{ticket.status.replace(/_/g, " ")}</Badge>
+                          <Badge variant="outline" className="text-xs">
+                            {ticket.status === "triage" ? "Awaiting Triage" : ticket.status.replace(/_/g, " ")}
+                          </Badge>
                         </div>
                         <p className="text-sm">{patientDisplayName(ticket.patient?.profile, ticket.patient?.patient_id)}</p>
                         <p className="text-xs text-muted-foreground">{ticket.department?.name}</p>

@@ -167,8 +167,8 @@ const Appointments = () => {
       patient_id: patientRecord.id,
       department_id: appointment.department_id,
       priority: 1,
-      status: "checked_in",
-      workflow_stage: "checked_in",
+      status: "triage",
+      workflow_stage: "triage",
       appointment_id: appointment.id,
     });
 
@@ -176,7 +176,7 @@ const Appointments = () => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
       await supabase.from("appointments").update({ status: "confirmed" }).eq("id", appointment.id);
-      toast({ title: "Patient checked in", description: `Ticket: ${ticketNumber}` });
+      toast({ title: "Patient checked in", description: `Ticket ${ticketNumber} — awaiting Triage` });
       fetchAppointments();
     }
   };
