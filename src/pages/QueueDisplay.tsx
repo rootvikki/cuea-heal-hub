@@ -25,7 +25,7 @@ interface TicketWithDetails {
 const stageLabels: Record<string, string> = {
   checked_in: "Reception",
   triage: "Awaiting Triage",
-  triage_in_progress: "Triage in Progress",
+  triage_in_progress: "On Triage",
   waiting_for_doctor: "Waiting Room",
   in_consult: "Doctor's Office",
   at_dental: "Dental",
@@ -127,7 +127,7 @@ const QueueDisplay = () => {
   }, {} as Record<string, TicketWithDetails[]>);
 
   const nowServing = tickets.filter((t) =>
-    ["in_consult", "at_dental", "at_lab", "at_imaging", "at_pharmacy", "at_billing"].includes(t.workflow_stage || t.status)
+    ["triage_in_progress", "in_consult", "at_dental", "at_lab", "at_imaging", "at_pharmacy", "at_billing"].includes(t.workflow_stage || t.status)
   );
 
   return (

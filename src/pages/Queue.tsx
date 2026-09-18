@@ -315,7 +315,7 @@ const Queue = () => {
                       <WaitTimeBadge checkedInAt={ticket.checked_in_at} />
                     </div>
                     <Badge className={getStatusColor(ticket.status)}>
-                      {ticket.status === "triage" ? "Awaiting Triage" : ticket.status === "triage_in_progress" ? "Triage in Progress" : ticket.status.replace(/_/g, " ")}
+                      {ticket.status === "triage" ? "Awaiting Triage" : ticket.status === "triage_in_progress" ? "On Triage" : ticket.status.replace(/_/g, " ")}
                     </Badge>
                   </div>
                   <WorkflowTimeline

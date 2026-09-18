@@ -97,7 +97,7 @@ export function StationQueue({ stationStages, nextStage, title, onSelectPatient,
       const { data, error } = await supabase.rpc("manage_triage_claim", { _ticket_id: ticket.id, _action: "claim" });
       if (error) return toast.error(error.message);
       ticket = { ...ticket, ...data, assigned_to: staffId, status: "triage_in_progress", workflow_stage: "triage_in_progress" };
-      toast.success("Patient claimed for triage");
+      toast.success("Patient is now on triage");
       queryClient.invalidateQueries({ queryKey });
     }
     onSelectPatient?.(ticket);
@@ -204,11 +204,11 @@ export function StationQueue({ stationStages, nextStage, title, onSelectPatient,
                 </div>
                 <p className="text-xs text-muted-foreground">{ticket.patient?.patient_id}</p>
                 {triageClaimMode && ticket.assigned_to && (
-                  <p className="flex items-center gap-1 text-xs text-primary"><Lock className="h-3 w-3" /> {ticket.assigned_to === staffId ? "Claimed by you" : "In triage"}</p>
+                  <p className="flex items-center gap-1 text-xs text-primary"><Lock className="h-3 w-3" /> {ticket.assigned_to === staffId ? "On triage with you" : "On triage"}</p>
                 )}
                 <div className="flex gap-1.5">
                   <Button size="sm" variant="outline" disabled={triageClaimMode && !!ticket.assigned_to && ticket.assigned_to !== staffId} className="flex-1 h-7 text-xs" onClick={(e) => { e.stopPropagation(); void startServing(ticket); }}>
-                    <Play className="h-3 w-3 mr-1" /> {triageClaimMode ? (ticket.assigned_to === staffId ? "Resume" : "Claim") : "Serve"}
+                    <Play className="h-3 w-3 mr-1" /> {triageClaimMode ? (ticket.assigned_to === staffId ? "Resume" : "Serve") : "Serve"}
                   </Button>
                   {triageClaimMode ? ticket.assigned_to === staffId && <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={(e) => { e.stopPropagation(); void releaseClaim(ticket); }}><Undo2 className="h-3 w-3 mr-1" /> Release</Button> : (
                     <Button size="sm" className="flex-1 h-7 text-xs" onClick={(e) => { e.stopPropagation(); void completeAndAdvance(ticket.id); }}><CheckCircle className="h-3 w-3 mr-1" /> Done</Button>
