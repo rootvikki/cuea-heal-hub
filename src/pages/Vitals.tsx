@@ -84,9 +84,10 @@ const Vitals = () => {
 
   const bmi = useMemo(() => {
     const w = parseFloat(form.weight);
-    const h = parseFloat(form.height);
-    if (!w || !h) return null;
-    return (w / (h * h)).toFixed(2);
+    const hCm = parseFloat(form.height);
+    if (!w || !hCm) return null;
+    const hM = hCm / 100;
+    return (w / (hM * hM)).toFixed(2);
   }, [form.weight, form.height]);
 
   useEffect(() => {
@@ -112,7 +113,7 @@ const Vitals = () => {
       const { data, error } = await supabase.functions.invoke("triage-recommendation", { body: {
         presentingComplaint: form.presentingComplaint, allergies: form.allergies || null, age,
         sex: selectedTicket?.patient?.profile?.gender ?? null,
-        vitals: { temperature: numberOrNull(form.temperature), bloodPressureSystolic: numberOrNull(form.bpSystolic), bloodPressureDiastolic: numberOrNull(form.bpDiastolic), pulseRate: numberOrNull(form.pulseRate), respiratoryRate: numberOrNull(form.respiratoryRate), oxygenSaturation: numberOrNull(form.spo2), weight: numberOrNull(form.weight), heightMetres: numberOrNull(form.height), bmi: bmi ? Number(bmi) : null },
+        vitals: { temperature: numberOrNull(form.temperature), bloodPressureSystolic: numberOrNull(form.bpSystolic), bloodPressureDiastolic: numberOrNull(form.bpDiastolic), pulseRate: numberOrNull(form.pulseRate), respiratoryRate: numberOrNull(form.respiratoryRate), oxygenSaturation: numberOrNull(form.spo2), weight: numberOrNull(form.weight), heightCentimetres: numberOrNull(form.height), bmi: bmi ? Number(bmi) : null },
         previousVitals: previousVitals.map((v) => ({ recordedAt: v.recorded_at, temperature: v.temperature, bloodPressureSystolic: v.blood_pressure_systolic, bloodPressureDiastolic: v.blood_pressure_diastolic, pulseRate: v.pulse_rate, respiratoryRate: v.respiratory_rate, oxygenSaturation: v.oxygen_saturation })),
       }});
       if (error) {
@@ -137,12 +138,13 @@ const Vitals = () => {
       const { data: staff } = await supabase.from("staff").select("id").eq("user_id", user?.id).single();
 
       const w = parseFloat(form.weight) || null;
-      const h = parseFloat(form.height) || null;
-      const computedBmi = w && h ? parseFloat((w / (h * h)).toFixed(2)) : null;
+      const hCm = parseFloat(form.height) || null;
+      const hM = hCm ? hCm / 100 : null;
+      const computedBmi = w && hM ? parseFloat((w / (hM * hM)).toFixed(2)) : null;
 
       const { error: vitErr } = await supabase.from("vitals").insert({
         patient_id: selectedTicket.patient_id, recorded_by: staff?.id,
-        weight: w, height: h ? h * 100 : null, bmi: computedBmi,
+        weight: w, height: hCm, bmi: computedBmi,
         blood_pressure_systolic: form.bpSystolic ? parseInt(form.bpSystolic) : null,
         blood_pressure_diastolic: form.bpDiastolic ? parseInt(form.bpDiastolic) : null,
         pulse_rate: form.pulseRate ? parseInt(form.pulseRate) : null,
@@ -315,9 +317,9 @@ const Vitals = () => {
                       <Input type="number" step="0.1" value={form.weight} onChange={(e) => u("weight", e.target.value)} className="h-12 text-base" placeholder="e.g. 72.5" />
                     </div>
                     <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Height (m)</Label>
-                      <Input type="number" step="0.01" value={form.height} onChange={(e) => u("height", e.target.value)} placeholder="e.g. 1.70" className="h-12 text-base" />
-                      <p className="text-xs text-muted-foreground">Enter in meters</p>
+                      <Label className="text-sm font-semibold">Height (cm)</Label>
+                      <Input type="number" step="0.1" value={form.height} onChange={(e) => u("height", e.target.value)} placeholder="e.g. 170" className="h-12 text-base" />
+                      <p className="text-xs text-muted-foreground">Enter in centimetres</p>
                     </div>
                     <div className="space-y-2">
                       <Label className="text-sm font-semibold">BMI (automatic)</Label>
