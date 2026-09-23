@@ -352,6 +352,10 @@ const Consultation = () => {
     () => selectedImaging.filter(id => !sentImagingIds.includes(id)).length,
     [selectedImaging, sentImagingIds]
   );
+  const unsentPrescriptionCount = useMemo(
+    () => prescriptions.filter(p => !p.sent).length,
+    [prescriptions]
+  );
 
   const costEstimate = useMemo(() => {
     const consultation = 500;
