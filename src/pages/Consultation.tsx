@@ -116,6 +116,17 @@ interface Prescription {
   quantity: number;
   instructions: string;
   route: string;
+  sent?: boolean;
+}
+
+interface SentPrescription {
+  id: string;
+  medication_name: string;
+  dosage: string | null;
+  quantity: number | null;
+  dispensed: boolean | null;
+  dispensed_at: string | null;
+  created_at: string | null;
 }
 
 interface InventoryItem {
