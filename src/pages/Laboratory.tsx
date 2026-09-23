@@ -616,7 +616,7 @@ const Laboratory = () => {
                               className="h-11 w-32 text-sm"
                               value={resultFields[field.name] || ""}
                               onChange={(e) => setResultFields({ ...resultFields, [field.name]: e.target.value })}
-                              disabled={selectedOrder.status === "completed"}
+                              disabled={!canManageLab || selectedOrder.status === "completed"}
                             />
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">{field.unit}</TableCell>
@@ -641,7 +641,7 @@ const Laboratory = () => {
                   value={resultValue}
                   onChange={(e) => setResultValue(e.target.value)}
                   placeholder="e.g., Positive, 5.2 mmol/L"
-                  disabled={selectedOrder?.status === "completed"}
+                  disabled={!canManageLab || selectedOrder?.status === "completed"}
                   className="h-12 text-base"
                 />
                 {selectedOrder?.test?.normal_range && (
@@ -657,12 +657,12 @@ const Laboratory = () => {
                 onChange={(e) => setResultNotes(e.target.value)}
                 placeholder="Additional observations..."
                 rows={4}
-                disabled={selectedOrder?.status === "completed"}
+                disabled={!canManageLab || selectedOrder?.status === "completed"}
                 className="text-base"
               />
             </div>
 
-            {selectedOrder?.status !== "completed" && (
+            {canManageLab && selectedOrder?.status !== "completed" && (
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setResultDialogOpen(false)}>Cancel</Button>
                 <Button variant="secondary" onClick={async () => {
