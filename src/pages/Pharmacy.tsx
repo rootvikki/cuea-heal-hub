@@ -67,7 +67,7 @@ const Pharmacy = () => {
     const { data } = await supabase
       .from("prescriptions")
       .select("*, patients!inner(patient_id, user_id, profiles!inner(full_name))")
-      .eq("dispensed", false)
+      .neq("status", "collected")
       .order("created_at", { ascending: false });
 
     if (data) {
@@ -81,6 +81,51 @@ const Pharmacy = () => {
       }));
       setPrescriptions(mapped);
     }
+  };
+
+  const advancePrescription = async (presc: any, next: PrescriptionStatus) => {
+    setAdvancingId(presc.id);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: staff } = user
+        ? await supabase.from("staff").select("id").eq("user_id", user.id).maybeSingle()
+        : { data: null };
+
+      const now = new Date().toISOString();
+      const update: Record<string, unknown> = { status: next };
+      if (next === "received") { update.received_at = now; update.received_by = staff?.id ?? null; }
+      if (next === "reviewed") { update.reviewed_at = now; update.reviewed_by = staff?.id ?? null; }
+      if (next === "dispensing") { update.dispensing_started_at = now; }
+      if (next === "collected") { update.collected_at = now; update.collected_by = staff?.id ?? null; }
+
+      const { error } = await supabase.from("prescriptions").update(update).eq("id", presc.id);
+      if (error) throw error;
+
+      logAuditEvent({
+        action: "prescription_status_changed",
+        module: "pharmacy",
+        details: { prescription_id: presc.id, status: next, patient_id: presc.patient_id },
+      });
+      await notifyOrderingDoctor(presc, next);
+      toast({ title: prescriptionStatusLabel(next), description: `${presc.medication_name} is now ${prescriptionStatusLabel(next).toLowerCase()}.` });
+      fetchPrescriptions();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not update this prescription.";
+      toast({ title: "Could not update prescription", description: message, variant: "destructive" });
+    } finally {
+      setAdvancingId(null);
+    }
+  };
+
+  const notifyOrderingDoctor = async (presc: any, status: PrescriptionStatus) => {
+    const doctorUserId = await authUserIdForStaff(presc.doctor_id);
+    await notifyUser(doctorUserId, {
+      title: `Pharmacy: ${prescriptionStatusLabel(status).toLowerCase()}`,
+      message: `${presc.medication_name} for ${presc.patient?.profile?.full_name || "a patient"} is now ${prescriptionStatusLabel(status).toLowerCase()}.`,
+      category: "pharmacy",
+      referenceId: presc.id,
+      link: "/consultation",
+    });
   };
 
   const fetchStockCard = async (inventoryId: string) => {
