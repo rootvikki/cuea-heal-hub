@@ -498,17 +498,26 @@ const Laboratory = () => {
                           <TableCell>{new Date(order.created_at).toLocaleString()}</TableCell>
                           <TableCell>
                             <div className="flex flex-col gap-2">
-                              {next && next !== "completed" && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={advancingOrderId === order.id}
-                                  onClick={() => advanceLabOrder(order, next)}
-                                >
-                                  {advanceActionLabel(next)}
-                                </Button>
+                              {canManageLab ? (
+                                <>
+                                  {next && next !== "completed" && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={advancingOrderId === order.id}
+                                      onClick={() => advanceLabOrder(order, next)}
+                                    >
+                                      {advanceActionLabel(next)}
+                                    </Button>
+                                  )}
+                                  <Button size="sm" onClick={() => openResultEntry(order)}>Enter Result</Button>
+                                </>
+                              ) : (
+                                <>
+                                  <Button size="sm" variant="outline" onClick={() => openResultEntry(order)}>View Progress</Button>
+                                  <span className="text-[11px] text-muted-foreground">Lab staff update these steps</span>
+                                </>
                               )}
-                              <Button size="sm" onClick={() => openResultEntry(order)}>Enter Result</Button>
                             </div>
                           </TableCell>
                         </TableRow>
