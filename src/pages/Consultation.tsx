@@ -493,8 +493,23 @@ const Consultation = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const { data: staff } = await supabase.from("staff").select("id").eq("user_id", user.id).single();
-      const { data: dept } = await supabase.from("departments").select("id").eq("name", "General Medicine").single();
+      let { data: staff } = await supabase.from("staff").select("id").eq("user_id", user.id).maybeSingle();
+      const { data: dept } = await supabase.from("departments").select("id").eq("name", "General Medicine").maybeSingle();
+
+      // Self-provision a staff record if the clinician account isn't linked yet
+      if (!staff?.id) {
+        const { data: createdStaff, error: staffError } = await supabase
+          .from("staff")
+          .insert({
+            user_id: user.id,
+            staff_id: `STF-${user.id.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+            department_id: dept?.id ?? null,
+          })
+          .select("id")
+          .single();
+        if (staffError) throw new Error(`Your account is not linked to a staff record and it could not be created: ${staffError.message}`);
+        staff = createdStaff;
+      }
 
       const fullSubjective = [
         encounter.subjective,
@@ -553,7 +568,8 @@ const Consultation = () => {
           quantity: p.quantity,
           instructions: p.instructions,
         }));
-        await supabase.from("prescriptions").insert(prescriptionRecords);
+        const { error: rxError } = await supabase.from("prescriptions").insert(prescriptionRecords);
+        if (rxError) throw new Error(`Prescriptions could not be saved: ${rxError.message}`);
       }
 
       if (selectedLabTests.length > 0) {
@@ -564,7 +580,8 @@ const Consultation = () => {
           test_id: testId,
           status: "pending",
         }));
-        await supabase.from("lab_orders").insert(labOrders);
+        const { error: labError } = await supabase.from("lab_orders").insert(labOrders);
+        if (labError) throw new Error(`Lab tests could not be sent to the laboratory: ${labError.message}`);
 
         for (const testId of selectedLabTests) {
           const test = labTests.find(t => t.id === testId);
@@ -591,7 +608,8 @@ const Consultation = () => {
           status: "pending",
           clinical_indication: encounter.chiefComplaint,
         }));
-        await supabase.from("imaging_orders").insert(imagingOrders);
+        const { error: imgError } = await supabase.from("imaging_orders").insert(imagingOrders);
+        if (imgError) throw new Error(`Imaging requests could not be sent: ${imgError.message}`);
 
         for (const imagingId of selectedImaging) {
           const item = imagingItems.find(i => i.id === imagingId);
@@ -615,7 +633,8 @@ const Consultation = () => {
       else if (selectedImaging.length > 0) nextWfStage = "at_imaging";
       else if (prescriptions.length > 0) nextWfStage = "at_pharmacy";
 
-      await supabase.from("tickets").update({ workflow_stage: nextWfStage, status: nextWfStage }).eq("id", selectedTicket.id);
+      const { error: ticketError } = await supabase.from("tickets").update({ workflow_stage: nextWfStage, status: nextWfStage }).eq("id", selectedTicket.id);
+      if (ticketError) throw new Error(`Patient could not be moved to the next station: ${ticketError.message}`);
       localStorage.removeItem(`draft-encounter-${selectedTicket.id}`);
 
       toast({ title: "✅ Consultation Saved", description: `Patient moved to ${nextWfStage.replace(/_/g, " ")}.` });
@@ -625,7 +644,8 @@ const Consultation = () => {
       fetchQueue();
     } catch (error) {
       console.error("Error saving encounter:", error);
-      toast({ title: "Error", description: "Failed to save consultation. Please try again.", variant: "destructive" });
+      const message = error instanceof Error ? error.message : (error as { message?: string })?.message || "Failed to save consultation. Please try again.";
+      toast({ title: "Could not save consultation", description: message, variant: "destructive" });
     } finally {
       setSavingEncounter(false);
     }
