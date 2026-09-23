@@ -18,6 +18,16 @@ import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { PatientSummaryCard } from "@/components/PatientSummaryCard";
+import { LabOrderTimeline, labOrderStatusLabel, nextLabOrderStatus, type LabOrderStatus } from "@/components/LabOrderTimeline";
+
+const advanceActionLabel = (status: LabOrderStatus) => {
+  switch (status) {
+    case "received": return "Mark Received";
+    case "collected": return "Mark Sample Collected";
+    case "in_progress": return "Start Processing";
+    default: return "Advance";
+  }
+};
 
 // Structured result field definitions per test type
 const STRUCTURED_FIELDS: Record<string, { name: string; unit?: string; ref?: string; refMale?: string; refFemale?: string }[]> = {
