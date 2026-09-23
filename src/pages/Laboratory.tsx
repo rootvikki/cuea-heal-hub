@@ -19,6 +19,8 @@ import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { PatientSummaryCard } from "@/components/PatientSummaryCard";
 import { LabOrderTimeline, labOrderStatusLabel, nextLabOrderStatus, type LabOrderStatus } from "@/components/LabOrderTimeline";
+import { useUser } from "@/contexts/UserContext";
+import { authUserIdForStaff, notifyRoles, notifyUser } from "@/lib/notifications";
 
 const advanceActionLabel = (status: LabOrderStatus) => {
   switch (status) {
@@ -245,6 +247,11 @@ const Laboratory = () => {
 
   useEffect(() => {
     fetchLabOrders();
+    const channel = supabase
+      .channel("laboratory-lab-orders")
+      .on("postgres_changes", { event: "*", schema: "public", table: "lab_orders" }, () => fetchLabOrders())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   const fetchLabOrders = async () => {
