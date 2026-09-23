@@ -384,6 +384,12 @@ const Laboratory = () => {
     } else {
       toast({ title: "Result saved", description: "Lab result recorded successfully" });
       logAuditEvent({ action: "lab_result_entered", module: "laboratory", details: { lab_order_id: selectedOrder.id, test: testName, patient_id: selectedOrder.patient_id } });
+      await announceLabUpdate(
+        selectedOrder,
+        overallFlag === "abnormal" ? "Abnormal lab result ready" : "Lab result ready",
+        `${testName || "Lab test"} for ${selectedOrder.patient?.profile?.full_name || "a patient"} is complete${overallFlag === "abnormal" ? " with abnormal values" : ""}.`,
+      );
+
 
       // Check if all lab orders for this encounter are complete
       const { data: pendingLabs } = await supabase
