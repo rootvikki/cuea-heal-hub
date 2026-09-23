@@ -439,6 +439,10 @@ const Consultation = () => {
   // ─── Actions ──────────────────────────────────────────────────
   const selectPatient = (ticket: Ticket) => {
     setSelectedTicket(ticket);
+    setActiveEncounterId(null);
+    setSentLabTestIds([]);
+    setSentImagingIds([]);
+    setSentLabOrders([]);
     const key = `draft-encounter-${ticket.id}`;
     const draft = localStorage.getItem(key);
     if (draft) {
