@@ -325,6 +325,20 @@ const Consultation = () => {
   }, [encounter]);
 
   // ─── Cost estimate ────────────────────────────────────────────
+  const unsentLabTestIds = useMemo(
+    () => selectedLabTests.filter(id => !sentLabTestIds.includes(id)),
+    [selectedLabTests, sentLabTestIds]
+  );
+  const unsentLabTestCount = unsentLabTestIds.length;
+  const unsentLabTestTotal = useMemo(
+    () => unsentLabTestIds.reduce((sum, id) => sum + (labTests.find(t => t.id === id)?.price || 0), 0),
+    [unsentLabTestIds, labTests]
+  );
+  const unsentImagingCount = useMemo(
+    () => selectedImaging.filter(id => !sentImagingIds.includes(id)).length,
+    [selectedImaging, sentImagingIds]
+  );
+
   const costEstimate = useMemo(() => {
     const consultation = 500;
     const labs = selectedLabTests.reduce((sum, id) => {
