@@ -62,10 +62,10 @@ export const MedicationInteractionCheck = ({ patientId, patientName }: { patient
       }
       const { data: patient } = await supabase
         .from("patients")
-        .select("date_of_birth, allergies, profiles!inner(gender)")
+        .select("allergies, chronic_conditions, profiles!inner(gender, date_of_birth)")
         .eq("id", patientId)
         .maybeSingle();
-      const dob = (patient as any)?.date_of_birth;
+      const dob = (patient as any)?.profiles?.date_of_birth;
       const age = dob ? Math.floor((Date.now() - new Date(dob).getTime()) / (1000 * 60 * 60 * 24 * 365.25)) : null;
 
       const { data, error } = await supabase.functions.invoke("medication-interactions", {
@@ -73,7 +73,7 @@ export const MedicationInteractionCheck = ({ patientId, patientName }: { patient
           patientId,
           age,
           sex: (patient as any)?.profiles?.gender ?? null,
-          allergies: (patient as any)?.allergies ?? null,
+          allergies: [ ...((patient as any)?.allergies ?? []), ...((patient as any)?.chronic_conditions ?? []) ].join(", ") || null,
           currentMedications: lists.current.map((m: any) => ({
             name: m.medication_name,
             dosage: m.dosage ?? null,
