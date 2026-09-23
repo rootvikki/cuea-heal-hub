@@ -93,6 +93,20 @@ interface ImagingItem {
   price: number;
 }
 
+interface SentLabOrder {
+  id: string;
+  status: string | null;
+  created_at: string | null;
+  received_at: string | null;
+  sample_collected_at: string | null;
+  processing_started_at: string | null;
+  completed_at: string | null;
+  result_entered_at: string | null;
+  test?: { test_name: string } | null;
+}
+
+
+
 interface Prescription {
   medication_name: string;
   dosage: string;
