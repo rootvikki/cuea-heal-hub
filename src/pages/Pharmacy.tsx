@@ -26,7 +26,7 @@ import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { PatientSummaryCard } from "@/components/PatientSummaryCard";
-import { PrescriptionTimeline, PRESCRIPTION_ACTION_LABELS, nextPrescriptionStatus, prescriptionStatus, prescriptionStatusLabel, type PrescriptionStatus } from "@/components/PrescriptionTimeline";
+import { PrescriptionTimeline, PRESCRIPTION_ACTION_LABELS, nextPrescriptionStatus, prescriptionStatus, PRESCRIPTION_STATUS_LABELS, type PrescriptionStatus } from "@/components/PrescriptionTimeline";
 import { MedicationInteractionCheck } from "@/components/MedicationInteractionCheck";
 import { authUserIdForStaff, notifyUser } from "@/lib/notifications";
 
@@ -115,7 +115,7 @@ const Pharmacy = () => {
         details: { prescription_id: presc.id, status: next, patient_id: presc.patient_id },
       });
       await notifyOrderingDoctor(presc, next);
-      toast({ title: prescriptionStatusLabel(next), description: `${presc.medication_name} is now ${prescriptionStatusLabel(next).toLowerCase()}.` });
+      toast({ title: PRESCRIPTION_STATUS_LABELS[next], description: `${presc.medication_name} is now ${PRESCRIPTION_STATUS_LABELS[next].toLowerCase()}.` });
       fetchPrescriptions();
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not update this prescription.";
@@ -128,8 +128,8 @@ const Pharmacy = () => {
   const notifyOrderingDoctor = async (presc: any, status: PrescriptionStatus) => {
     const doctorUserId = await authUserIdForStaff(presc.doctor_id);
     await notifyUser(doctorUserId, {
-      title: `Pharmacy: ${prescriptionStatusLabel(status).toLowerCase()}`,
-      message: `${presc.medication_name} for ${presc.patient?.profile?.full_name || "a patient"} is now ${prescriptionStatusLabel(status).toLowerCase()}.`,
+      title: `Pharmacy: ${PRESCRIPTION_STATUS_LABELS[status].toLowerCase()}`,
+      message: `${presc.medication_name} for ${presc.patient?.profile?.full_name || "a patient"} is now ${PRESCRIPTION_STATUS_LABELS[status].toLowerCase()}.`,
       category: "pharmacy",
       referenceId: presc.id,
       link: "/consultation",
@@ -358,7 +358,7 @@ const Pharmacy = () => {
                           <TableCell>
                             {(() => {
                               const current = prescriptionStatus(presc);
-                              const next = nextPrescriptionStatus(current);
+                              const next = nextPrescriptionStatus(presc);
                               return (
                                 <div className="flex flex-col gap-2">
                                   {next === "dispensed" ? (
