@@ -1399,26 +1399,73 @@ const Consultation = () => {
                             <div className="grid grid-cols-2 xl:grid-cols-3 gap-1.5 max-h-52 overflow-auto">
                               {filteredLabTests.map((test) => {
                                 const selected = selectedLabTests.includes(test.id);
+                                const alreadySent = sentLabTestIds.includes(test.id);
                                 return (
                                   <div
                                     key={test.id}
-                                    className={`p-2 border rounded-lg cursor-pointer transition-all text-sm ${
-                                      selected ? "bg-blue-50 border-blue-300 ring-1 ring-blue-200" : "hover:bg-muted/50 hover:border-border"
+                                    className={`p-2 border rounded-lg transition-all text-sm ${alreadySent ? "cursor-default bg-green-50 border-green-300" : "cursor-pointer"} ${
+                                      selected && !alreadySent ? "bg-blue-50 border-blue-300 ring-1 ring-blue-200" : !alreadySent ? "hover:bg-muted/50 hover:border-border" : ""
                                     }`}
                                     onClick={() => {
+                                      if (alreadySent) return;
                                       if (selected) setSelectedLabTests(selectedLabTests.filter(t => t !== test.id));
                                       else setSelectedLabTests([...selectedLabTests, test.id]);
                                     }}
                                   >
                                     <div className="flex items-start justify-between gap-1">
                                       <p className="font-medium text-xs leading-tight">{test.test_name}</p>
-                                      {selected && <CheckCircle2 className="h-3.5 w-3.5 text-blue-600 shrink-0" />}
+                                      {(selected || alreadySent) && <CheckCircle2 className={`h-3.5 w-3.5 shrink-0 ${alreadySent ? "text-green-600" : "text-blue-600"}`} />}
                                     </div>
-                                    <p className="text-[10px] text-muted-foreground mt-0.5">KES {test.price}</p>
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                                      {alreadySent ? "Sent to lab" : `KES ${test.price}`}
+                                    </p>
                                   </div>
                                 );
                               })}
                             </div>
+
+                            {/* Send to Laboratory */}
+                            <div className="rounded-lg border border-blue-200 bg-blue-50/60 p-3 space-y-2">
+                              <div className="flex items-center justify-between gap-3 flex-wrap">
+                                <p className="text-xs text-muted-foreground">
+                                  {unsentLabTestCount > 0
+                                    ? `${unsentLabTestCount} test(s) ready to send · KES ${unsentLabTestTotal}`
+                                    : "Select tests above, then send them to the laboratory."}
+                                </p>
+                                <Button
+                                  size="sm"
+                                  className="h-10 px-4"
+                                  disabled={unsentLabTestCount === 0 || sendingLabOrders}
+                                  onClick={handleSendLabOrders}
+                                >
+                                  <TestTube className="h-4 w-4 mr-1.5" />
+                                  {sendingLabOrders
+                                    ? "Sending..."
+                                    : `Send ${unsentLabTestCount > 0 ? `${unsentLabTestCount} test(s) ` : ""}to Laboratory`}
+                                </Button>
+                              </div>
+                              <p className="text-[10px] text-muted-foreground">
+                                Sending moves the patient to the laboratory queue. You can keep writing your notes afterwards.
+                              </p>
+                            </div>
+
+                            {/* Status of orders already sent */}
+                            {sentLabOrders.length > 0 && (
+                              <div className="space-y-2">
+                                <p className="text-xs font-semibold flex items-center gap-1.5">
+                                  <Clock className="h-3.5 w-3.5 text-muted-foreground" /> Lab order progress
+                                </p>
+                                {sentLabOrders.map((order) => (
+                                  <div key={order.id} className="rounded-lg border p-3 space-y-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="text-xs font-medium">{order.test?.test_name || "Lab test"}</p>
+                                      <Badge variant="secondary" className="text-[10px]">{labOrderStatusLabel(order.status)}</Badge>
+                                    </div>
+                                    <LabOrderTimeline order={order} />
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                           </CardContent>
                         </Card>
 
