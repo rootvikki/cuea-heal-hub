@@ -808,30 +808,75 @@ const Consultation = () => {
     }
   };
 
+  // ─── Send prescriptions to the pharmacy ───────────────────────
+  const sendPrescriptions = async (opts?: { encounterId?: string; moveTicket?: boolean; silent?: boolean }) => {
+    if (!selectedTicket?.patient?.id) return;
+    const pending = prescriptions.filter(p => !p.sent);
+    if (pending.length === 0) return;
+
+    const { staffId } = await resolveStaffAndDept();
+    const encounterId = opts?.encounterId ?? await ensureEncounter();
+
+    const { error: rxError } = await supabase.from("prescriptions").insert(
+      pending.map((p) => ({
+        encounter_id: encounterId,
+        patient_id: selectedTicket.patient!.id,
+        doctor_id: staffId,
+        medication_name: p.medication_name,
+        dosage: p.dosage,
+        frequency: p.frequency,
+        duration: p.duration,
+        quantity: p.quantity,
+        instructions: p.instructions,
+      }))
+    );
+    if (rxError) throw new Error(`Medications could not be sent to the pharmacy: ${rxError.message}`);
+
+    // Only move the patient to the pharmacy when nothing earlier is outstanding
+    const hasEarlierStation = sentLabTestIds.length > 0 || sentImagingIds.length > 0 ||
+      selectedLabTests.length > 0 || selectedImaging.length > 0;
+    if (opts?.moveTicket !== false && !hasEarlierStation) {
+      const { error: ticketError } = await supabase
+        .from("tickets")
+        .update({ workflow_stage: "at_pharmacy", status: "at_pharmacy" })
+        .eq("id", selectedTicket.id);
+      if (ticketError) throw new Error(`Patient could not be moved to the pharmacy: ${ticketError.message}`);
+    }
+
+    setPrescriptions(prev => prev.map(p => (p.sent ? p : { ...p, sent: true })));
+    logAuditEvent({ action: "prescriptions_sent", module: "consultation", details: { encounter_id: encounterId, patient_id: selectedTicket.patient.id, count: pending.length } });
+    if (!opts?.silent) {
+      toast({
+        title: "Sent to Pharmacy",
+        description: hasEarlierStation
+          ? `${pending.length} medication(s) sent. The pharmacy will see them when the patient arrives.`
+          : `${pending.length} medication(s) sent. The patient is now in the pharmacy queue.`,
+      });
+      fetchQueue();
+      fetchPatientPrescriptions();
+    }
+  };
+
+  const handleSendPrescriptions = async () => {
+    setSendingPrescriptions(true);
+    try {
+      await sendPrescriptions();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not send the medications. Please try again.";
+      toast({ title: "Could not send to pharmacy", description: message, variant: "destructive" });
+    } finally {
+      setSendingPrescriptions(false);
+    }
+  };
+
   const saveEncounter = async () => {
     if (!selectedTicket?.patient?.id) return;
     setSavingEncounter(true);
     try {
-      const { staffId } = await resolveStaffAndDept();
       const encounterId = await ensureEncounter();
 
-      if (prescriptions.length > 0) {
-        const prescriptionRecords = prescriptions.map((p) => ({
-          encounter_id: encounterId,
-          patient_id: selectedTicket.patient!.id,
-          doctor_id: staffId,
-          medication_name: p.medication_name,
-          dosage: p.dosage,
-          frequency: p.frequency,
-          duration: p.duration,
-          quantity: p.quantity,
-          instructions: p.instructions,
-        }));
-        const { error: rxError } = await supabase.from("prescriptions").insert(prescriptionRecords);
-        if (rxError) throw new Error(`Prescriptions could not be saved: ${rxError.message}`);
-      }
-
       // Send anything still unsent (already-sent orders are skipped)
+      await sendPrescriptions({ encounterId, moveTicket: false, silent: true });
       await sendLabOrders({ encounterId, moveTicket: false, silent: true });
       await sendImagingOrders({ encounterId, moveTicket: false, silent: true });
 
