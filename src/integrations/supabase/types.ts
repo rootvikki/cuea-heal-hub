@@ -2510,6 +2510,17 @@ export type Database = {
         }
       }
       next_opd_number: { Args: never; Returns: string }
+      notify_roles: {
+        Args: {
+          _category?: string
+          _link?: string
+          _message: string
+          _reference_id?: string
+          _roles: Database["public"]["Enums"]["app_role"][]
+          _title: string
+        }
+        Returns: number
+      }
     }
     Enums: {
       app_role:
