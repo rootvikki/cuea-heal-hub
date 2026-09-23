@@ -246,6 +246,12 @@ const Consultation = () => {
   const [activeTab, setActiveTab] = useState("encounter");
   const [vitalsExpanded, setVitalsExpanded] = useState(false);
   const [queueCollapsed, setQueueCollapsed] = useState(false);
+  const [activeEncounterId, setActiveEncounterId] = useState<string | null>(null);
+  const [sentLabTestIds, setSentLabTestIds] = useState<string[]>([]);
+  const [sentImagingIds, setSentImagingIds] = useState<string[]>([]);
+  const [sendingLabOrders, setSendingLabOrders] = useState(false);
+  const [sendingImagingOrders, setSendingImagingOrders] = useState(false);
+  const [sentLabOrders, setSentLabOrders] = useState<SentLabOrder[]>([]);
 
   useEffect(() => {
     if (selectedTicket) setQueueCollapsed(true);
