@@ -1185,6 +1185,42 @@ export type Database = {
           },
         ]
       }
+      notifications: {
+        Row: {
+          category: string
+          created_at: string
+          id: string
+          link: string | null
+          message: string
+          read: boolean
+          reference_id: string | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          id?: string
+          link?: string | null
+          message: string
+          read?: boolean
+          reference_id?: string | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          id?: string
+          link?: string | null
+          message?: string
+          read?: boolean
+          reference_id?: string | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       nursing_notes: {
         Row: {
           admission_id: string
@@ -1636,10 +1672,13 @@ export type Database = {
       }
       prescriptions: {
         Row: {
+          collected_at: string | null
+          collected_by: string | null
           created_at: string | null
           dispensed: boolean | null
           dispensed_at: string | null
           dispensed_by: string | null
+          dispensing_started_at: string | null
           doctor_id: string | null
           dosage: string
           duration: string
@@ -1650,12 +1689,20 @@ export type Database = {
           medication_name: string
           patient_id: string
           quantity: number
+          received_at: string | null
+          received_by: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string
         }
         Insert: {
+          collected_at?: string | null
+          collected_by?: string | null
           created_at?: string | null
           dispensed?: boolean | null
           dispensed_at?: string | null
           dispensed_by?: string | null
+          dispensing_started_at?: string | null
           doctor_id?: string | null
           dosage: string
           duration: string
@@ -1666,12 +1713,20 @@ export type Database = {
           medication_name: string
           patient_id: string
           quantity: number
+          received_at?: string | null
+          received_by?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
         }
         Update: {
+          collected_at?: string | null
+          collected_by?: string | null
           created_at?: string | null
           dispensed?: boolean | null
           dispensed_at?: string | null
           dispensed_by?: string | null
+          dispensing_started_at?: string | null
           doctor_id?: string | null
           dosage?: string
           duration?: string
@@ -1682,8 +1737,20 @@ export type Database = {
           medication_name?: string
           patient_id?: string
           quantity?: number
+          received_at?: string | null
+          received_by?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "prescriptions_collected_by_fkey"
+            columns: ["collected_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "prescriptions_dispensed_by_fkey"
             columns: ["dispensed_by"]
@@ -1710,6 +1777,20 @@ export type Database = {
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prescriptions_received_by_fkey"
+            columns: ["received_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prescriptions_reviewed_by_fkey"
+            columns: ["reviewed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
         ]
