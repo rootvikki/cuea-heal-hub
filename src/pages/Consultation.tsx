@@ -1466,15 +1466,60 @@ const Consultation = () => {
                                 {prescriptions.map((p, i) => (
                                   <div key={i} className="flex items-center justify-between p-2.5 bg-[hsl(var(--success))]/5 border border-[hsl(var(--success))]/20 rounded-lg">
                                     <div className="min-w-0">
-                                      <p className="font-medium text-sm">{p.medication_name}</p>
+                                      <div className="flex items-center gap-2">
+                                        <p className="font-medium text-sm">{p.medication_name}</p>
+                                        {p.sent && (
+                                          <Badge className="bg-[hsl(var(--success))]/15 text-[hsl(var(--success))] text-[10px] border-0">Sent to pharmacy</Badge>
+                                        )}
+                                      </div>
                                       <p className="text-[11px] text-muted-foreground mt-0.5">
                                         {p.route} · {p.dosage} · {p.frequency} · {p.duration} · Qty: {p.quantity}
                                       </p>
                                       {p.instructions && <p className="text-[11px] text-muted-foreground italic mt-0.5">{p.instructions}</p>}
                                     </div>
-                                    <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive shrink-0 h-7 w-7 p-0" onClick={() => removePrescription(i)}>
-                                      <X className="h-3.5 w-3.5" />
-                                    </Button>
+                                    {!p.sent && (
+                                      <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive shrink-0 h-7 w-7 p-0" onClick={() => removePrescription(i)}>
+                                        <X className="h-3.5 w-3.5" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {prescriptions.length > 0 && (
+                              <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-[hsl(var(--success))]/30 bg-[hsl(var(--success))]/5 p-3">
+                                <p className="text-xs text-muted-foreground">
+                                  {unsentPrescriptionCount > 0
+                                    ? `${unsentPrescriptionCount} medication(s) ready to send`
+                                    : "All medications have been sent to the pharmacy"}
+                                </p>
+                                <Button
+                                  size="sm"
+                                  className="h-9 text-xs bg-[hsl(var(--success))] hover:bg-[hsl(var(--success))]/90 text-white"
+                                  disabled={unsentPrescriptionCount === 0 || sendingPrescriptions}
+                                  onClick={handleSendPrescriptions}
+                                >
+                                  <Pill className="h-3.5 w-3.5 mr-1.5" />
+                                  {sendingPrescriptions
+                                    ? "Sending..."
+                                    : `Send ${unsentPrescriptionCount > 0 ? `${unsentPrescriptionCount} medication(s) ` : ""}to Pharmacy`}
+                                </Button>
+                              </div>
+                            )}
+
+                            {sentPrescriptions.length > 0 && (
+                              <div className="mt-3 space-y-2">
+                                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Pharmacy progress</p>
+                                {sentPrescriptions.map((rx) => (
+                                  <div key={rx.id} className="rounded-lg border bg-card p-2.5">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-xs font-medium">{rx.medication_name}</span>
+                                      <Badge variant={rx.dispensed ? "default" : "outline"} className="text-[10px]">
+                                        {prescriptionStatusLabel(rx)}
+                                      </Badge>
+                                    </div>
+                                    <PrescriptionTimeline prescription={rx} />
                                   </div>
                                 ))}
                               </div>
