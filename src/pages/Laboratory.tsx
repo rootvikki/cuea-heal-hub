@@ -180,6 +180,8 @@ const STRUCTURED_FIELDS: Record<string, { name: string; unit?: string; ref?: str
 
 const Laboratory = () => {
   const { toast } = useToast();
+  const { hasAnyRole } = useUser();
+  const canManageLab = hasAnyRole(["lab_technician"]);
   const { getActiveTicket, onLabComplete } = useQueueTransition();
   const [labOrders, setLabOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -192,6 +194,12 @@ const Laboratory = () => {
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [queueCollapsed, setQueueCollapsed] = useState(false);
   const [advancingOrderId, setAdvancingOrderId] = useState<string | null>(null);
+
+  const announceLabUpdate = async (order: any, title: string, message: string) => {
+    const doctorUserId = await authUserIdForStaff(order.doctor_id);
+    await notifyUser(doctorUserId, { title, message, category: "lab", referenceId: order.id, link: "/consultation" });
+    await notifyRoles(["nurse"], { title, message, category: "lab", referenceId: order.id, link: "/laboratory" });
+  };
 
   const advanceLabOrder = async (order: any, next: LabOrderStatus) => {
     setAdvancingOrderId(order.id);
@@ -215,6 +223,11 @@ const Laboratory = () => {
         module: "laboratory",
         details: { lab_order_id: order.id, status: next, patient_id: order.patient_id },
       });
+      await announceLabUpdate(
+        order,
+        `Lab order ${labOrderStatusLabel(next).toLowerCase()}`,
+        `${order.test?.test_name || "Lab test"} for ${order.patient?.profile?.full_name || "a patient"} is now ${labOrderStatusLabel(next).toLowerCase()}.`,
+      );
       toast({ title: labOrderStatusLabel(next), description: `${order.test?.test_name || "Lab order"} marked as ${labOrderStatusLabel(next).toLowerCase()}.` });
       fetchLabOrders();
     } catch (error) {
