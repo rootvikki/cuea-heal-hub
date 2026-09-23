@@ -493,8 +493,23 @@ const Consultation = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("Not authenticated");
 
-      const { data: staff } = await supabase.from("staff").select("id").eq("user_id", user.id).single();
-      const { data: dept } = await supabase.from("departments").select("id").eq("name", "General Medicine").single();
+      let { data: staff } = await supabase.from("staff").select("id").eq("user_id", user.id).maybeSingle();
+      const { data: dept } = await supabase.from("departments").select("id").eq("name", "General Medicine").maybeSingle();
+
+      // Self-provision a staff record if the clinician account isn't linked yet
+      if (!staff?.id) {
+        const { data: createdStaff, error: staffError } = await supabase
+          .from("staff")
+          .insert({
+            user_id: user.id,
+            staff_id: `STF-${user.id.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+            department_id: dept?.id ?? null,
+          })
+          .select("id")
+          .single();
+        if (staffError) throw new Error(`Your account is not linked to a staff record and it could not be created: ${staffError.message}`);
+        staff = createdStaff;
+      }
 
       const fullSubjective = [
         encounter.subjective,
