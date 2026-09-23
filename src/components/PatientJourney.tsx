@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Activity, TestTube, Camera, Pill, Receipt, Stethoscope, Heart } from "lucide-react";
 import { LabOrderTimeline, labOrderStatusLabel } from "@/components/LabOrderTimeline";
+import { PrescriptionTimeline, prescriptionStatusLabel } from "@/components/PrescriptionTimeline";
 
 interface PatientJourneyProps {
   ticketId: string;

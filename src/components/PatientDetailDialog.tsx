@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { LabOrderTimeline, labOrderStatusLabel } from "@/components/LabOrderTimeline";
+import { PrescriptionTimeline, prescriptionStatusLabel } from "@/components/PrescriptionTimeline";
 import {
   User,
   Heart,

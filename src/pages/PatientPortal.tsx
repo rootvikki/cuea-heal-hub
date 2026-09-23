@@ -33,6 +33,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LabOrderTimeline } from "@/components/LabOrderTimeline";
+import { PrescriptionTimeline } from "@/components/PrescriptionTimeline";
 
 interface PatientData {
   id: string;

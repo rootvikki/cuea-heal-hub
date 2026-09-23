@@ -25,6 +25,7 @@ import { PatientJourney } from "@/components/PatientJourney";
 import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline, deriveVisitPath } from "@/components/WorkflowTimeline";
 import { LabOrderTimeline, labOrderStatusLabel } from "@/components/LabOrderTimeline";
+import { PrescriptionTimeline, prescriptionStatusLabel } from "@/components/PrescriptionTimeline";
 import { PatientSummaryCard } from "@/components/PatientSummaryCard";
 import {
   Stethoscope, User, AlertTriangle, Activity, Pill, TestTube,
