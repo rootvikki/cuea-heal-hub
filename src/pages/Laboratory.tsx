@@ -18,6 +18,16 @@ import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { PatientSummaryCard } from "@/components/PatientSummaryCard";
+import { LabOrderTimeline, labOrderStatusLabel, nextLabOrderStatus, type LabOrderStatus } from "@/components/LabOrderTimeline";
+
+const advanceActionLabel = (status: LabOrderStatus) => {
+  switch (status) {
+    case "received": return "Mark Received";
+    case "collected": return "Mark Sample Collected";
+    case "in_progress": return "Start Processing";
+    default: return "Advance";
+  }
+};
 
 // Structured result field definitions per test type
 const STRUCTURED_FIELDS: Record<string, { name: string; unit?: string; ref?: string; refMale?: string; refFemale?: string }[]> = {
@@ -181,6 +191,40 @@ const Laboratory = () => {
   const [resultNotes, setResultNotes] = useState("");
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [queueCollapsed, setQueueCollapsed] = useState(false);
+  const [advancingOrderId, setAdvancingOrderId] = useState<string | null>(null);
+
+  const advanceLabOrder = async (order: any, next: LabOrderStatus) => {
+    setAdvancingOrderId(order.id);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: staff } = user
+        ? await supabase.from("staff").select("id").eq("user_id", user.id).maybeSingle()
+        : { data: null };
+
+      const now = new Date().toISOString();
+      const update: Record<string, unknown> = { status: next };
+      if (next === "received") { update.received_at = now; update.received_by = staff?.id ?? null; }
+      if (next === "collected") { update.sample_collected_at = now; update.collected_by = staff?.id ?? null; }
+      if (next === "in_progress") { update.processing_started_at = now; update.processed_by = staff?.id ?? null; }
+
+      const { error } = await supabase.from("lab_orders").update(update).eq("id", order.id);
+      if (error) throw error;
+
+      logAuditEvent({
+        action: "lab_order_status_changed",
+        module: "laboratory",
+        details: { lab_order_id: order.id, status: next, patient_id: order.patient_id },
+      });
+      toast({ title: labOrderStatusLabel(next), description: `${order.test?.test_name || "Lab order"} marked as ${labOrderStatusLabel(next).toLowerCase()}.` });
+      fetchLabOrders();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not update this lab order.";
+      toast({ title: "Could not update lab order", description: message, variant: "destructive" });
+    } finally {
+      setAdvancingOrderId(null);
+    }
+  };
+
 
   useEffect(() => {
     if (selectedTicket) setQueueCollapsed(true);
@@ -306,6 +350,7 @@ const Laboratory = () => {
       .from("lab_orders")
       .update({
         status: "completed",
+        completed_at: new Date().toISOString(),
         result_value: resultValue || (structuredDef ? "See structured results" : ""),
         result_notes: resultNotes,
         result_entered_by: staff?.id,
@@ -340,7 +385,7 @@ const Laboratory = () => {
   };
 
   const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = { pending: "bg-yellow-100 text-yellow-800", collected: "bg-blue-100 text-blue-800", in_progress: "bg-purple-100 text-purple-800", completed: "bg-green-100 text-green-800" };
+    const colors: Record<string, string> = { pending: "bg-yellow-100 text-yellow-800", received: "bg-sky-100 text-sky-800", collected: "bg-blue-100 text-blue-800", in_progress: "bg-purple-100 text-purple-800", completed: "bg-green-100 text-green-800" };
     return colors[status] || "bg-muted";
   };
 
@@ -414,7 +459,9 @@ const Laboratory = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {pendingOrders.map((order) => (
+                      {pendingOrders.map((order) => {
+                        const next = nextLabOrderStatus(order.status);
+                        return (
                         <TableRow key={order.id}>
                           <TableCell>
                             <p className="font-medium">{order.patient?.profile?.full_name}</p>
@@ -424,13 +471,29 @@ const Laboratory = () => {
                             <p className="font-medium">{order.test?.test_name}</p>
                             <p className="text-sm text-muted-foreground">{order.test?.test_code}</p>
                           </TableCell>
-                          <TableCell><Badge className={getStatusColor(order.status)}>{order.status}</Badge></TableCell>
+                          <TableCell className="min-w-[380px]">
+                            <Badge className={getStatusColor(order.status)}>{labOrderStatusLabel(order.status)}</Badge>
+                            <LabOrderTimeline order={order} className="mt-2" />
+                          </TableCell>
                           <TableCell>{new Date(order.created_at).toLocaleString()}</TableCell>
                           <TableCell>
-                            <Button size="sm" onClick={() => openResultEntry(order)}>Enter Result</Button>
+                            <div className="flex flex-col gap-2">
+                              {next && next !== "completed" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={advancingOrderId === order.id}
+                                  onClick={() => advanceLabOrder(order, next)}
+                                >
+                                  {advanceActionLabel(next)}
+                                </Button>
+                              )}
+                              <Button size="sm" onClick={() => openResultEntry(order)}>Enter Result</Button>
+                            </div>
                           </TableCell>
                         </TableRow>
-                      ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 )}

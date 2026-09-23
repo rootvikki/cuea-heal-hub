@@ -32,6 +32,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LabOrderTimeline } from "@/components/LabOrderTimeline";
 
 interface PatientData {
   id: string;
@@ -356,6 +357,7 @@ const PatientPortal = () => {
                                 </div>
                                 {getStatusBadge(lab.status)}
                               </div>
+                              <LabOrderTimeline order={lab} />
                               {lab.status === "completed" && (
                                 <div className="mt-2 p-3 bg-muted rounded-md">
                                   <div className="flex justify-between">

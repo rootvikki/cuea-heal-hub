@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
+import { LabOrderTimeline, labOrderStatusLabel } from "@/components/LabOrderTimeline";
 import {
   User,
   Heart,
@@ -512,9 +513,10 @@ export const PatientDetailDialog = ({
                                 variant={lab.status === "completed" ? "default" : "outline"}
                                 className="text-xs"
                               >
-                                {lab.status}
+                                {labOrderStatusLabel(lab.status)}
                               </Badge>
                             </div>
+                            <LabOrderTimeline order={lab} />
                             {fields.length > 0 ? (
                               <div className="space-y-1 border-t pt-2">
                                 {fields.map((f: any) => (
