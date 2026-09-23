@@ -22,6 +22,7 @@ import { toast as sonnerToast } from "sonner";
 import { ReferralForm } from "@/components/ReferralForm";
 import { InterimPayment } from "@/components/InterimPayment";
 import { PatientJourney } from "@/components/PatientJourney";
+import { notifyRoles } from "@/lib/notifications";
 import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline, deriveVisitPath } from "@/components/WorkflowTimeline";
 import { LabOrderTimeline, labOrderStatusLabel } from "@/components/LabOrderTimeline";
@@ -727,6 +728,12 @@ const Consultation = () => {
 
     setSentLabTestIds(prev => [...prev, ...pending]);
     logAuditEvent({ action: "lab_orders_sent", module: "consultation", details: { encounter_id: encounterId, patient_id: selectedTicket.patient.id, count: pending.length } });
+    await notifyRoles(["lab_technician"], {
+      title: "New lab order",
+      message: `${pending.length} test(s) requested for ${selectedTicket.patient?.profile?.full_name || "a patient"}.`,
+      category: "lab",
+      link: "/laboratory",
+    });
     if (!opts?.silent) {
       toast({ title: "Sent to Laboratory", description: `${pending.length} test(s) sent. The patient is now in the laboratory queue.` });
       fetchQueue();
@@ -846,6 +853,12 @@ const Consultation = () => {
 
     setPrescriptions(prev => prev.map(p => (p.sent ? p : { ...p, sent: true })));
     logAuditEvent({ action: "prescriptions_sent", module: "consultation", details: { encounter_id: encounterId, patient_id: selectedTicket.patient.id, count: pending.length } });
+    await notifyRoles(["pharmacist"], {
+      title: "New prescription",
+      message: `${pending.length} medication(s) prescribed for ${selectedTicket.patient?.profile?.full_name || "a patient"}.`,
+      category: "pharmacy",
+      link: "/pharmacy",
+    });
     if (!opts?.silent) {
       toast({
         title: "Sent to Pharmacy",
