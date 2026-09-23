@@ -414,7 +414,9 @@ const Laboratory = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {pendingOrders.map((order) => (
+                      {pendingOrders.map((order) => {
+                        const next = nextLabOrderStatus(order.status);
+                        return (
                         <TableRow key={order.id}>
                           <TableCell>
                             <p className="font-medium">{order.patient?.profile?.full_name}</p>
@@ -424,13 +426,29 @@ const Laboratory = () => {
                             <p className="font-medium">{order.test?.test_name}</p>
                             <p className="text-sm text-muted-foreground">{order.test?.test_code}</p>
                           </TableCell>
-                          <TableCell><Badge className={getStatusColor(order.status)}>{order.status}</Badge></TableCell>
+                          <TableCell className="min-w-[380px]">
+                            <Badge className={getStatusColor(order.status)}>{labOrderStatusLabel(order.status)}</Badge>
+                            <LabOrderTimeline order={order} className="mt-2" />
+                          </TableCell>
                           <TableCell>{new Date(order.created_at).toLocaleString()}</TableCell>
                           <TableCell>
-                            <Button size="sm" onClick={() => openResultEntry(order)}>Enter Result</Button>
+                            <div className="flex flex-col gap-2">
+                              {next && next !== "completed" && (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  disabled={advancingOrderId === order.id}
+                                  onClick={() => advanceLabOrder(order, next)}
+                                >
+                                  {advanceActionLabel(next)}
+                                </Button>
+                              )}
+                              <Button size="sm" onClick={() => openResultEntry(order)}>Enter Result</Button>
+                            </div>
                           </TableCell>
                         </TableRow>
-                      ))}
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 )}
