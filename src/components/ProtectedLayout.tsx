@@ -66,11 +66,14 @@ const ProtectedLayout = ({ children, allowedRoles }: ProtectedLayoutProps) => {
       <div className="flex min-h-screen w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
-          <header className="h-12 flex items-center border-b bg-background px-4 lg:hidden sticky top-0 z-30">
-            <SidebarTrigger>
+          <header className="h-12 flex items-center border-b bg-background px-4 sticky top-0 z-30">
+            <SidebarTrigger className="lg:hidden">
               <Menu className="h-5 w-5" />
             </SidebarTrigger>
-            <span className="ml-3 font-semibold text-sm">CUEA Infirmary</span>
+            <span className="ml-3 font-semibold text-sm lg:hidden">CUEA Infirmary</span>
+            <div className="ml-auto flex items-center">
+              <NotificationBell />
+            </div>
           </header>
           <main className="flex-1 p-6 lg:p-8">
             <PageBreadcrumb />
