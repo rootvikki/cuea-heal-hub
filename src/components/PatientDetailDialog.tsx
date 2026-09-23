@@ -581,9 +581,10 @@ export const PatientDetailDialog = ({
                               variant={rx.dispensed ? "default" : "outline"}
                               className="text-xs"
                             >
-                              {rx.dispensed ? "Dispensed" : "Pending"}
+                              {prescriptionStatusLabel(rx)}
                             </Badge>
                           </div>
+                          <PrescriptionTimeline prescription={rx} className="mt-2" />
                           {rx.instructions && (
                             <p className="text-xs text-muted-foreground mt-1">
                               {rx.instructions}

@@ -195,13 +195,16 @@ export function PatientJourney({ ticketId, patientId }: PatientJourneyProps) {
             {prescriptions.length === 0 ? (
               <p className="text-muted-foreground">No prescriptions</p>
             ) : (
-              <div className="space-y-1">
+              <div className="space-y-2">
                 {prescriptions.map(rx => (
-                  <div key={rx.id} className="flex justify-between">
-                    <span>{rx.medication_name} — {rx.dosage} x{rx.quantity}</span>
-                    <Badge variant={rx.dispensed ? "default" : "outline"}>
-                      {rx.dispensed ? "Dispensed" : "Pending"}
-                    </Badge>
+                  <div key={rx.id} className="border rounded p-2 space-y-2">
+                    <div className="flex justify-between">
+                      <span>{rx.medication_name} — {rx.dosage} x{rx.quantity}</span>
+                      <Badge variant={rx.dispensed ? "default" : "outline"}>
+                        {prescriptionStatusLabel(rx)}
+                      </Badge>
+                    </div>
+                    <PrescriptionTimeline prescription={rx} />
                   </div>
                 ))}
               </div>

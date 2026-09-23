@@ -414,9 +414,10 @@ const PatientPortal = () => {
                                   </p>
                                 </div>
                                 <Badge variant={rx.dispensed ? "default" : "outline"}>
-                                  {rx.dispensed ? "Dispensed" : "Pending"}
+                                  {rx.dispensed ? "Dispensed" : "Sent to Pharmacy"}
                                 </Badge>
                               </div>
+                              <PrescriptionTimeline prescription={rx} />
                               <div className="grid grid-cols-3 gap-2 text-sm mt-2">
                                 <div>
                                   <span className="text-muted-foreground">Dosage:</span>
