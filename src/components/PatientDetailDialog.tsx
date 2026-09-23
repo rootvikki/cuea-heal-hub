@@ -12,6 +12,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
+import { LabOrderTimeline, labOrderStatusLabel } from "@/components/LabOrderTimeline";
 import {
   User,
   Heart,
