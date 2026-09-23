@@ -191,6 +191,40 @@ const Laboratory = () => {
   const [resultNotes, setResultNotes] = useState("");
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [queueCollapsed, setQueueCollapsed] = useState(false);
+  const [advancingOrderId, setAdvancingOrderId] = useState<string | null>(null);
+
+  const advanceLabOrder = async (order: any, next: LabOrderStatus) => {
+    setAdvancingOrderId(order.id);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: staff } = user
+        ? await supabase.from("staff").select("id").eq("user_id", user.id).maybeSingle()
+        : { data: null };
+
+      const now = new Date().toISOString();
+      const update: Record<string, unknown> = { status: next };
+      if (next === "received") { update.received_at = now; update.received_by = staff?.id ?? null; }
+      if (next === "collected") { update.sample_collected_at = now; update.collected_by = staff?.id ?? null; }
+      if (next === "in_progress") { update.processing_started_at = now; update.processed_by = staff?.id ?? null; }
+
+      const { error } = await supabase.from("lab_orders").update(update).eq("id", order.id);
+      if (error) throw error;
+
+      logAuditEvent({
+        action: "lab_order_status_changed",
+        module: "laboratory",
+        details: { lab_order_id: order.id, status: next, patient_id: order.patient_id },
+      });
+      toast({ title: labOrderStatusLabel(next), description: `${order.test?.test_name || "Lab order"} marked as ${labOrderStatusLabel(next).toLowerCase()}.` });
+      fetchLabOrders();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not update this lab order.";
+      toast({ title: "Could not update lab order", description: message, variant: "destructive" });
+    } finally {
+      setAdvancingOrderId(null);
+    }
+  };
+
 
   useEffect(() => {
     if (selectedTicket) setQueueCollapsed(true);
