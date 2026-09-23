@@ -26,7 +26,9 @@ import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { PatientSummaryCard } from "@/components/PatientSummaryCard";
-import { PrescriptionTimeline } from "@/components/PrescriptionTimeline";
+import { PrescriptionTimeline, PRESCRIPTION_ACTION_LABELS, nextPrescriptionStatus, prescriptionStatus, prescriptionStatusLabel, type PrescriptionStatus } from "@/components/PrescriptionTimeline";
+import { MedicationInteractionCheck } from "@/components/MedicationInteractionCheck";
+import { authUserIdForStaff, notifyUser } from "@/lib/notifications";
 
 const Pharmacy = () => {
   const { toast } = useToast();
@@ -41,6 +43,7 @@ const Pharmacy = () => {
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [dispenseConfirm, setDispenseConfirm] = useState<any>(null);
   const [queueCollapsed, setQueueCollapsed] = useState(false);
+  const [advancingId, setAdvancingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (selectedTicket) setQueueCollapsed(true);
@@ -54,6 +57,11 @@ const Pharmacy = () => {
   useEffect(() => {
     fetchInventory();
     fetchPrescriptions();
+    const channel = supabase
+      .channel("pharmacy-prescriptions")
+      .on("postgres_changes", { event: "*", schema: "public", table: "prescriptions" }, () => fetchPrescriptions())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   const fetchInventory = async () => {
@@ -178,7 +186,7 @@ const Pharmacy = () => {
 
     // Update prescription
     await supabase.from("prescriptions").update({
-      dispensed: true, dispensed_at: new Date().toISOString(), dispensed_by: staff?.id,
+      dispensed: true, status: "dispensed", dispensed_at: new Date().toISOString(), dispensed_by: staff?.id,
     }).eq("id", prescriptionId);
 
     // Update inventory
@@ -209,6 +217,7 @@ const Pharmacy = () => {
 
     toast({ title: "Dispensed", description: "Prescription dispensed, stock updated, charge recorded" });
     logAuditEvent({ action: "prescription_dispensed", module: "pharmacy", details: { prescription_id: prescriptionId, medication: medicationName, quantity, patient_id: patientId } });
+    await notifyOrderingDoctor(prescription, "dispensed");
 
     // Auto-transition
     const ticket = await getActiveTicket(patientId);
@@ -250,6 +259,7 @@ const Pharmacy = () => {
             <p className="text-muted-foreground mt-1">Manage inventory, dispense & stock cards</p>
           </div>
           <div className="flex gap-2 items-center">
+            {selectedTicket && <MedicationInteractionCheck patientId={selectedTicket.patient_id} patientName={selectedTicket.patient?.profile?.full_name} />}
             {selectedTicket && <InterimPayment ticketId={selectedTicket.id} patientId={selectedTicket.patient_id} />}
             {selectedTicket && <WorkflowTimeline currentStage={selectedTicket.workflow_stage || selectedTicket.status} />}
             <div className="relative">
@@ -346,10 +356,31 @@ const Pharmacy = () => {
                             <PrescriptionTimeline prescription={presc} />
                           </TableCell>
                           <TableCell>
-                            <Button size="sm" onClick={() => {
-                              const inventoryItem = inventory.find((item) => item.drug_name.toLowerCase().includes(presc.medication_name.toLowerCase()) || presc.medication_name.toLowerCase().includes(item.drug_name.toLowerCase()));
-                              setDispenseConfirm({ prescription: presc, inventoryItem });
-                            }}>Dispense</Button>
+                            {(() => {
+                              const current = prescriptionStatus(presc);
+                              const next = nextPrescriptionStatus(current);
+                              return (
+                                <div className="flex flex-col gap-2">
+                                  {next === "dispensed" ? (
+                                    <Button size="sm" onClick={() => {
+                                      const inventoryItem = inventory.find((item) => item.drug_name.toLowerCase().includes(presc.medication_name.toLowerCase()) || presc.medication_name.toLowerCase().includes(item.drug_name.toLowerCase()));
+                                      setDispenseConfirm({ prescription: presc, inventoryItem });
+                                    }}>Dispense</Button>
+                                  ) : next ? (
+                                    <Button
+                                      size="sm"
+                                      variant={next === "collected" ? "default" : "outline"}
+                                      disabled={advancingId === presc.id}
+                                      onClick={() => advancePrescription(presc, next)}
+                                    >
+                                      {PRESCRIPTION_ACTION_LABELS[next]}
+                                    </Button>
+                                  ) : (
+                                    <span className="text-sm text-muted-foreground">Completed</span>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </TableCell>
                         </TableRow>
                       ))}
