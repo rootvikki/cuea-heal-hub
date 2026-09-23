@@ -26,7 +26,9 @@ import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { PatientSummaryCard } from "@/components/PatientSummaryCard";
-import { PrescriptionTimeline } from "@/components/PrescriptionTimeline";
+import { PrescriptionTimeline, PRESCRIPTION_ACTION_LABELS, nextPrescriptionStatus, prescriptionStatus, PRESCRIPTION_STATUS_LABELS, type PrescriptionStatus } from "@/components/PrescriptionTimeline";
+import { MedicationInteractionCheck } from "@/components/MedicationInteractionCheck";
+import { authUserIdForStaff, notifyUser } from "@/lib/notifications";
 
 const Pharmacy = () => {
   const { toast } = useToast();
@@ -41,6 +43,7 @@ const Pharmacy = () => {
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [dispenseConfirm, setDispenseConfirm] = useState<any>(null);
   const [queueCollapsed, setQueueCollapsed] = useState(false);
+  const [advancingId, setAdvancingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (selectedTicket) setQueueCollapsed(true);
@@ -54,6 +57,11 @@ const Pharmacy = () => {
   useEffect(() => {
     fetchInventory();
     fetchPrescriptions();
+    const channel = supabase
+      .channel("pharmacy-prescriptions")
+      .on("postgres_changes", { event: "*", schema: "public", table: "prescriptions" }, () => fetchPrescriptions())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   const fetchInventory = async () => {
@@ -67,7 +75,7 @@ const Pharmacy = () => {
     const { data } = await supabase
       .from("prescriptions")
       .select("*, patients!inner(patient_id, user_id, profiles!inner(full_name))")
-      .eq("dispensed", false)
+      .neq("status", "collected")
       .order("created_at", { ascending: false });
 
     if (data) {
@@ -81,6 +89,51 @@ const Pharmacy = () => {
       }));
       setPrescriptions(mapped);
     }
+  };
+
+  const advancePrescription = async (presc: any, next: PrescriptionStatus) => {
+    setAdvancingId(presc.id);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      const { data: staff } = user
+        ? await supabase.from("staff").select("id").eq("user_id", user.id).maybeSingle()
+        : { data: null };
+
+      const now = new Date().toISOString();
+      const update: Record<string, unknown> = { status: next };
+      if (next === "received") { update.received_at = now; update.received_by = staff?.id ?? null; }
+      if (next === "reviewed") { update.reviewed_at = now; update.reviewed_by = staff?.id ?? null; }
+      if (next === "dispensing") { update.dispensing_started_at = now; }
+      if (next === "collected") { update.collected_at = now; update.collected_by = staff?.id ?? null; }
+
+      const { error } = await supabase.from("prescriptions").update(update).eq("id", presc.id);
+      if (error) throw error;
+
+      logAuditEvent({
+        action: "prescription_status_changed",
+        module: "pharmacy",
+        details: { prescription_id: presc.id, status: next, patient_id: presc.patient_id },
+      });
+      await notifyOrderingDoctor(presc, next);
+      toast({ title: PRESCRIPTION_STATUS_LABELS[next], description: `${presc.medication_name} is now ${PRESCRIPTION_STATUS_LABELS[next].toLowerCase()}.` });
+      fetchPrescriptions();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not update this prescription.";
+      toast({ title: "Could not update prescription", description: message, variant: "destructive" });
+    } finally {
+      setAdvancingId(null);
+    }
+  };
+
+  const notifyOrderingDoctor = async (presc: any, status: PrescriptionStatus) => {
+    const doctorUserId = await authUserIdForStaff(presc.doctor_id);
+    await notifyUser(doctorUserId, {
+      title: `Pharmacy: ${PRESCRIPTION_STATUS_LABELS[status].toLowerCase()}`,
+      message: `${presc.medication_name} for ${presc.patient?.profile?.full_name || "a patient"} is now ${PRESCRIPTION_STATUS_LABELS[status].toLowerCase()}.`,
+      category: "pharmacy",
+      referenceId: presc.id,
+      link: "/consultation",
+    });
   };
 
   const fetchStockCard = async (inventoryId: string) => {
@@ -133,7 +186,7 @@ const Pharmacy = () => {
 
     // Update prescription
     await supabase.from("prescriptions").update({
-      dispensed: true, dispensed_at: new Date().toISOString(), dispensed_by: staff?.id,
+      dispensed: true, status: "dispensed", dispensed_at: new Date().toISOString(), dispensed_by: staff?.id,
     }).eq("id", prescriptionId);
 
     // Update inventory
@@ -164,6 +217,7 @@ const Pharmacy = () => {
 
     toast({ title: "Dispensed", description: "Prescription dispensed, stock updated, charge recorded" });
     logAuditEvent({ action: "prescription_dispensed", module: "pharmacy", details: { prescription_id: prescriptionId, medication: medicationName, quantity, patient_id: patientId } });
+    await notifyOrderingDoctor(prescription, "dispensed");
 
     // Auto-transition
     const ticket = await getActiveTicket(patientId);
@@ -205,6 +259,7 @@ const Pharmacy = () => {
             <p className="text-muted-foreground mt-1">Manage inventory, dispense & stock cards</p>
           </div>
           <div className="flex gap-2 items-center">
+            {selectedTicket && <MedicationInteractionCheck patientId={selectedTicket.patient_id} patientName={selectedTicket.patient?.profile?.full_name} />}
             {selectedTicket && <InterimPayment ticketId={selectedTicket.id} patientId={selectedTicket.patient_id} />}
             {selectedTicket && <WorkflowTimeline currentStage={selectedTicket.workflow_stage || selectedTicket.status} />}
             <div className="relative">
@@ -301,10 +356,31 @@ const Pharmacy = () => {
                             <PrescriptionTimeline prescription={presc} />
                           </TableCell>
                           <TableCell>
-                            <Button size="sm" onClick={() => {
-                              const inventoryItem = inventory.find((item) => item.drug_name.toLowerCase().includes(presc.medication_name.toLowerCase()) || presc.medication_name.toLowerCase().includes(item.drug_name.toLowerCase()));
-                              setDispenseConfirm({ prescription: presc, inventoryItem });
-                            }}>Dispense</Button>
+                            {(() => {
+                              const current = prescriptionStatus(presc);
+                              const next = nextPrescriptionStatus(presc);
+                              return (
+                                <div className="flex flex-col gap-2">
+                                  {next === "dispensed" ? (
+                                    <Button size="sm" onClick={() => {
+                                      const inventoryItem = inventory.find((item) => item.drug_name.toLowerCase().includes(presc.medication_name.toLowerCase()) || presc.medication_name.toLowerCase().includes(item.drug_name.toLowerCase()));
+                                      setDispenseConfirm({ prescription: presc, inventoryItem });
+                                    }}>Dispense</Button>
+                                  ) : next ? (
+                                    <Button
+                                      size="sm"
+                                      variant={next === "collected" ? "default" : "outline"}
+                                      disabled={advancingId === presc.id}
+                                      onClick={() => advancePrescription(presc, next)}
+                                    >
+                                      {PRESCRIPTION_ACTION_LABELS[next]}
+                                    </Button>
+                                  ) : (
+                                    <span className="text-sm text-muted-foreground">Completed</span>
+                                  )}
+                                </div>
+                              );
+                            })()}
                           </TableCell>
                         </TableRow>
                       ))}

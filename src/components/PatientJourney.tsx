@@ -71,7 +71,7 @@ export function PatientJourney({ ticketId, patientId }: PatientJourneyProps) {
                   <div><span className="text-muted-foreground">Temp:</span> {vitals[0].temperature}°C</div>
                   <div><span className="text-muted-foreground">SpO2:</span> {vitals[0].oxygen_saturation}%</div>
                   <div><span className="text-muted-foreground">Weight:</span> {vitals[0].weight} kg</div>
-                  <div><span className="text-muted-foreground">Height:</span> {vitals[0].height} m</div>
+                  <div><span className="text-muted-foreground">Height:</span> {vitals[0].height} cm</div>
                   <div><span className="text-muted-foreground">BMI:</span> {vitals[0].bmi}</div>
                   <div><span className="text-muted-foreground">Recorded:</span> {new Date(vitals[0].recorded_at).toLocaleString()}</div>
                 </>}

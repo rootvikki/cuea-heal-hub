@@ -18,7 +18,7 @@ const requestSchema = z.object({
     respiratoryRate: z.number().nullable(),
     oxygenSaturation: z.number().nullable(),
     weight: z.number().nullable(),
-    heightMetres: z.number().nullable(),
+    heightCentimetres: z.number().nullable(),
     bmi: z.number().nullable(),
   }),
   previousVitals: z.array(z.object({

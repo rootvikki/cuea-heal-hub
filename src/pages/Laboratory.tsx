@@ -19,6 +19,8 @@ import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { PatientSummaryCard } from "@/components/PatientSummaryCard";
 import { LabOrderTimeline, labOrderStatusLabel, nextLabOrderStatus, type LabOrderStatus } from "@/components/LabOrderTimeline";
+import { useUser } from "@/contexts/UserContext";
+import { authUserIdForStaff, notifyRoles, notifyUser } from "@/lib/notifications";
 
 const advanceActionLabel = (status: LabOrderStatus) => {
   switch (status) {
@@ -180,6 +182,8 @@ const STRUCTURED_FIELDS: Record<string, { name: string; unit?: string; ref?: str
 
 const Laboratory = () => {
   const { toast } = useToast();
+  const { hasAnyRole } = useUser();
+  const canManageLab = hasAnyRole(["lab_technician"]);
   const { getActiveTicket, onLabComplete } = useQueueTransition();
   const [labOrders, setLabOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -192,6 +196,12 @@ const Laboratory = () => {
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [queueCollapsed, setQueueCollapsed] = useState(false);
   const [advancingOrderId, setAdvancingOrderId] = useState<string | null>(null);
+
+  const announceLabUpdate = async (order: any, title: string, message: string) => {
+    const doctorUserId = await authUserIdForStaff(order.doctor_id);
+    await notifyUser(doctorUserId, { title, message, category: "lab", referenceId: order.id, link: "/consultation" });
+    await notifyRoles(["nurse"], { title, message, category: "lab", referenceId: order.id, link: "/laboratory" });
+  };
 
   const advanceLabOrder = async (order: any, next: LabOrderStatus) => {
     setAdvancingOrderId(order.id);
@@ -215,6 +225,11 @@ const Laboratory = () => {
         module: "laboratory",
         details: { lab_order_id: order.id, status: next, patient_id: order.patient_id },
       });
+      await announceLabUpdate(
+        order,
+        `Lab order ${labOrderStatusLabel(next).toLowerCase()}`,
+        `${order.test?.test_name || "Lab test"} for ${order.patient?.profile?.full_name || "a patient"} is now ${labOrderStatusLabel(next).toLowerCase()}.`,
+      );
       toast({ title: labOrderStatusLabel(next), description: `${order.test?.test_name || "Lab order"} marked as ${labOrderStatusLabel(next).toLowerCase()}.` });
       fetchLabOrders();
     } catch (error) {
@@ -232,6 +247,11 @@ const Laboratory = () => {
 
   useEffect(() => {
     fetchLabOrders();
+    const channel = supabase
+      .channel("laboratory-lab-orders")
+      .on("postgres_changes", { event: "*", schema: "public", table: "lab_orders" }, () => fetchLabOrders())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   const fetchLabOrders = async () => {
@@ -364,6 +384,12 @@ const Laboratory = () => {
     } else {
       toast({ title: "Result saved", description: "Lab result recorded successfully" });
       logAuditEvent({ action: "lab_result_entered", module: "laboratory", details: { lab_order_id: selectedOrder.id, test: testName, patient_id: selectedOrder.patient_id } });
+      await announceLabUpdate(
+        selectedOrder,
+        overallFlag === "abnormal" ? "Abnormal lab result ready" : "Lab result ready",
+        `${testName || "Lab test"} for ${selectedOrder.patient?.profile?.full_name || "a patient"} is complete${overallFlag === "abnormal" ? " with abnormal values" : ""}.`,
+      );
+
 
       // Check if all lab orders for this encounter are complete
       const { data: pendingLabs } = await supabase
@@ -478,17 +504,26 @@ const Laboratory = () => {
                           <TableCell>{new Date(order.created_at).toLocaleString()}</TableCell>
                           <TableCell>
                             <div className="flex flex-col gap-2">
-                              {next && next !== "completed" && (
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  disabled={advancingOrderId === order.id}
-                                  onClick={() => advanceLabOrder(order, next)}
-                                >
-                                  {advanceActionLabel(next)}
-                                </Button>
+                              {canManageLab ? (
+                                <>
+                                  {next && next !== "completed" && (
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      disabled={advancingOrderId === order.id}
+                                      onClick={() => advanceLabOrder(order, next)}
+                                    >
+                                      {advanceActionLabel(next)}
+                                    </Button>
+                                  )}
+                                  <Button size="sm" onClick={() => openResultEntry(order)}>Enter Result</Button>
+                                </>
+                              ) : (
+                                <>
+                                  <Button size="sm" variant="outline" onClick={() => openResultEntry(order)}>View Progress</Button>
+                                  <span className="text-[11px] text-muted-foreground">Lab staff update these steps</span>
+                                </>
                               )}
-                              <Button size="sm" onClick={() => openResultEntry(order)}>Enter Result</Button>
                             </div>
                           </TableCell>
                         </TableRow>
@@ -587,7 +622,7 @@ const Laboratory = () => {
                               className="h-11 w-32 text-sm"
                               value={resultFields[field.name] || ""}
                               onChange={(e) => setResultFields({ ...resultFields, [field.name]: e.target.value })}
-                              disabled={selectedOrder.status === "completed"}
+                              disabled={!canManageLab || selectedOrder.status === "completed"}
                             />
                           </TableCell>
                           <TableCell className="text-sm text-muted-foreground">{field.unit}</TableCell>
@@ -612,7 +647,7 @@ const Laboratory = () => {
                   value={resultValue}
                   onChange={(e) => setResultValue(e.target.value)}
                   placeholder="e.g., Positive, 5.2 mmol/L"
-                  disabled={selectedOrder?.status === "completed"}
+                  disabled={!canManageLab || selectedOrder?.status === "completed"}
                   className="h-12 text-base"
                 />
                 {selectedOrder?.test?.normal_range && (
@@ -628,12 +663,12 @@ const Laboratory = () => {
                 onChange={(e) => setResultNotes(e.target.value)}
                 placeholder="Additional observations..."
                 rows={4}
-                disabled={selectedOrder?.status === "completed"}
+                disabled={!canManageLab || selectedOrder?.status === "completed"}
                 className="text-base"
               />
             </div>
 
-            {selectedOrder?.status !== "completed" && (
+            {canManageLab && selectedOrder?.status !== "completed" && (
               <div className="flex justify-end gap-2">
                 <Button variant="outline" onClick={() => setResultDialogOpen(false)}>Cancel</Button>
                 <Button variant="secondary" onClick={async () => {
