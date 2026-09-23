@@ -120,8 +120,9 @@ export function PatientJourney({ ticketId, patientId }: PatientJourneyProps) {
                     <div key={lo.id} className="border rounded p-2 space-y-2">
                       <div className="flex items-center justify-between">
                         <span className="font-medium">{testName}</span>
-                        <Badge variant={lo.status === "completed" ? "default" : "outline"}>{lo.status}</Badge>
+                        <Badge variant={lo.status === "completed" ? "default" : "outline"}>{labOrderStatusLabel(lo.status)}</Badge>
                       </div>
+                      <LabOrderTimeline order={lo as any} />
                       {fields.length > 0 ? (
                         <div className="space-y-1">
                           {fields.map((f: any) => (

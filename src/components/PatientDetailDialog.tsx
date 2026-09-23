@@ -512,9 +512,10 @@ export const PatientDetailDialog = ({
                                 variant={lab.status === "completed" ? "default" : "outline"}
                                 className="text-xs"
                               >
-                                {lab.status}
+                                {labOrderStatusLabel(lab.status)}
                               </Badge>
                             </div>
+                            <LabOrderTimeline order={lab} />
                             {fields.length > 0 ? (
                               <div className="space-y-1 border-t pt-2">
                                 {fields.map((f: any) => (
