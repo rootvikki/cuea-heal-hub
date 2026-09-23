@@ -476,6 +476,7 @@ const Consultation = () => {
     setSentLabTestIds([]);
     setSentImagingIds([]);
     setSentLabOrders([]);
+    setSentPrescriptions([]);
     const key = `draft-encounter-${ticket.id}`;
     const draft = localStorage.getItem(key);
     if (draft) {
@@ -523,6 +524,28 @@ const Consultation = () => {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [activeEncounterId, fetchPatientLabOrders]);
+
+  // ─── Prescriptions already sent to the pharmacy for this visit ─
+  const fetchPatientPrescriptions = useCallback(async () => {
+    if (!activeEncounterId) { setSentPrescriptions([]); return; }
+    const { data } = await supabase
+      .from("prescriptions")
+      .select("id, medication_name, dosage, quantity, dispensed, dispensed_at, created_at")
+      .eq("encounter_id", activeEncounterId)
+      .order("created_at", { ascending: true });
+    setSentPrescriptions((data as unknown as SentPrescription[]) || []);
+  }, [activeEncounterId]);
+
+  useEffect(() => { fetchPatientPrescriptions(); }, [fetchPatientPrescriptions]);
+
+  useEffect(() => {
+    if (!activeEncounterId) return;
+    const channel = supabase
+      .channel(`consult-prescriptions-${activeEncounterId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "prescriptions", filter: `encounter_id=eq.${activeEncounterId}` }, () => fetchPatientPrescriptions())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [activeEncounterId, fetchPatientPrescriptions]);
 
 
 
