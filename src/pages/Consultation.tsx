@@ -1486,25 +1486,49 @@ const Consultation = () => {
                             <div className="grid grid-cols-2 xl:grid-cols-3 gap-1.5 max-h-52 overflow-auto">
                               {filteredImaging.map((item) => {
                                 const selected = selectedImaging.includes(item.id);
+                                const alreadySent = sentImagingIds.includes(item.id);
                                 return (
                                   <div
                                     key={item.id}
-                                    className={`p-2 border rounded-lg cursor-pointer transition-all text-sm ${
-                                      selected ? "bg-purple-50 border-purple-300 ring-1 ring-purple-200" : "hover:bg-muted/50 hover:border-border"
+                                    className={`p-2 border rounded-lg transition-all text-sm ${alreadySent ? "cursor-default bg-green-50 border-green-300" : "cursor-pointer"} ${
+                                      selected && !alreadySent ? "bg-purple-50 border-purple-300 ring-1 ring-purple-200" : !alreadySent ? "hover:bg-muted/50 hover:border-border" : ""
                                     }`}
                                     onClick={() => {
+                                      if (alreadySent) return;
                                       if (selected) setSelectedImaging(selectedImaging.filter(i => i !== item.id));
                                       else setSelectedImaging([...selectedImaging, item.id]);
                                     }}
                                   >
                                     <div className="flex items-start justify-between gap-1">
                                       <p className="font-medium text-xs leading-tight">{item.name}</p>
-                                      {selected && <CheckCircle2 className="h-3.5 w-3.5 text-purple-600 shrink-0" />}
+                                      {(selected || alreadySent) && <CheckCircle2 className={`h-3.5 w-3.5 shrink-0 ${alreadySent ? "text-green-600" : "text-purple-600"}`} />}
                                     </div>
-                                    <p className="text-[10px] text-muted-foreground mt-0.5">{item.modality} · KES {item.price}</p>
+                                    <p className="text-[10px] text-muted-foreground mt-0.5">
+                                      {alreadySent ? "Sent to imaging" : `${item.modality} · KES ${item.price}`}
+                                    </p>
                                   </div>
                                 );
                               })}
+                            </div>
+
+                            {/* Send to Imaging */}
+                            <div className="rounded-lg border border-purple-200 bg-purple-50/60 p-3 flex items-center justify-between gap-3 flex-wrap">
+                              <p className="text-xs text-muted-foreground">
+                                {unsentImagingCount > 0
+                                  ? `${unsentImagingCount} request(s) ready to send`
+                                  : "Select imaging above, then send the request."}
+                              </p>
+                              <Button
+                                size="sm"
+                                className="h-10 px-4"
+                                disabled={unsentImagingCount === 0 || sendingImagingOrders}
+                                onClick={handleSendImagingOrders}
+                              >
+                                <Camera className="h-4 w-4 mr-1.5" />
+                                {sendingImagingOrders
+                                  ? "Sending..."
+                                  : `Send ${unsentImagingCount > 0 ? `${unsentImagingCount} request(s) ` : ""}to Imaging`}
+                              </Button>
                             </div>
                           </CardContent>
                         </Card>
