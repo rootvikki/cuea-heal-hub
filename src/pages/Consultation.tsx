@@ -278,6 +278,9 @@ const Consultation = () => {
   const [sendingLabOrders, setSendingLabOrders] = useState(false);
   const [sendingImagingOrders, setSendingImagingOrders] = useState(false);
   const [sentLabOrders, setSentLabOrders] = useState<SentLabOrder[]>([]);
+  const [sendingPrescriptions, setSendingPrescriptions] = useState(false);
+  const [sentPrescriptions, setSentPrescriptions] = useState<SentPrescription[]>([]);
+
 
   useEffect(() => {
     if (selectedTicket) setQueueCollapsed(true);
