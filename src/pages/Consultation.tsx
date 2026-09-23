@@ -25,6 +25,7 @@ import { PatientJourney } from "@/components/PatientJourney";
 import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline, deriveVisitPath } from "@/components/WorkflowTimeline";
 import { LabOrderTimeline, labOrderStatusLabel } from "@/components/LabOrderTimeline";
+import { PrescriptionTimeline, prescriptionStatusLabel } from "@/components/PrescriptionTimeline";
 import { PatientSummaryCard } from "@/components/PatientSummaryCard";
 import {
   Stethoscope, User, AlertTriangle, Activity, Pill, TestTube,
@@ -116,6 +117,17 @@ interface Prescription {
   quantity: number;
   instructions: string;
   route: string;
+  sent?: boolean;
+}
+
+interface SentPrescription {
+  id: string;
+  medication_name: string;
+  dosage: string | null;
+  quantity: number | null;
+  dispensed: boolean | null;
+  dispensed_at: string | null;
+  created_at: string | null;
 }
 
 interface InventoryItem {
@@ -267,6 +279,9 @@ const Consultation = () => {
   const [sendingLabOrders, setSendingLabOrders] = useState(false);
   const [sendingImagingOrders, setSendingImagingOrders] = useState(false);
   const [sentLabOrders, setSentLabOrders] = useState<SentLabOrder[]>([]);
+  const [sendingPrescriptions, setSendingPrescriptions] = useState(false);
+  const [sentPrescriptions, setSentPrescriptions] = useState<SentPrescription[]>([]);
+
 
   useEffect(() => {
     if (selectedTicket) setQueueCollapsed(true);
@@ -337,6 +352,10 @@ const Consultation = () => {
   const unsentImagingCount = useMemo(
     () => selectedImaging.filter(id => !sentImagingIds.includes(id)).length,
     [selectedImaging, sentImagingIds]
+  );
+  const unsentPrescriptionCount = useMemo(
+    () => prescriptions.filter(p => !p.sent).length,
+    [prescriptions]
   );
 
   const costEstimate = useMemo(() => {
@@ -458,6 +477,7 @@ const Consultation = () => {
     setSentLabTestIds([]);
     setSentImagingIds([]);
     setSentLabOrders([]);
+    setSentPrescriptions([]);
     const key = `draft-encounter-${ticket.id}`;
     const draft = localStorage.getItem(key);
     if (draft) {
@@ -505,6 +525,28 @@ const Consultation = () => {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [activeEncounterId, fetchPatientLabOrders]);
+
+  // ─── Prescriptions already sent to the pharmacy for this visit ─
+  const fetchPatientPrescriptions = useCallback(async () => {
+    if (!activeEncounterId) { setSentPrescriptions([]); return; }
+    const { data } = await supabase
+      .from("prescriptions")
+      .select("id, medication_name, dosage, quantity, dispensed, dispensed_at, created_at")
+      .eq("encounter_id", activeEncounterId)
+      .order("created_at", { ascending: true });
+    setSentPrescriptions((data as unknown as SentPrescription[]) || []);
+  }, [activeEncounterId]);
+
+  useEffect(() => { fetchPatientPrescriptions(); }, [fetchPatientPrescriptions]);
+
+  useEffect(() => {
+    if (!activeEncounterId) return;
+    const channel = supabase
+      .channel(`consult-prescriptions-${activeEncounterId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "prescriptions", filter: `encounter_id=eq.${activeEncounterId}` }, () => fetchPatientPrescriptions())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [activeEncounterId, fetchPatientPrescriptions]);
 
 
 
@@ -767,30 +809,75 @@ const Consultation = () => {
     }
   };
 
+  // ─── Send prescriptions to the pharmacy ───────────────────────
+  const sendPrescriptions = async (opts?: { encounterId?: string; moveTicket?: boolean; silent?: boolean }) => {
+    if (!selectedTicket?.patient?.id) return;
+    const pending = prescriptions.filter(p => !p.sent);
+    if (pending.length === 0) return;
+
+    const { staffId } = await resolveStaffAndDept();
+    const encounterId = opts?.encounterId ?? await ensureEncounter();
+
+    const { error: rxError } = await supabase.from("prescriptions").insert(
+      pending.map((p) => ({
+        encounter_id: encounterId,
+        patient_id: selectedTicket.patient!.id,
+        doctor_id: staffId,
+        medication_name: p.medication_name,
+        dosage: p.dosage,
+        frequency: p.frequency,
+        duration: p.duration,
+        quantity: p.quantity,
+        instructions: p.instructions,
+      }))
+    );
+    if (rxError) throw new Error(`Medications could not be sent to the pharmacy: ${rxError.message}`);
+
+    // Only move the patient to the pharmacy when nothing earlier is outstanding
+    const hasEarlierStation = sentLabTestIds.length > 0 || sentImagingIds.length > 0 ||
+      selectedLabTests.length > 0 || selectedImaging.length > 0;
+    if (opts?.moveTicket !== false && !hasEarlierStation) {
+      const { error: ticketError } = await supabase
+        .from("tickets")
+        .update({ workflow_stage: "at_pharmacy", status: "at_pharmacy" })
+        .eq("id", selectedTicket.id);
+      if (ticketError) throw new Error(`Patient could not be moved to the pharmacy: ${ticketError.message}`);
+    }
+
+    setPrescriptions(prev => prev.map(p => (p.sent ? p : { ...p, sent: true })));
+    logAuditEvent({ action: "prescriptions_sent", module: "consultation", details: { encounter_id: encounterId, patient_id: selectedTicket.patient.id, count: pending.length } });
+    if (!opts?.silent) {
+      toast({
+        title: "Sent to Pharmacy",
+        description: hasEarlierStation
+          ? `${pending.length} medication(s) sent. The pharmacy will see them when the patient arrives.`
+          : `${pending.length} medication(s) sent. The patient is now in the pharmacy queue.`,
+      });
+      fetchQueue();
+      fetchPatientPrescriptions();
+    }
+  };
+
+  const handleSendPrescriptions = async () => {
+    setSendingPrescriptions(true);
+    try {
+      await sendPrescriptions();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not send the medications. Please try again.";
+      toast({ title: "Could not send to pharmacy", description: message, variant: "destructive" });
+    } finally {
+      setSendingPrescriptions(false);
+    }
+  };
+
   const saveEncounter = async () => {
     if (!selectedTicket?.patient?.id) return;
     setSavingEncounter(true);
     try {
-      const { staffId } = await resolveStaffAndDept();
       const encounterId = await ensureEncounter();
 
-      if (prescriptions.length > 0) {
-        const prescriptionRecords = prescriptions.map((p) => ({
-          encounter_id: encounterId,
-          patient_id: selectedTicket.patient!.id,
-          doctor_id: staffId,
-          medication_name: p.medication_name,
-          dosage: p.dosage,
-          frequency: p.frequency,
-          duration: p.duration,
-          quantity: p.quantity,
-          instructions: p.instructions,
-        }));
-        const { error: rxError } = await supabase.from("prescriptions").insert(prescriptionRecords);
-        if (rxError) throw new Error(`Prescriptions could not be saved: ${rxError.message}`);
-      }
-
       // Send anything still unsent (already-sent orders are skipped)
+      await sendPrescriptions({ encounterId, moveTicket: false, silent: true });
       await sendLabOrders({ encounterId, moveTicket: false, silent: true });
       await sendImagingOrders({ encounterId, moveTicket: false, silent: true });
 
@@ -1380,15 +1467,60 @@ const Consultation = () => {
                                 {prescriptions.map((p, i) => (
                                   <div key={i} className="flex items-center justify-between p-2.5 bg-[hsl(var(--success))]/5 border border-[hsl(var(--success))]/20 rounded-lg">
                                     <div className="min-w-0">
-                                      <p className="font-medium text-sm">{p.medication_name}</p>
+                                      <div className="flex items-center gap-2">
+                                        <p className="font-medium text-sm">{p.medication_name}</p>
+                                        {p.sent && (
+                                          <Badge className="bg-[hsl(var(--success))]/15 text-[hsl(var(--success))] text-[10px] border-0">Sent to pharmacy</Badge>
+                                        )}
+                                      </div>
                                       <p className="text-[11px] text-muted-foreground mt-0.5">
                                         {p.route} · {p.dosage} · {p.frequency} · {p.duration} · Qty: {p.quantity}
                                       </p>
                                       {p.instructions && <p className="text-[11px] text-muted-foreground italic mt-0.5">{p.instructions}</p>}
                                     </div>
-                                    <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive shrink-0 h-7 w-7 p-0" onClick={() => removePrescription(i)}>
-                                      <X className="h-3.5 w-3.5" />
-                                    </Button>
+                                    {!p.sent && (
+                                      <Button size="sm" variant="ghost" className="text-muted-foreground hover:text-destructive shrink-0 h-7 w-7 p-0" onClick={() => removePrescription(i)}>
+                                        <X className="h-3.5 w-3.5" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {prescriptions.length > 0 && (
+                              <div className="mt-3 flex items-center justify-between gap-3 rounded-lg border border-[hsl(var(--success))]/30 bg-[hsl(var(--success))]/5 p-3">
+                                <p className="text-xs text-muted-foreground">
+                                  {unsentPrescriptionCount > 0
+                                    ? `${unsentPrescriptionCount} medication(s) ready to send`
+                                    : "All medications have been sent to the pharmacy"}
+                                </p>
+                                <Button
+                                  size="sm"
+                                  className="h-9 text-xs bg-[hsl(var(--success))] hover:bg-[hsl(var(--success))]/90 text-white"
+                                  disabled={unsentPrescriptionCount === 0 || sendingPrescriptions}
+                                  onClick={handleSendPrescriptions}
+                                >
+                                  <Pill className="h-3.5 w-3.5 mr-1.5" />
+                                  {sendingPrescriptions
+                                    ? "Sending..."
+                                    : `Send ${unsentPrescriptionCount > 0 ? `${unsentPrescriptionCount} medication(s) ` : ""}to Pharmacy`}
+                                </Button>
+                              </div>
+                            )}
+
+                            {sentPrescriptions.length > 0 && (
+                              <div className="mt-3 space-y-2">
+                                <p className="text-[11px] font-medium text-muted-foreground uppercase tracking-wide">Pharmacy progress</p>
+                                {sentPrescriptions.map((rx) => (
+                                  <div key={rx.id} className="rounded-lg border bg-card p-2.5">
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className="text-xs font-medium">{rx.medication_name}</span>
+                                      <Badge variant={rx.dispensed ? "default" : "outline"} className="text-[10px]">
+                                        {prescriptionStatusLabel(rx)}
+                                      </Badge>
+                                    </div>
+                                    <PrescriptionTimeline prescription={rx} />
                                   </div>
                                 ))}
                               </div>

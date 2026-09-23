@@ -26,6 +26,7 @@ import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
 import { PatientSummaryCard } from "@/components/PatientSummaryCard";
+import { PrescriptionTimeline } from "@/components/PrescriptionTimeline";
 
 const Pharmacy = () => {
   const { toast } = useToast();
@@ -281,6 +282,7 @@ const Pharmacy = () => {
                         <TableHead>Dosage</TableHead>
                         <TableHead>Qty</TableHead>
                         <TableHead>Instructions</TableHead>
+                        <TableHead>Progress</TableHead>
                         <TableHead>Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -295,6 +297,9 @@ const Pharmacy = () => {
                           <TableCell>{presc.dosage}</TableCell>
                           <TableCell>{presc.quantity}</TableCell>
                           <TableCell className="max-w-xs truncate">{presc.instructions || "-"}</TableCell>
+                          <TableCell className="min-w-[240px]">
+                            <PrescriptionTimeline prescription={presc} />
+                          </TableCell>
                           <TableCell>
                             <Button size="sm" onClick={() => {
                               const inventoryItem = inventory.find((item) => item.drug_name.toLowerCase().includes(presc.medication_name.toLowerCase()) || presc.medication_name.toLowerCase().includes(item.drug_name.toLowerCase()));

@@ -13,6 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { format } from "date-fns";
 import { LabOrderTimeline, labOrderStatusLabel } from "@/components/LabOrderTimeline";
+import { PrescriptionTimeline, prescriptionStatusLabel } from "@/components/PrescriptionTimeline";
 import {
   User,
   Heart,
@@ -581,9 +582,10 @@ export const PatientDetailDialog = ({
                               variant={rx.dispensed ? "default" : "outline"}
                               className="text-xs"
                             >
-                              {rx.dispensed ? "Dispensed" : "Pending"}
+                              {prescriptionStatusLabel(rx)}
                             </Badge>
                           </div>
+                          <PrescriptionTimeline prescription={rx} className="mt-2" />
                           {rx.instructions && (
                             <p className="text-xs text-muted-foreground mt-1">
                               {rx.instructions}
