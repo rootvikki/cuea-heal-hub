@@ -922,12 +922,18 @@ export type Database = {
       }
       lab_orders: {
         Row: {
+          collected_by: string | null
+          completed_at: string | null
           created_at: string | null
           doctor_id: string | null
           encounter_id: string
           flag: string | null
           id: string
           patient_id: string
+          processed_by: string | null
+          processing_started_at: string | null
+          received_at: string | null
+          received_by: string | null
           result_entered_at: string | null
           result_entered_by: string | null
           result_notes: string | null
@@ -937,12 +943,18 @@ export type Database = {
           test_id: string
         }
         Insert: {
+          collected_by?: string | null
+          completed_at?: string | null
           created_at?: string | null
           doctor_id?: string | null
           encounter_id: string
           flag?: string | null
           id?: string
           patient_id: string
+          processed_by?: string | null
+          processing_started_at?: string | null
+          received_at?: string | null
+          received_by?: string | null
           result_entered_at?: string | null
           result_entered_by?: string | null
           result_notes?: string | null
@@ -952,12 +964,18 @@ export type Database = {
           test_id: string
         }
         Update: {
+          collected_by?: string | null
+          completed_at?: string | null
           created_at?: string | null
           doctor_id?: string | null
           encounter_id?: string
           flag?: string | null
           id?: string
           patient_id?: string
+          processed_by?: string | null
+          processing_started_at?: string | null
+          received_at?: string | null
+          received_by?: string | null
           result_entered_at?: string | null
           result_entered_by?: string | null
           result_notes?: string | null
@@ -967,6 +985,13 @@ export type Database = {
           test_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "lab_orders_collected_by_fkey"
+            columns: ["collected_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "lab_orders_doctor_id_fkey"
             columns: ["doctor_id"]
@@ -986,6 +1011,20 @@ export type Database = {
             columns: ["patient_id"]
             isOneToOne: false
             referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lab_orders_processed_by_fkey"
+            columns: ["processed_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lab_orders_received_by_fkey"
+            columns: ["received_by"]
+            isOneToOne: false
+            referencedRelation: "staff"
             referencedColumns: ["id"]
           },
           {
