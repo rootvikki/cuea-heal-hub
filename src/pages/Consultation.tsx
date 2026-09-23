@@ -470,6 +470,30 @@ const Consultation = () => {
     setActiveTab("encounter");
   };
 
+  // ─── Lab orders already sent for this visit (with live status) ─
+  const fetchPatientLabOrders = useCallback(async () => {
+    if (!activeEncounterId) { setSentLabOrders([]); return; }
+    const { data } = await supabase
+      .from("lab_orders")
+      .select("id, status, created_at, received_at, sample_collected_at, processing_started_at, completed_at, result_entered_at, test:lab_tests_catalog(test_name)")
+      .eq("encounter_id", activeEncounterId)
+      .order("created_at", { ascending: true });
+    setSentLabOrders((data as unknown as SentLabOrder[]) || []);
+  }, [activeEncounterId]);
+
+  useEffect(() => { fetchPatientLabOrders(); }, [fetchPatientLabOrders]);
+
+  useEffect(() => {
+    if (!activeEncounterId) return;
+    const channel = supabase
+      .channel(`consult-lab-orders-${activeEncounterId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "lab_orders", filter: `encounter_id=eq.${activeEncounterId}` }, () => fetchPatientLabOrders())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [activeEncounterId, fetchPatientLabOrders]);
+
+
+
   // ─── Auto-fill chief complaint from triage ────────────────────
   useEffect(() => {
     if (patientVitals.length > 0 && !encounter.chiefComplaint && selectedTicket) {
