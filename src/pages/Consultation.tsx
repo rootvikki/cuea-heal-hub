@@ -486,81 +486,236 @@ const Consultation = () => {
     setPrescriptions(prescriptions.filter((_, i) => i !== index));
   };
 
+  // ─── Shared helpers: staff record, department, encounter ──────
+  const resolveStaffAndDept = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not authenticated");
+
+    let { data: staff } = await supabase.from("staff").select("id").eq("user_id", user.id).maybeSingle();
+    const { data: dept } = await supabase.from("departments").select("id").eq("name", "General Medicine").maybeSingle();
+
+    // Self-provision a staff record if the clinician account isn't linked yet
+    if (!staff?.id) {
+      const { data: createdStaff, error: staffError } = await supabase
+        .from("staff")
+        .insert({
+          user_id: user.id,
+          staff_id: `STF-${user.id.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
+          department_id: dept?.id ?? null,
+        })
+        .select("id")
+        .single();
+      if (staffError) throw new Error(`Your account is not linked to a staff record and it could not be created: ${staffError.message}`);
+      staff = createdStaff;
+    }
+
+    if (!staff?.id) throw new Error("No staff record found for current user. Please contact admin.");
+    if (!dept?.id) throw new Error("Department 'General Medicine' not found. Please contact admin.");
+    return { staffId: staff.id, deptId: dept.id };
+  };
+
+  const buildEncounterPayload = () => {
+    const fullSubjective = [
+      encounter.subjective,
+      encounter.historyOfPresentIllness && `HPI: ${encounter.historyOfPresentIllness}`,
+      encounter.pastMedicalHistory && `PMH: ${encounter.pastMedicalHistory}`,
+      encounter.pastSurgicalHistory && `PSH: ${encounter.pastSurgicalHistory}`,
+      encounter.medicineHistory && `Medications: ${encounter.medicineHistory}`,
+      encounter.socialHistory && `Social: ${encounter.socialHistory}`,
+    ].filter(Boolean).join("\n\n");
+
+    const fullObjective = [
+      encounter.objective,
+      encounter.physicalExamGeneral && `General Exam: ${encounter.physicalExamGeneral}`,
+      encounter.physicalExamSystemic && `Systemic Exam: ${encounter.physicalExamSystemic}`,
+    ].filter(Boolean).join("\n\n");
+
+    return {
+      chief_complaint: encounter.chiefComplaint,
+      subjective: fullSubjective,
+      objective: fullObjective,
+      assessment: encounter.assessment,
+      plan: encounter.plan,
+      diagnosis: encounter.diagnosis,
+      follow_up_date: encounter.followUpDate || null,
+    };
+  };
+
+  /** Returns the encounter id for the active visit, creating it (and the consultation charge) on first use. */
+  const ensureEncounter = async (): Promise<string> => {
+    if (activeEncounterId) {
+      await supabase.from("encounters").update(buildEncounterPayload()).eq("id", activeEncounterId);
+      return activeEncounterId;
+    }
+
+    const { staffId, deptId } = await resolveStaffAndDept();
+    const { data: encounterData, error: encounterError } = await supabase
+      .from("encounters")
+      .insert({
+        patient_id: selectedTicket!.patient!.id,
+        ticket_id: selectedTicket!.id,
+        doctor_id: staffId,
+        department_id: deptId,
+        ...buildEncounterPayload(),
+      })
+      .select("id")
+      .single();
+
+    if (encounterError) throw new Error(`The visit record could not be saved: ${encounterError.message}`);
+
+    await supabase.from("service_charges").insert({
+      patient_id: selectedTicket!.patient!.id,
+      encounter_id: encounterData.id,
+      ticket_id: selectedTicket!.id,
+      service_type: "consultation",
+      description: "Doctor Consultation",
+      amount: 500,
+      billing_stage: "consultation",
+    });
+
+    setActiveEncounterId(encounterData.id);
+    return encounterData.id;
+  };
+
+  // ─── Send lab orders to the laboratory ────────────────────────
+  const sendLabOrders = async (opts?: { encounterId?: string; moveTicket?: boolean; silent?: boolean }) => {
+    if (!selectedTicket?.patient?.id) return;
+    const pending = selectedLabTests.filter(id => !sentLabTestIds.includes(id));
+    if (pending.length === 0) return;
+
+    const { staffId } = await resolveStaffAndDept();
+    const encounterId = opts?.encounterId ?? await ensureEncounter();
+
+    const { error: labError } = await supabase.from("lab_orders").insert(
+      pending.map((testId) => ({
+        encounter_id: encounterId,
+        patient_id: selectedTicket.patient!.id,
+        doctor_id: staffId,
+        test_id: testId,
+        status: "pending",
+      }))
+    );
+    if (labError) throw new Error(`Lab tests could not be sent to the laboratory: ${labError.message}`);
+
+    for (const testId of pending) {
+      const test = labTests.find(t => t.id === testId);
+      if (test) {
+        await supabase.from("service_charges").insert({
+          patient_id: selectedTicket.patient!.id,
+          encounter_id: encounterId,
+          ticket_id: selectedTicket.id,
+          service_type: "laboratory",
+          description: `Lab: ${test.test_name}`,
+          amount: test.price,
+          billing_stage: "laboratory",
+        });
+      }
+    }
+
+    if (opts?.moveTicket !== false) {
+      const { error: ticketError } = await supabase
+        .from("tickets")
+        .update({ workflow_stage: "at_lab", status: "at_lab" })
+        .eq("id", selectedTicket.id);
+      if (ticketError) throw new Error(`Patient could not be moved to the laboratory: ${ticketError.message}`);
+    }
+
+    setSentLabTestIds(prev => [...prev, ...pending]);
+    logAuditEvent({ action: "lab_orders_sent", module: "consultation", details: { encounter_id: encounterId, patient_id: selectedTicket.patient.id, count: pending.length } });
+    if (!opts?.silent) {
+      toast({ title: "Sent to Laboratory", description: `${pending.length} test(s) sent. The patient is now in the laboratory queue.` });
+      fetchQueue();
+      fetchPatientLabOrders();
+    }
+  };
+
+  const sendImagingOrders = async (opts?: { encounterId?: string; moveTicket?: boolean; silent?: boolean }) => {
+    if (!selectedTicket?.patient?.id) return;
+    const pending = selectedImaging.filter(id => !sentImagingIds.includes(id));
+    if (pending.length === 0) return;
+
+    const { staffId } = await resolveStaffAndDept();
+    const encounterId = opts?.encounterId ?? await ensureEncounter();
+
+    const { error: imgError } = await supabase.from("imaging_orders").insert(
+      pending.map((imagingId) => ({
+        encounter_id: encounterId,
+        patient_id: selectedTicket.patient!.id,
+        imaging_id: imagingId,
+        ordered_by: staffId,
+        status: "pending",
+        clinical_indication: encounter.chiefComplaint,
+      }))
+    );
+    if (imgError) throw new Error(`Imaging requests could not be sent: ${imgError.message}`);
+
+    for (const imagingId of pending) {
+      const item = imagingItems.find(i => i.id === imagingId);
+      if (item) {
+        await supabase.from("service_charges").insert({
+          patient_id: selectedTicket.patient!.id,
+          encounter_id: encounterId,
+          ticket_id: selectedTicket.id,
+          service_type: "imaging",
+          description: `Imaging: ${item.name}`,
+          amount: item.price,
+          billing_stage: "imaging",
+        });
+      }
+    }
+
+    if (opts?.moveTicket !== false) {
+      const { error: ticketError } = await supabase
+        .from("tickets")
+        .update({ workflow_stage: "at_imaging", status: "at_imaging" })
+        .eq("id", selectedTicket.id);
+      if (ticketError) throw new Error(`Patient could not be moved to imaging: ${ticketError.message}`);
+    }
+
+    setSentImagingIds(prev => [...prev, ...pending]);
+    logAuditEvent({ action: "imaging_orders_sent", module: "consultation", details: { encounter_id: encounterId, patient_id: selectedTicket.patient.id, count: pending.length } });
+    if (!opts?.silent) {
+      toast({ title: "Sent to Imaging", description: `${pending.length} request(s) sent to imaging.` });
+      fetchQueue();
+    }
+  };
+
+  const handleSendLabOrders = async () => {
+    setSendingLabOrders(true);
+    try {
+      await sendLabOrders();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not send the lab tests. Please try again.";
+      toast({ title: "Could not send to laboratory", description: message, variant: "destructive" });
+    } finally {
+      setSendingLabOrders(false);
+    }
+  };
+
+  const handleSendImagingOrders = async () => {
+    setSendingImagingOrders(true);
+    try {
+      await sendImagingOrders();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not send the imaging requests. Please try again.";
+      toast({ title: "Could not send to imaging", description: message, variant: "destructive" });
+    } finally {
+      setSendingImagingOrders(false);
+    }
+  };
+
   const saveEncounter = async () => {
     if (!selectedTicket?.patient?.id) return;
     setSavingEncounter(true);
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Not authenticated");
-
-      let { data: staff } = await supabase.from("staff").select("id").eq("user_id", user.id).maybeSingle();
-      const { data: dept } = await supabase.from("departments").select("id").eq("name", "General Medicine").maybeSingle();
-
-      // Self-provision a staff record if the clinician account isn't linked yet
-      if (!staff?.id) {
-        const { data: createdStaff, error: staffError } = await supabase
-          .from("staff")
-          .insert({
-            user_id: user.id,
-            staff_id: `STF-${user.id.replace(/-/g, "").slice(0, 6).toUpperCase()}`,
-            department_id: dept?.id ?? null,
-          })
-          .select("id")
-          .single();
-        if (staffError) throw new Error(`Your account is not linked to a staff record and it could not be created: ${staffError.message}`);
-        staff = createdStaff;
-      }
-
-      const fullSubjective = [
-        encounter.subjective,
-        encounter.historyOfPresentIllness && `HPI: ${encounter.historyOfPresentIllness}`,
-        encounter.pastMedicalHistory && `PMH: ${encounter.pastMedicalHistory}`,
-        encounter.pastSurgicalHistory && `PSH: ${encounter.pastSurgicalHistory}`,
-        encounter.medicineHistory && `Medications: ${encounter.medicineHistory}`,
-        encounter.socialHistory && `Social: ${encounter.socialHistory}`,
-      ].filter(Boolean).join("\n\n");
-
-      const fullObjective = [
-        encounter.objective,
-        encounter.physicalExamGeneral && `General Exam: ${encounter.physicalExamGeneral}`,
-        encounter.physicalExamSystemic && `Systemic Exam: ${encounter.physicalExamSystemic}`,
-      ].filter(Boolean).join("\n\n");
-
-      const { data: encounterData, error: encounterError } = await supabase
-        .from("encounters")
-        .insert({
-          patient_id: selectedTicket.patient.id,
-          ticket_id: selectedTicket.id,
-          doctor_id: staff?.id ?? (() => { throw new Error("No staff record found for current user. Please contact admin."); })(),
-          department_id: dept?.id ?? (() => { throw new Error("Department 'General Medicine' not found. Please contact admin."); })(),
-          chief_complaint: encounter.chiefComplaint,
-          subjective: fullSubjective,
-          objective: fullObjective,
-          assessment: encounter.assessment,
-          plan: encounter.plan,
-          diagnosis: encounter.diagnosis,
-          follow_up_date: encounter.followUpDate || null,
-        })
-        .select()
-        .single();
-
-      if (encounterError) throw encounterError;
-
-      await supabase.from("service_charges").insert({
-        patient_id: selectedTicket.patient.id,
-        encounter_id: encounterData.id,
-        ticket_id: selectedTicket.id,
-        service_type: "consultation",
-        description: "Doctor Consultation",
-        amount: 500,
-        billing_stage: "consultation",
-      });
+      const { staffId } = await resolveStaffAndDept();
+      const encounterId = await ensureEncounter();
 
       if (prescriptions.length > 0) {
         const prescriptionRecords = prescriptions.map((p) => ({
-          encounter_id: encounterData.id,
+          encounter_id: encounterId,
           patient_id: selectedTicket.patient!.id,
-          doctor_id: staff!.id,
+          doctor_id: staffId,
           medication_name: p.medication_name,
           dosage: p.dosage,
           frequency: p.frequency,
@@ -572,60 +727,9 @@ const Consultation = () => {
         if (rxError) throw new Error(`Prescriptions could not be saved: ${rxError.message}`);
       }
 
-      if (selectedLabTests.length > 0) {
-        const labOrders = selectedLabTests.map((testId) => ({
-          encounter_id: encounterData.id,
-          patient_id: selectedTicket.patient!.id,
-          doctor_id: staff!.id,
-          test_id: testId,
-          status: "pending",
-        }));
-        const { error: labError } = await supabase.from("lab_orders").insert(labOrders);
-        if (labError) throw new Error(`Lab tests could not be sent to the laboratory: ${labError.message}`);
-
-        for (const testId of selectedLabTests) {
-          const test = labTests.find(t => t.id === testId);
-          if (test) {
-            await supabase.from("service_charges").insert({
-              patient_id: selectedTicket.patient!.id,
-              encounter_id: encounterData.id,
-              ticket_id: selectedTicket.id,
-              service_type: "laboratory",
-              description: `Lab: ${test.test_name}`,
-              amount: test.price,
-              billing_stage: "laboratory",
-            });
-          }
-        }
-      }
-
-      if (selectedImaging.length > 0) {
-        const imagingOrders = selectedImaging.map((imagingId) => ({
-          encounter_id: encounterData.id,
-          patient_id: selectedTicket.patient!.id,
-          imaging_id: imagingId,
-          ordered_by: staff!.id,
-          status: "pending",
-          clinical_indication: encounter.chiefComplaint,
-        }));
-        const { error: imgError } = await supabase.from("imaging_orders").insert(imagingOrders);
-        if (imgError) throw new Error(`Imaging requests could not be sent: ${imgError.message}`);
-
-        for (const imagingId of selectedImaging) {
-          const item = imagingItems.find(i => i.id === imagingId);
-          if (item) {
-            await supabase.from("service_charges").insert({
-              patient_id: selectedTicket.patient!.id,
-              encounter_id: encounterData.id,
-              ticket_id: selectedTicket.id,
-              service_type: "imaging",
-              description: `Imaging: ${item.name}`,
-              amount: item.price,
-              billing_stage: "imaging",
-            });
-          }
-        }
-      }
+      // Send anything still unsent (already-sent orders are skipped)
+      await sendLabOrders({ encounterId, moveTicket: false, silent: true });
+      await sendImagingOrders({ encounterId, moveTicket: false, silent: true });
 
       type WorkflowStage = "at_billing" | "at_imaging" | "at_lab" | "at_pharmacy" | "checked_in" | "checked_out" | "in_consult" | "order_placed_imaging" | "order_placed_lab" | "triage" | "waiting_for_doctor";
       let nextWfStage: WorkflowStage = "at_billing";
@@ -638,7 +742,7 @@ const Consultation = () => {
       localStorage.removeItem(`draft-encounter-${selectedTicket.id}`);
 
       toast({ title: "✅ Consultation Saved", description: `Patient moved to ${nextWfStage.replace(/_/g, " ")}.` });
-      logAuditEvent({ action: "consultation_saved", module: "consultation", details: { encounter_id: encounterData.id, patient_id: selectedTicket.patient!.id, next_stage: nextWfStage, diagnosis: encounter.diagnosis } });
+      logAuditEvent({ action: "consultation_saved", module: "consultation", details: { encounter_id: encounterId, patient_id: selectedTicket.patient!.id, next_stage: nextWfStage, diagnosis: encounter.diagnosis } });
       setSelectedTicket(null);
       setShowConfirmSave(false);
       fetchQueue();
