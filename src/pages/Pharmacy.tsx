@@ -21,7 +21,11 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useQueueTransition } from "@/hooks/useQueueTransition";
 import { StationQueue } from "@/components/StationQueue";
-import { Pill, Plus, Package, AlertTriangle, Search, ClipboardList } from "lucide-react";
+import { Pill, Plus, Package, AlertTriangle, Search, ClipboardList, PackagePlus } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { findInventoryItem, remainingQty, stockCheck, STOCK_LABELS } from "@/lib/pharmacyStock";
+import { ReplenishmentRequestDialog } from "@/components/ReplenishmentRequestDialog";
+import { ReplenishmentRequests } from "@/components/ReplenishmentRequests";
 import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
@@ -44,6 +48,10 @@ const Pharmacy = () => {
   const [dispenseConfirm, setDispenseConfirm] = useState<any>(null);
   const [queueCollapsed, setQueueCollapsed] = useState(false);
   const [advancingId, setAdvancingId] = useState<string | null>(null);
+  const [dispenseForm, setDispenseForm] = useState<{ mode: "full" | "partial" | "substitute"; qty: string; substituteId: string; reason: string }>({ mode: "full", qty: "", substituteId: "", reason: "" });
+  const [dispensing, setDispensing] = useState(false);
+  const [replenish, setReplenish] = useState<{ medicationName: string; inventoryId?: string; prescriptionId?: string; qty?: number } | null>(null);
+  const [replenishKey, setReplenishKey] = useState(0);
 
   useEffect(() => {
     if (selectedTicket) setQueueCollapsed(true);
@@ -167,62 +175,102 @@ const Pharmacy = () => {
     }
   };
 
-  const handleDispense = async (prescription: any) => {
-    const { id: prescriptionId, medication_name: medicationName, quantity, patient_id: patientId, encounter_id: encounterId } = prescription;
-    
-    const inventoryItem = inventory.find((item) => item.drug_name.toLowerCase().includes(medicationName.toLowerCase()) || medicationName.toLowerCase().includes(item.drug_name.toLowerCase()));
-    if (!inventoryItem) {
-      toast({ title: "Not found", description: "Medication not in inventory", variant: "destructive" });
-      return;
-    }
-    if (inventoryItem.quantity < quantity) {
-      toast({ title: "Insufficient stock", description: `Only ${inventoryItem.quantity} available`, variant: "destructive" });
-      return;
-    }
+  const confirmDispense = async () => {
+    if (!dispenseConfirm) return;
+    const presc = dispenseConfirm.prescription;
+    const need = remainingQty(presc);
+    const mode = dispenseForm.mode;
+    const item = mode === "substitute" ? inventory.find((i) => i.id === dispenseForm.substituteId) : dispenseConfirm.inventoryItem;
+    const qty = mode === "full" ? need : parseInt(dispenseForm.qty);
+    if (!item) { toast({ title: mode === "substitute" ? "Choose a substitute" : "Medication not in inventory", description: "Use Substitute or request replenishment.", variant: "destructive" }); return; }
+    if (!qty || qty <= 0) { toast({ title: "Enter a quantity", variant: "destructive" }); return; }
+    if (qty > item.quantity) { toast({ title: "Insufficient stock", description: `Only ${item.quantity} available`, variant: "destructive" }); return; }
+    if (mode !== "substitute" && qty > need) { toast({ title: "Too many", description: `Only ${need} still to dispense`, variant: "destructive" }); return; }
+    if (mode === "substitute" && !dispenseForm.reason.trim()) { toast({ title: "Enter a reason for the substitution", variant: "destructive" }); return; }
 
+    setDispensing(true);
+    try {
+      await performDispense(presc, item, qty, mode === "substitute" ? { name: item.drug_name, reason: dispenseForm.reason.trim() } : undefined);
+      setDispenseConfirm(null);
+    } catch (e) {
+      toast({ title: "Could not dispense", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+    } finally { setDispensing(false); }
+  };
+
+  const performDispense = async (prescription: any, inventoryItem: any, qty: number, substitution?: { name: string; reason: string }) => {
+    const { id: prescriptionId, medication_name: medicationName, patient_id: patientId, encounter_id: encounterId } = prescription;
     const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-    const { data: staff } = await supabase.from("staff").select("id").eq("user_id", user.id).single();
+    if (!user) throw new Error("Not signed in");
+    const { data: staff } = await supabase.from("staff").select("id").eq("user_id", user.id).maybeSingle();
 
-    // Update prescription
-    await supabase.from("prescriptions").update({
-      dispensed: true, status: "dispensed", dispensed_at: new Date().toISOString(), dispensed_by: staff?.id,
-    }).eq("id", prescriptionId);
+    // Substitution satisfies the whole prescription; otherwise accumulate
+    const totalGiven = substitution ? prescription.quantity : (prescription.quantity_dispensed || 0) + qty;
+    const complete = totalGiven >= prescription.quantity;
+    const now = new Date().toISOString();
+    const update: Record<string, unknown> = {
+      quantity_dispensed: totalGiven,
+      status: complete ? "dispensed" : "partially_dispensed",
+      dispensed_by: staff?.id,
+    };
+    if (complete) { update.dispensed = true; update.dispensed_at = now; }
+    if (!prescription.dispensing_started_at) update.dispensing_started_at = now;
+    if (substitution) { update.substituted_with = `${substitution.name} x${qty}`; update.substitution_reason = substitution.reason; }
+    const { error: pErr } = await supabase.from("prescriptions").update(update).eq("id", prescriptionId);
+    if (pErr) throw pErr;
 
-    // Update inventory
-    const newQty = inventoryItem.quantity - quantity;
-    await supabase.from("pharmacy_inventory").update({ quantity: newQty }).eq("id", inventoryItem.id);
+    const newQty = inventoryItem.quantity - qty;
+    const { error: iErr } = await supabase.from("pharmacy_inventory").update({ quantity: newQty }).eq("id", inventoryItem.id);
+    if (iErr) throw iErr;
 
-    // Record stock transaction
     await supabase.from("pharmacy_stock_transactions").insert({
       inventory_id: inventoryItem.id,
-      qty_issued: quantity,
+      qty_issued: qty,
       balance: newQty,
-      issued_to: `Patient: ${prescription.patient?.profile?.full_name || patientId}`,
+      issued_to: `Patient: ${prescription.patient?.profile?.full_name || patientId}${substitution ? " (substitute)" : ""}`,
       recorded_by: staff?.id,
       unit_price: inventoryItem.unit_price,
     });
 
-    // Generate service charge for pharmacy (include ticket_id for billing charge sheet)
     const activeTicket = await getActiveTicket(patientId);
     await supabase.from("service_charges").insert({
       patient_id: patientId,
       encounter_id: encounterId,
       ticket_id: activeTicket?.id || null,
       service_type: "pharmacy",
-      description: `Pharmacy: ${medicationName} x${quantity}`,
-      amount: inventoryItem.unit_price * quantity,
+      description: `Pharmacy: ${substitution ? `${substitution.name} (sub. for ${medicationName})` : medicationName} x${qty}${!complete ? " (partial)" : ""}`,
+      amount: inventoryItem.unit_price * qty,
       billing_stage: "pharmacy",
     });
 
-    toast({ title: "Dispensed", description: "Prescription dispensed, stock updated, charge recorded" });
-    logAuditEvent({ action: "prescription_dispensed", module: "pharmacy", details: { prescription_id: prescriptionId, medication: medicationName, quantity, patient_id: patientId } });
-    await notifyOrderingDoctor(prescription, "dispensed");
+    logAuditEvent({
+      action: substitution ? "prescription_substituted" : complete ? "prescription_dispensed" : "prescription_partially_dispensed",
+      module: "pharmacy",
+      details: { prescription_id: prescriptionId, medication: medicationName, dispensed_item: inventoryItem.drug_name, quantity: qty, total_given: totalGiven, patient_id: patientId, reason: substitution?.reason },
+    });
 
-    // Auto-transition
-    const ticket = await getActiveTicket(patientId);
-    if (ticket && (ticket.status === "at_pharmacy" || ticket.workflow_stage === "at_pharmacy") && encounterId) {
-      await onPrescriptionDispensed({ ticketId: ticket.id, encounterId });
+    const doctorUserId = await authUserIdForStaff(prescription.doctor_id);
+    if (substitution || !complete) {
+      await notifyUser(doctorUserId, {
+        title: substitution ? "Pharmacy substitution" : "Partial fill",
+        message: substitution
+          ? `${medicationName} for ${prescription.patient?.profile?.full_name || "a patient"} was substituted with ${substitution.name} x${qty}. Reason: ${substitution.reason}`
+          : `${medicationName} for ${prescription.patient?.profile?.full_name || "a patient"}: ${totalGiven} of ${prescription.quantity} given; ${prescription.quantity - totalGiven} still owed.`,
+        category: "pharmacy", referenceId: prescriptionId, link: "/consultation",
+      });
+    } else {
+      await notifyOrderingDoctor(prescription, "dispensed");
+    }
+
+    toast({
+      title: complete ? "Dispensed" : "Partially dispensed",
+      description: complete ? "Stock updated and charge recorded." : `${prescription.quantity - totalGiven} still owed — use "Dispense remaining" when stock arrives.`,
+    });
+
+    if (complete) {
+      const ticket = await getActiveTicket(patientId);
+      if (ticket && (ticket.status === "at_pharmacy" || ticket.workflow_stage === "at_pharmacy") && encounterId) {
+        await onPrescriptionDispensed({ ticketId: ticket.id, encounterId });
+      }
     }
 
     fetchInventory();
@@ -316,7 +364,12 @@ const Pharmacy = () => {
             <TabsTrigger value="prescriptions">Pending Rx ({prescriptions.length})</TabsTrigger>
             <TabsTrigger value="inventory">Inventory ({inventory.length})</TabsTrigger>
             <TabsTrigger value="stockcard">Stock Card</TabsTrigger>
+            <TabsTrigger value="replenishment">Replenishment</TabsTrigger>
           </TabsList>
+
+          <TabsContent value="replenishment">
+            <ReplenishmentRequests refreshKey={replenishKey} onStockChanged={fetchInventory} />
+          </TabsContent>
 
           {selectedTicket && <PatientSummaryCard patientId={selectedTicket.patient_id} ticketId={selectedTicket.id} />}
 
@@ -348,24 +401,44 @@ const Pharmacy = () => {
                             <p className="font-medium">{presc.patient?.profile?.full_name}</p>
                             <p className="text-sm text-muted-foreground">{presc.patient?.patient_id}</p>
                           </TableCell>
-                          <TableCell className="font-medium">{presc.medication_name}</TableCell>
+                          <TableCell className="font-medium">
+                            {presc.medication_name}
+                            {(() => {
+                              const need = remainingQty(presc);
+                              if (need <= 0) return null;
+                              const s = stockCheck(inventory, presc.medication_name, need);
+                              const cls = s.state === "in_stock" ? "bg-[hsl(var(--success))]/15 text-[hsl(var(--success))] border-transparent" : s.state === "partial" ? "bg-orange-100 text-orange-800 border-transparent" : "";
+                              return (
+                                <div className="mt-1">
+                                  <Badge variant={s.state === "in_stock" || s.state === "partial" ? "outline" : "destructive"} className={cls}>
+                                    {s.state === "partial" ? `Partial (${s.available} of ${need})` : STOCK_LABELS[s.state]}
+                                  </Badge>
+                                </div>
+                              );
+                            })()}
+                            {presc.substituted_with && <p className="text-xs text-muted-foreground mt-1">Substituted: {presc.substituted_with}</p>}
+                          </TableCell>
                           <TableCell>{presc.dosage}</TableCell>
-                          <TableCell>{presc.quantity}</TableCell>
+                          <TableCell>
+                            {presc.quantity}
+                            {presc.status === "partially_dispensed" && <p className="text-xs text-orange-700">Given {presc.quantity_dispensed} of {presc.quantity}</p>}
+                          </TableCell>
                           <TableCell className="max-w-xs truncate">{presc.instructions || "-"}</TableCell>
                           <TableCell className="min-w-[240px]">
                             <PrescriptionTimeline prescription={presc} />
                           </TableCell>
                           <TableCell>
                             {(() => {
-                              const current = prescriptionStatus(presc);
                               const next = nextPrescriptionStatus(presc);
                               return (
                                 <div className="flex flex-col gap-2">
                                   {next === "dispensed" ? (
                                     <Button size="sm" onClick={() => {
-                                      const inventoryItem = inventory.find((item) => item.drug_name.toLowerCase().includes(presc.medication_name.toLowerCase()) || presc.medication_name.toLowerCase().includes(item.drug_name.toLowerCase()));
+                                      const inventoryItem = findInventoryItem(inventory, presc.medication_name);
+                                      const need = remainingQty(presc);
+                                      setDispenseForm({ mode: (inventoryItem?.quantity || 0) >= need ? "full" : "partial", qty: String(Math.min(inventoryItem?.quantity || 0, need)), substituteId: "", reason: "" });
                                       setDispenseConfirm({ prescription: presc, inventoryItem });
-                                    }}>Dispense</Button>
+                                    }}>{presc.status === "partially_dispensed" ? "Dispense remaining" : "Dispense"}</Button>
                                   ) : next ? (
                                     <Button
                                       size="sm"
@@ -425,9 +498,12 @@ const Pharmacy = () => {
                         </TableCell>
                         <TableCell>KES {item.unit_price}</TableCell>
                         <TableCell>{item.expiry_date ? new Date(item.expiry_date).toLocaleDateString() : "-"}</TableCell>
-                        <TableCell>
+                        <TableCell className="flex gap-2">
                           <Button size="sm" variant="outline" onClick={() => openStockCard(item)}>
                             <ClipboardList className="h-4 w-4 mr-1" /> Card
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={() => setReplenish({ medicationName: item.drug_name, inventoryId: item.id, qty: Math.max((item.maximum_stock || item.reorder_level || 50) - item.quantity, 1) })}>
+                            <PackagePlus className="h-4 w-4 mr-1" /> Restock
                           </Button>
                         </TableCell>
                       </TableRow>
@@ -492,42 +568,94 @@ const Pharmacy = () => {
         </Tabs>
       </div>
 
-      {/* Dispense Confirmation Dialog */}
-      <AlertDialog open={!!dispenseConfirm} onOpenChange={(open) => !open && setDispenseConfirm(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Confirm Dispensing</AlertDialogTitle>
-            <AlertDialogDescription asChild>
-              <div className="space-y-3">
-                <p>Are you sure you want to dispense this medication? This action will deduct stock and cannot be undone.</p>
-                {dispenseConfirm && (
-                  <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
-                    <p><strong>Medication:</strong> {dispenseConfirm.prescription?.medication_name}</p>
-                    <p><strong>Patient:</strong> {dispenseConfirm.prescription?.patient?.profile?.full_name}</p>
-                    <p><strong>Quantity to dispense:</strong> {dispenseConfirm.prescription?.quantity}</p>
-                    {dispenseConfirm.inventoryItem ? (
-                      <p><strong>Current stock:</strong> {dispenseConfirm.inventoryItem.quantity} → {dispenseConfirm.inventoryItem.quantity - dispenseConfirm.prescription?.quantity} after dispensing</p>
-                    ) : (
-                      <p className="text-destructive font-medium">⚠ Medication not found in inventory</p>
-                    )}
+      {/* Dispense Dialog: full / partial / substitute */}
+      <Dialog open={!!dispenseConfirm} onOpenChange={(open) => !open && setDispenseConfirm(null)}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Dispense medication</DialogTitle>
+            <DialogDescription>Stock is checked before anything is deducted.</DialogDescription>
+          </DialogHeader>
+          {dispenseConfirm && (() => {
+            const p = dispenseConfirm.prescription;
+            const need = remainingQty(p);
+            const item = dispenseConfirm.inventoryItem;
+            const avail = item?.quantity || 0;
+            const subItem = inventory.find((i) => i.id === dispenseForm.substituteId);
+            return (
+              <div className="space-y-4">
+                <div className="p-3 bg-muted rounded-lg text-sm space-y-1">
+                  <p><strong>Patient:</strong> {p.patient?.profile?.full_name}</p>
+                  <p><strong>Medication:</strong> {p.medication_name}</p>
+                  <p><strong>Still to dispense:</strong> {need}{p.quantity_dispensed ? ` (of ${p.quantity}, ${p.quantity_dispensed} already given)` : ""}</p>
+                  <p><strong>In stock:</strong> {item ? `${avail} (${item.drug_name})` : "Not in inventory"}</p>
+                </div>
+                {avail < need && (
+                  <div className="flex items-start gap-2 p-3 rounded-lg border border-destructive/40 bg-destructive/10 text-sm">
+                    <AlertTriangle className="h-4 w-4 text-destructive mt-0.5" />
+                    <span>This prescription cannot be fully dispensed from stock. Give a partial fill, substitute, or request replenishment.</span>
                   </div>
                 )}
+                <div className="grid grid-cols-3 gap-2">
+                  {(["full", "partial", "substitute"] as const).map((m) => (
+                    <Button key={m} type="button" variant={dispenseForm.mode === m ? "default" : "outline"}
+                      disabled={m === "full" && avail < need}
+                      onClick={() => setDispenseForm({ ...dispenseForm, mode: m, qty: String(m === "partial" ? Math.min(avail, need) : need) })}>
+                      {m === "full" ? "Full" : m === "partial" ? "Partial fill" : "Substitute"}
+                    </Button>
+                  ))}
+                </div>
+                {dispenseForm.mode === "partial" && (
+                  <div className="space-y-2">
+                    <Label>Quantity to give now (max {Math.min(avail, need)})</Label>
+                    <Input type="number" min={1} max={Math.min(avail, need)} value={dispenseForm.qty} onChange={(e) => setDispenseForm({ ...dispenseForm, qty: e.target.value })} className="h-12" />
+                  </div>
+                )}
+                {dispenseForm.mode === "substitute" && (
+                  <div className="space-y-3">
+                    <div className="space-y-2">
+                      <Label>Substitute with</Label>
+                      <Select value={dispenseForm.substituteId} onValueChange={(v) => setDispenseForm({ ...dispenseForm, substituteId: v })}>
+                        <SelectTrigger className="h-12"><SelectValue placeholder="Choose an in-stock item" /></SelectTrigger>
+                        <SelectContent>
+                          {inventory.filter((i) => i.quantity > 0 && i.id !== item?.id).map((i) => (
+                            <SelectItem key={i.id} value={i.id}>{i.drug_name}{i.strength_size ? ` ${i.strength_size}` : ""}{i.generic_name ? ` (${i.generic_name})` : ""} — {i.quantity} in stock</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2"><Label>Quantity</Label><Input type="number" min={1} value={dispenseForm.qty} onChange={(e) => setDispenseForm({ ...dispenseForm, qty: e.target.value })} className="h-12" /></div>
+                      <div className="space-y-2"><Label>Reason</Label><Input value={dispenseForm.reason} onChange={(e) => setDispenseForm({ ...dispenseForm, reason: e.target.value })} placeholder="e.g. Out of stock" className="h-12" /></div>
+                    </div>
+                    {subItem && parseInt(dispenseForm.qty) > subItem.quantity && <p className="text-sm text-destructive">Only {subItem.quantity} of the substitute available.</p>}
+                  </div>
+                )}
+                <div className="flex justify-between gap-2 pt-2">
+                  <Button variant="ghost" onClick={() => { setReplenish({ medicationName: p.medication_name, inventoryId: item?.id, prescriptionId: p.id, qty: Math.max(need - avail, need) }); }}>
+                    <PackagePlus className="h-4 w-4 mr-1" /> Request replenishment
+                  </Button>
+                  <div className="flex gap-2">
+                    <Button variant="outline" onClick={() => setDispenseConfirm(null)}>Cancel</Button>
+                    <Button disabled={dispensing} onClick={confirmDispense}>{dispensing ? "Dispensing..." : "Confirm"}</Button>
+                  </div>
+                </div>
               </div>
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => {
-              if (dispenseConfirm?.prescription) {
-                handleDispense(dispenseConfirm.prescription);
-              }
-              setDispenseConfirm(null);
-            }}>
-              Confirm Dispense
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+            );
+          })()}
+        </DialogContent>
+      </Dialog>
+
+      {replenish && (
+        <ReplenishmentRequestDialog
+          open={!!replenish}
+          onOpenChange={(o) => !o && setReplenish(null)}
+          medicationName={replenish.medicationName}
+          inventoryId={replenish.inventoryId}
+          prescriptionId={replenish.prescriptionId}
+          suggestedQty={replenish.qty}
+          onCreated={() => setReplenishKey((k) => k + 1)}
+        />
+      )}
     </div>
   );
 };
