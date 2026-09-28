@@ -11,6 +11,7 @@ import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContaine
 import { FileText, Download, Filter, Users, DollarSign, Activity } from "lucide-react";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
+import { PaymentsReport } from "@/components/PaymentsReport";
 
 const AGE_GROUPS = [
   { label: "0-5 years", min: 0, max: 5 },
@@ -278,15 +279,20 @@ const Reports = () => {
 
   return (
     <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-3xl font-bold">Reports & Analytics</h1>
-          <p className="text-muted-foreground">Department-level reporting with PDF & CSV export</p>
-        </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-2" /> CSV</Button>
-          <Button variant="outline" onClick={exportPDF}><FileText className="h-4 w-4 mr-2" /> PDF</Button>
-        </div>
+      <div>
+        <h1 className="text-3xl font-bold">Reports & Analytics</h1>
+        <p className="text-muted-foreground">Department and payment reporting with PDF, Excel & CSV export</p>
+      </div>
+      <Tabs defaultValue={new URLSearchParams(window.location.search).get("tab") === "payments" ? "payments" : "clinical"}>
+        <TabsList>
+          <TabsTrigger value="clinical">Department Reports</TabsTrigger>
+          <TabsTrigger value="payments">Payments Report</TabsTrigger>
+        </TabsList>
+        <TabsContent value="payments" className="mt-6"><PaymentsReport /></TabsContent>
+        <TabsContent value="clinical" className="mt-6 space-y-6">
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={exportCSV}><Download className="h-4 w-4 mr-2" /> CSV</Button>
+        <Button variant="outline" onClick={exportPDF}><FileText className="h-4 w-4 mr-2" /> PDF</Button>
       </div>
 
       {/* Filter Panel */}
@@ -455,6 +461,8 @@ const Reports = () => {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+      </Tabs>
         </TabsContent>
       </Tabs>
     </div>
