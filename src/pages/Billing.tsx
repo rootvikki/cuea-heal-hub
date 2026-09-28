@@ -354,7 +354,10 @@ const Billing = () => {
             <h1 className="text-3xl font-bold flex items-center gap-2"><Receipt className="h-7 w-7 text-primary" /> Billing & Payments</h1>
             <p className="text-muted-foreground mt-1">Service charge accumulation & payment processing</p>
           </div>
-          {selectedTicket && <WorkflowTimeline currentStage={selectedTicket.workflow_stage || selectedTicket.status} />}
+          <div className="flex items-center gap-2">
+            {selectedTicket && <WorkflowTimeline currentStage={selectedTicket.workflow_stage || selectedTicket.status} />}
+            <Button variant="outline" onClick={() => { window.location.href = "/reports?tab=payments"; }}>Payments Report</Button>
+          </div>
         </div>
 
         {selectedTicket && <PatientSummaryCard patientId={selectedTicket.patient_id} ticketId={selectedTicket.id} />}
