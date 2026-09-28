@@ -289,6 +289,7 @@ const Billing = () => {
         payment_method: paymentMethod as any,
         transaction_ref: `${paymentMethod.toUpperCase()}-${Date.now().toString().slice(-8)}`,
         status: "completed",
+        received_by: (await supabase.auth.getUser()).data.user?.id ?? null,
       });
 
       if (!payError) {
