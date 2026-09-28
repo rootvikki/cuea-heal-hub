@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { stockCheck, STOCK_LABELS } from "@/lib/pharmacyStock";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1485,6 +1486,15 @@ const Consultation = () => {
                                         {p.sent && (
                                           <Badge className="bg-[hsl(var(--success))]/15 text-[hsl(var(--success))] text-[10px] border-0">Sent to pharmacy</Badge>
                                         )}
+                                        {!p.sent && (() => {
+                                          const s = stockCheck(pharmacyInventory, p.medication_name, p.quantity || 1);
+                                          if (s.state === "in_stock") return null;
+                                          return (
+                                            <Badge variant="destructive" className="text-[10px]">
+                                              {s.state === "partial" ? `Only ${s.available} in stock` : STOCK_LABELS[s.state]}
+                                            </Badge>
+                                          );
+                                        })()}
                                       </div>
                                       <p className="text-[11px] text-muted-foreground mt-0.5">
                                         {p.route} · {p.dosage} · {p.frequency} · {p.duration} · Qty: {p.quantity}
@@ -2032,6 +2042,15 @@ const Consultation = () => {
                 </Field>
                 <Field label="Quantity">
                   <Input type="number" value={currentPrescription.quantity} onChange={(e) => setCurrentPrescription({ ...currentPrescription, quantity: parseInt(e.target.value) || 1 })} min="1" className="text-sm h-11" />
+                  {currentPrescription.medication_name && (() => {
+                    const s = stockCheck(pharmacyInventory, currentPrescription.medication_name, currentPrescription.quantity || 1);
+                    if (s.state === "in_stock") return null;
+                    return (
+                      <p className="text-xs text-destructive mt-1">
+                        {s.state === "partial" ? `Only ${s.available} in stock — pharmacy may give a partial fill.` : `${STOCK_LABELS[s.state]} — pharmacy may substitute.`}
+                      </p>
+                    );
+                  })()}
                 </Field>
               </div>
 

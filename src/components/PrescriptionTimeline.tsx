@@ -49,6 +49,7 @@ export interface PrescriptionTimelineItem {
 
 export const prescriptionStatus = (item: PrescriptionTimelineItem): PrescriptionStatus => {
   const raw = (item.status || "") as PrescriptionStatus;
+  if ((item.status as string) === "partially_dispensed") return "dispensing";
   if (PRESCRIPTION_STATUSES.includes(raw)) return raw;
   return item.dispensed ? "dispensed" : "sent";
 };

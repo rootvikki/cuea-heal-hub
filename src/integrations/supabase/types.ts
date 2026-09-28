@@ -1450,6 +1450,7 @@ export type Database = {
           paid_at: string | null
           patient_id: string
           payment_method: Database["public"]["Enums"]["payment_method"]
+          received_by: string | null
           status: string | null
           transaction_ref: string | null
         }
@@ -1461,6 +1462,7 @@ export type Database = {
           paid_at?: string | null
           patient_id: string
           payment_method: Database["public"]["Enums"]["payment_method"]
+          received_by?: string | null
           status?: string | null
           transaction_ref?: string | null
         }
@@ -1472,6 +1474,7 @@ export type Database = {
           paid_at?: string | null
           patient_id?: string
           payment_method?: Database["public"]["Enums"]["payment_method"]
+          received_by?: string | null
           status?: string | null
           transaction_ref?: string | null
         }
@@ -1548,6 +1551,78 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      pharmacy_replenishment_requests: {
+        Row: {
+          approved_at: string | null
+          approved_by: string | null
+          created_at: string
+          id: string
+          inventory_id: string | null
+          medication_name: string
+          notes: string | null
+          ordered_at: string | null
+          prescription_id: string | null
+          quantity_requested: number
+          received_at: string | null
+          received_qty: number | null
+          requested_by: string | null
+          status: string
+          updated_at: string
+          urgency: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          id?: string
+          inventory_id?: string | null
+          medication_name: string
+          notes?: string | null
+          ordered_at?: string | null
+          prescription_id?: string | null
+          quantity_requested: number
+          received_at?: string | null
+          received_qty?: number | null
+          requested_by?: string | null
+          status?: string
+          updated_at?: string
+          urgency?: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by?: string | null
+          created_at?: string
+          id?: string
+          inventory_id?: string | null
+          medication_name?: string
+          notes?: string | null
+          ordered_at?: string | null
+          prescription_id?: string | null
+          quantity_requested?: number
+          received_at?: string | null
+          received_qty?: number | null
+          requested_by?: string | null
+          status?: string
+          updated_at?: string
+          urgency?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pharmacy_replenishment_requests_inventory_id_fkey"
+            columns: ["inventory_id"]
+            isOneToOne: false
+            referencedRelation: "pharmacy_inventory"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pharmacy_replenishment_requests_prescription_id_fkey"
+            columns: ["prescription_id"]
+            isOneToOne: false
+            referencedRelation: "prescriptions"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pharmacy_stock_transactions: {
         Row: {
@@ -1689,11 +1764,14 @@ export type Database = {
           medication_name: string
           patient_id: string
           quantity: number
+          quantity_dispensed: number
           received_at: string | null
           received_by: string | null
           reviewed_at: string | null
           reviewed_by: string | null
           status: string
+          substituted_with: string | null
+          substitution_reason: string | null
         }
         Insert: {
           collected_at?: string | null
@@ -1713,11 +1791,14 @@ export type Database = {
           medication_name: string
           patient_id: string
           quantity: number
+          quantity_dispensed?: number
           received_at?: string | null
           received_by?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
+          substituted_with?: string | null
+          substitution_reason?: string | null
         }
         Update: {
           collected_at?: string | null
@@ -1737,11 +1818,14 @@ export type Database = {
           medication_name?: string
           patient_id?: string
           quantity?: number
+          quantity_dispensed?: number
           received_at?: string | null
           received_by?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
+          substituted_with?: string | null
+          substitution_reason?: string | null
         }
         Relationships: [
           {

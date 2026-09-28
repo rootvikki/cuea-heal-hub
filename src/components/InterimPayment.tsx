@@ -107,6 +107,7 @@ export function InterimPayment({ ticketId, patientId }: InterimPaymentProps) {
         payment_method: method as any,
         status: "completed",
         paid_at: new Date().toISOString(),
+        received_by: (await supabase.auth.getUser()).data.user?.id ?? null,
       });
 
       // Update invoice
