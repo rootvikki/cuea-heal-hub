@@ -926,6 +926,9 @@ export type Database = {
           completed_at: string | null
           created_at: string | null
           doctor_id: string | null
+          doctor_review_comments: string | null
+          doctor_reviewed_at: string | null
+          doctor_reviewed_by: string | null
           encounter_id: string
           flag: string | null
           id: string
@@ -947,6 +950,9 @@ export type Database = {
           completed_at?: string | null
           created_at?: string | null
           doctor_id?: string | null
+          doctor_review_comments?: string | null
+          doctor_reviewed_at?: string | null
+          doctor_reviewed_by?: string | null
           encounter_id: string
           flag?: string | null
           id?: string
@@ -968,6 +974,9 @@ export type Database = {
           completed_at?: string | null
           created_at?: string | null
           doctor_id?: string | null
+          doctor_review_comments?: string | null
+          doctor_reviewed_at?: string | null
+          doctor_reviewed_by?: string | null
           encounter_id?: string
           flag?: string | null
           id?: string
@@ -995,6 +1004,13 @@ export type Database = {
           {
             foreignKeyName: "lab_orders_doctor_id_fkey"
             columns: ["doctor_id"]
+            isOneToOne: false
+            referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "lab_orders_doctor_reviewed_by_fkey"
+            columns: ["doctor_reviewed_by"]
             isOneToOne: false
             referencedRelation: "staff"
             referencedColumns: ["id"]
@@ -2604,6 +2620,39 @@ export type Database = {
           _title: string
         }
         Returns: number
+      }
+      sign_off_lab_order: {
+        Args: { _comments: string; _order_id: string }
+        Returns: {
+          collected_by: string | null
+          completed_at: string | null
+          created_at: string | null
+          doctor_id: string | null
+          doctor_review_comments: string | null
+          doctor_reviewed_at: string | null
+          doctor_reviewed_by: string | null
+          encounter_id: string
+          flag: string | null
+          id: string
+          patient_id: string
+          processed_by: string | null
+          processing_started_at: string | null
+          received_at: string | null
+          received_by: string | null
+          result_entered_at: string | null
+          result_entered_by: string | null
+          result_notes: string | null
+          result_value: string | null
+          sample_collected_at: string | null
+          status: string | null
+          test_id: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "lab_orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
       }
     }
     Enums: {

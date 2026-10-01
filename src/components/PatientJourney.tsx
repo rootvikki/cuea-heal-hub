@@ -6,6 +6,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { Activity, TestTube, Camera, Pill, Receipt, Stethoscope, Heart } from "lucide-react";
 import { LabOrderTimeline, labOrderStatusLabel } from "@/components/LabOrderTimeline";
+import { LabResultSignOff } from "@/components/LabResultSignOff";
 import { PrescriptionTimeline, prescriptionStatusLabel } from "@/components/PrescriptionTimeline";
 
 interface PatientJourneyProps {
@@ -125,6 +126,7 @@ export function PatientJourney({ ticketId, patientId }: PatientJourneyProps) {
                         <Badge variant={lo.status === "completed" ? "default" : "outline"}>{labOrderStatusLabel(lo.status)}</Badge>
                       </div>
                       <LabOrderTimeline order={lo as any} />
+                      {lo.status === "completed" && <LabResultSignOff order={lo as any} canSignOff={false} />}
                       {fields.length > 0 ? (
                         <div className="space-y-1">
                           {fields.map((f: any) => (
