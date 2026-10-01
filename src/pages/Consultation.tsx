@@ -511,7 +511,7 @@ const Consultation = () => {
     if (!activeEncounterId) { setSentLabOrders([]); return; }
     const { data } = await supabase
       .from("lab_orders")
-      .select("id, status, created_at, received_at, sample_collected_at, processing_started_at, completed_at, result_entered_at, test:lab_tests_catalog(test_name)")
+      .select("id, status, created_at, received_at, sample_collected_at, processing_started_at, completed_at, result_entered_at, result_value, result_notes, flag, test:lab_tests_catalog(test_name), lab_result_fields(id, field_name, field_value, unit, reference_range, flag, sort_order)")
       .eq("encounter_id", activeEncounterId)
       .order("created_at", { ascending: true });
     setSentLabOrders((data as unknown as SentLabOrder[]) || []);
@@ -1631,6 +1631,25 @@ const Consultation = () => {
                                       <Badge variant="secondary" className="text-[10px]">{labOrderStatusLabel(order.status)}</Badge>
                                     </div>
                                     <LabOrderTimeline order={order} />
+                                    {order.status === "completed" && (() => {
+                                      const o = order as any;
+                                      const fields = [...(o.lab_result_fields || [])].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+                                      return (
+                                        <div className="rounded-md bg-muted/50 p-2 space-y-1 text-xs">
+                                          <p className="font-semibold">Results{o.flag === "abnormal" && <span className="ml-2 text-destructive">Abnormal</span>}</p>
+                                          {fields.length > 0 ? fields.map((f: any) => (
+                                            <div key={f.id} className="flex justify-between gap-2">
+                                              <span>{f.field_name}</span>
+                                              <span className={f.flag ? "font-semibold text-destructive" : ""}>
+                                                {f.field_value || "–"} {f.unit || ""} {f.flag ? `(${f.flag})` : ""}
+                                                {f.reference_range && <span className="text-muted-foreground font-normal"> · ref {f.reference_range}</span>}
+                                              </span>
+                                            </div>
+                                          )) : <p>{o.result_value || "–"}</p>}
+                                          {o.result_notes && <p className="text-muted-foreground">Notes: {o.result_notes}</p>}
+                                        </div>
+                                      );
+                                    })()}
                                   </div>
                                 ))}
                               </div>
