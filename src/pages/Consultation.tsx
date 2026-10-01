@@ -27,6 +27,7 @@ import { notifyRoles } from "@/lib/notifications";
 import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline, deriveVisitPath } from "@/components/WorkflowTimeline";
 import { LabOrderTimeline, labOrderStatusLabel } from "@/components/LabOrderTimeline";
+import { LabResultSignOff } from "@/components/LabResultSignOff";
 import { PrescriptionTimeline, prescriptionStatusLabel } from "@/components/PrescriptionTimeline";
 import { PatientSummaryCard } from "@/components/PatientSummaryCard";
 import {
@@ -511,7 +512,7 @@ const Consultation = () => {
     if (!activeEncounterId) { setSentLabOrders([]); return; }
     const { data } = await supabase
       .from("lab_orders")
-      .select("id, status, created_at, received_at, sample_collected_at, processing_started_at, completed_at, result_entered_at, result_value, result_notes, flag, test:lab_tests_catalog(test_name), lab_result_fields(id, field_name, field_value, unit, reference_range, flag, sort_order)")
+      .select("id, status, created_at, received_at, sample_collected_at, processing_started_at, completed_at, result_entered_at, result_value, result_notes, flag, doctor_reviewed_at, doctor_review_comments, doctor_reviewed_by, test:lab_tests_catalog(test_name), lab_result_fields(id, field_name, field_value, unit, reference_range, flag, sort_order)")
       .eq("encounter_id", activeEncounterId)
       .order("created_at", { ascending: true });
     setSentLabOrders((data as unknown as SentLabOrder[]) || []);
@@ -1650,6 +1651,9 @@ const Consultation = () => {
                                         </div>
                                       );
                                     })()}
+                                    {order.status === "completed" && (
+                                      <LabResultSignOff order={order as any} canSignOff onSigned={fetchPatientLabOrders} />
+                                    )}
                                   </div>
                                 ))}
                               </div>
