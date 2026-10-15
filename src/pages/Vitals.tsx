@@ -1,4 +1,5 @@
 import { ProceduresToPerform } from "@/components/ConsultationExtras";
+import { DirectOrderDialog } from "@/components/DirectOrderDialog";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,6 +66,7 @@ const getRRClass = (val: string) => {
 const Vitals = () => {
   const { toast } = useToast();
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [directMode, setDirectMode] = useState<"lab" | "pharmacy" | null>(null);
   const [saving, setSaving] = useState(false);
   const [queueCollapsed, setQueueCollapsed] = useState(false);
   const [urgencyPriority, setUrgencyPriority] = useState("1");
