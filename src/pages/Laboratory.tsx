@@ -13,7 +13,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { useToast } from "@/hooks/use-toast";
 import { useQueueTransition } from "@/hooks/useQueueTransition";
 import { StationQueue } from "@/components/StationQueue";
-import { TestTube, Search } from "lucide-react";
+import { TestTube, Search, Printer } from "lucide-react";
+import { printLabReport } from "@/lib/labReport";
 import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
 import { WorkflowTimeline } from "@/components/WorkflowTimeline";
