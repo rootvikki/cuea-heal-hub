@@ -34,30 +34,39 @@ const advanceActionLabel = (status: LabOrderStatus) => {
 // Structured result field definitions per test type
 const STRUCTURED_FIELDS: Record<string, { name: string; unit?: string; ref?: string; refMale?: string; refFemale?: string }[]> = {
   "Full Hemogram": [
-    { name: "WBC", unit: "x10³/µL", ref: "4.0-10.0" },
-    { name: "NEU#", unit: "x10³/µL", ref: "2.0-7.0" },
-    { name: "LYM#", unit: "x10³/µL", ref: "1.0-3.0" },
-    { name: "MON#", unit: "x10³/µL", ref: "0.2-1.0" },
-    { name: "EOS#", unit: "x10³/µL", ref: "0.02-0.5" },
-    { name: "BAS#", unit: "x10³/µL", ref: "0.0-0.1" },
-    { name: "NEU%", unit: "%", ref: "40-70" },
-    { name: "LYM%", unit: "%", ref: "20-40" },
-    { name: "MON%", unit: "%", ref: "2-8" },
-    { name: "EOS%", unit: "%", ref: "1-4" },
-    { name: "BAS%", unit: "%", ref: "0-1" },
-    { name: "RBC", unit: "x10⁶/µL", refMale: "4.5-5.5", refFemale: "3.8-4.8" },
-    { name: "HGB", unit: "g/dL", refMale: "13.0-17.0", refFemale: "12.0-16.0" },
-    { name: "HCT", unit: "%", refMale: "40-54", refFemale: "36-48" },
-    { name: "MCV", unit: "fL", ref: "80-100" },
-    { name: "MCH", unit: "pg", ref: "27-33" },
-    { name: "MCHC", unit: "g/dL", ref: "32-36" },
-    { name: "RDW-CV", unit: "%", ref: "11.5-14.5" },
-    { name: "RDW-SD", unit: "fL", ref: "35-56" },
-    { name: "PLT", unit: "x10³/µL", ref: "150-400" },
-    { name: "MPV", unit: "fL", ref: "7.5-11.5" },
-    { name: "PDW", unit: "%", ref: "9.0-17.0" },
-    { name: "PCT", unit: "%", ref: "0.1-0.5" },
-    { name: "P-LCR", unit: "%", ref: "13-43" },
+    { name: "WBC", unit: "10^3/µL", ref: "3.50-9.50" },
+    { name: "NEU#", unit: "10^3/µL", ref: "1.80-6.30" },
+    { name: "NEU%", unit: "%", ref: "40.0-75.0" },
+    { name: "LYM#", unit: "10^3/µL", ref: "1.10-3.20" },
+    { name: "LYM%", unit: "%", ref: "20.0-50.0" },
+    { name: "MON#", unit: "10^3/µL", ref: "0.10-0.60" },
+    { name: "MON%", unit: "%", ref: "3.0-10.0" },
+    { name: "EOS#", unit: "10^3/µL", ref: "0.02-0.52" },
+    { name: "EOS%", unit: "%", ref: "0.4-8.0" },
+    { name: "BAS#", unit: "10^3/µL", ref: "0.00-0.06" },
+    { name: "BAS%", unit: "%", ref: "0.0-1.0" },
+    { name: "RBC", unit: "10^6/µL", ref: "3.80-5.80" },
+    { name: "HGB", unit: "g/dL", ref: "11.5-17.5" },
+    { name: "HCT", unit: "%", ref: "35.0-50.0" },
+    { name: "MCV", unit: "fL", ref: "82.0-100.0" },
+    { name: "MCH", unit: "pg", ref: "27.0-34.0" },
+    { name: "MCHC", unit: "g/dL", ref: "31.6-35.4" },
+    { name: "RDW_CV", unit: "%", ref: "10.0-15.0" },
+    { name: "RDW_SD", unit: "fL", ref: "35.0-56.0" },
+    { name: "PLT", unit: "10^3/µL", ref: "125-350" },
+    { name: "MPV", unit: "fL", ref: "6.5-12.0" },
+    { name: "PDW", unit: "", ref: "9.0-17.0" },
+    { name: "PCT", unit: "%", ref: "0.17-0.35" },
+    { name: "P_LCR", unit: "%", ref: "11.0-45.0" },
+    { name: "P_LCC", unit: "10^3/µL", ref: "30-90" },
+    { name: "*ALY#", unit: "10^3/µL" },
+    { name: "*ALY%", unit: "%" },
+    { name: "*LIC#", unit: "10^3/µL" },
+    { name: "*LIC%", unit: "%" },
+    { name: "*NLR", unit: "" },
+    { name: "*PLR", unit: "" },
+    { name: "*NRBC#", unit: "10^9/L" },
+    { name: "*NRBC%", unit: "%" },
   ],
   "Urinalysis": [
     { name: "Color", unit: "" },
@@ -627,9 +636,18 @@ const Laboratory = () => {
                           <TableCell className="font-medium">{field.name}</TableCell>
                           <TableCell>
                             <Input
+                              data-lab-field
                               className="h-11 w-32 text-sm"
                               value={resultFields[field.name] || ""}
                               onChange={(e) => setResultFields({ ...resultFields, [field.name]: e.target.value })}
+                              onKeyDown={(e) => {
+                                if (!["ArrowDown", "ArrowUp", "Enter"].includes(e.key)) return;
+                                e.preventDefault();
+                                const all = Array.from(document.querySelectorAll<HTMLInputElement>("input[data-lab-field]"));
+                                const i = all.indexOf(e.currentTarget);
+                                const next = all[e.key === "ArrowUp" ? i - 1 : i + 1];
+                                next?.focus(); next?.select();
+                              }}
                               disabled={!canManageLab || selectedOrder.status === "completed"}
                             />
                           </TableCell>
@@ -676,12 +694,22 @@ const Laboratory = () => {
               />
             </div>
 
-            {canManageLab && selectedOrder?.status !== "completed" && (
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setResultDialogOpen(false)}>Cancel</Button>
-                <Button onClick={handleSaveResult}>Send Results to Doctor</Button>
-              </div>
-            )}
+            <div className="flex justify-end gap-2">
+              {selectedOrder && (
+                <Button
+                  variant="outline"
+                  onClick={() => printLabReport(selectedOrder, STRUCTURED_FIELDS[selectedOrder.test?.test_name] || null, resultFields, resultValue, resultNotes)}
+                >
+                  <Printer className="h-4 w-4 mr-1" /> Print results
+                </Button>
+              )}
+              {canManageLab && selectedOrder?.status !== "completed" && (
+                <>
+                  <Button variant="outline" onClick={() => setResultDialogOpen(false)}>Cancel</Button>
+                  <Button onClick={handleSaveResult}>Send Results to Doctor</Button>
+                </>
+              )}
+            </div>
           </div>
         </DialogContent>
       </Dialog>
