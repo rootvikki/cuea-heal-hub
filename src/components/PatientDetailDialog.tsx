@@ -25,7 +25,22 @@ import {
   Mail,
   Shield,
   Calendar,
+  Pencil,
 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { EditBiodataDialog } from "@/components/EditBiodataDialog";
+
+export const ageLabel = (dob?: string | null) => {
+  if (!dob) return "—";
+  const d = new Date(dob);
+  const now = new Date();
+  let years = now.getFullYear() - d.getFullYear();
+  let months = now.getMonth() - d.getMonth();
+  if (now.getDate() < d.getDate()) months--;
+  if (months < 0) { years--; months += 12; }
+  if (years < 1) return `${months} mo`;
+  return `${years} yrs`;
+};
 
 interface PatientDetailDialogProps {
   patientId: string | null;
@@ -41,6 +56,8 @@ export const PatientDetailDialog = ({
   const { hasAnyRole } = useUser();
   const isDoctor = hasAnyRole(["doctor", "clinical_officer", "super_admin"]);
   const isClinicalStaff = hasAnyRole(["doctor", "clinical_officer", "nurse", "ward_manager", "super_admin", "admin"]);
+  const canEditBiodata = hasAnyRole(["receptionist", "records_officer", "admin", "super_admin"]);
+  const [editOpen, setEditOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [patient, setPatient] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
@@ -127,8 +144,22 @@ export const PatientDetailDialog = ({
           <DialogTitle className="flex items-center gap-2">
             <User className="h-5 w-5" />
             Patient Details
+            {canEditBiodata && patient && (
+              <Button size="sm" variant="outline" className="ml-auto mr-6" onClick={() => setEditOpen(true)}>
+                <Pencil className="h-4 w-4 mr-1" /> Edit biodata
+              </Button>
+            )}
           </DialogTitle>
         </DialogHeader>
+        {patient && (
+          <EditBiodataDialog
+            open={editOpen}
+            onOpenChange={setEditOpen}
+            patient={patient}
+            profile={profile}
+            onSaved={fetchAll}
+          />
+        )}
 
         {loading ? (
           <div className="flex items-center justify-center py-12">
@@ -176,15 +207,24 @@ export const PatientDetailDialog = ({
                         </span>
                       </div>
                       <div className="flex justify-between">
+                        <span className="text-muted-foreground">Age</span>
+                        <span className="font-semibold">{ageLabel(profile?.date_of_birth)}</span>
+                      </div>
+                      <div className="flex justify-between">
                         <span className="text-muted-foreground">DOB</span>
                         <span>
                           {profile?.date_of_birth
-                            ? format(
-                                new Date(profile.date_of_birth),
-                                "MMM d, yyyy"
-                              )
+                            ? format(new Date(profile.date_of_birth), "MMM d, yyyy")
                             : "—"}
                         </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Member No. (Staff)</span>
+                        <span>{patient.payroll_number || "—"}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">School Admission No.</span>
+                        <span>{patient.admission_number || "—"}</span>
                       </div>
                       <div className="flex justify-between">
                         <span className="text-muted-foreground">National ID</span>
@@ -264,12 +304,6 @@ export const PatientDetailDialog = ({
                       </CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-2 text-sm">
-                      <div className="flex justify-between">
-                        <span className="text-muted-foreground">
-                          Blood Type
-                        </span>
-                        <span>{patient.blood_type || "—"}</span>
-                      </div>
                       <div>
                         <span className="text-muted-foreground">
                           Allergies
