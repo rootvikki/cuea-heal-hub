@@ -496,12 +496,22 @@ const Vitals = () => {
             )}
 
             {/* Save & Advance */}
-            <div className="flex justify-end pb-6">
+            <div className="flex flex-wrap justify-end gap-3 pb-6">
+              <Button size="lg" variant="outline" className="h-12" onClick={() => setDirectMode("lab")}>Send to Lab</Button>
+              <Button size="lg" variant="outline" className="h-12" onClick={() => setDirectMode("pharmacy")}>Send to Pharmacy</Button>
               <Button size="lg" onClick={handleSaveAndAdvance} disabled={saving} className="gap-2 h-12 px-8 text-base">
                 <Send className="h-5 w-5" />
                 {saving ? "Saving..." : "Save & Send to Doctor"}
               </Button>
             </div>
+            <DirectOrderDialog
+              open={!!directMode}
+              onOpenChange={(o) => !o && setDirectMode(null)}
+              mode={directMode ?? "lab"}
+              source="triage"
+              ticket={selectedTicket ? { id: selectedTicket.id, patient_id: selectedTicket.patient_id, department_id: selectedTicket.department_id, patientName: selectedTicket.patient?.profile?.full_name } : null}
+              onDone={() => setSelectedTicket(null)}
+            />
           </>
         )}
       </div>
