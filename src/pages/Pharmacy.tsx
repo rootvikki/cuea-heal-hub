@@ -1,4 +1,8 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
+import { InventoryEditDialog } from "@/components/InventoryEditDialog";
+import { useUser } from "@/contexts/UserContext";
+import { formatRx } from "@/lib/rxFormat";
+import { Pencil } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -52,6 +56,9 @@ const Pharmacy = () => {
   const [dispensing, setDispensing] = useState(false);
   const [replenish, setReplenish] = useState<{ medicationName: string; inventoryId?: string; prescriptionId?: string; qty?: number } | null>(null);
   const [replenishKey, setReplenishKey] = useState(0);
+  const [editItem, setEditItem] = useState<any>(null);
+  const { hasAnyRole } = useUser();
+  const canEditInventory = hasAnyRole(["pharmacist", "admin", "super_admin"]);
 
   useEffect(() => {
     if (selectedTicket) setQueueCollapsed(true);
@@ -316,7 +323,7 @@ const Pharmacy = () => {
             </div>
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="gap-2"><Plus className="h-4 w-4" /> Add Drug</Button>
+                <Button className="gap-2" disabled={!canEditInventory}><Plus className="h-4 w-4" /> Add Drug</Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
                 <DialogHeader><DialogTitle>Add Medication to Inventory</DialogTitle></DialogHeader>
@@ -395,14 +402,32 @@ const Pharmacy = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {prescriptions.map((presc) => (
-                        <TableRow key={presc.id}>
-                          <TableCell>
-                            <p className="font-medium">{presc.patient?.profile?.full_name}</p>
-                            <p className="text-sm text-muted-foreground">{presc.patient?.patient_id}</p>
+                      {Object.values(prescriptions.reduce<Record<string, any[]>>((acc, p) => { (acc[p.encounter_id] ||= []).push(p); return acc; }, {})).map((group) => (
+                        <Fragment key={group[0].encounter_id}>
+                        <TableRow className="bg-muted/50 hover:bg-muted/50">
+                          <TableCell colSpan={7}>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <span className="font-semibold">{group[0].patient?.profile?.full_name}</span>
+                                <span className="text-sm text-muted-foreground"> · {group[0].patient?.patient_id} · Visit prescription · {group.length} drug(s)</span>
+                              </div>
+                              {(() => {
+                                const next = nextPrescriptionStatus(group[0]);
+                                const same = group.every(p => nextPrescriptionStatus(p) === next);
+                                return next && next !== "dispensed" && same ? (
+                                  <Button size="sm" variant="outline" onClick={async () => { for (const p of group) await advancePrescription(p, next); }}>
+                                    {PRESCRIPTION_ACTION_LABELS[next]} (all {group.length})
+                                  </Button>
+                                ) : null;
+                              })()}
+                            </div>
                           </TableCell>
+                        </TableRow>
+                      {group.map((presc) => (
+                        <TableRow key={presc.id}>
+                          <TableCell className="pl-8 text-xs text-muted-foreground">↳ same visit</TableCell>
                           <TableCell className="font-medium">
-                            {presc.medication_name}
+                            {formatRx(presc)}
                             {(() => {
                               const need = remainingQty(presc);
                               if (need <= 0) return null;
@@ -457,6 +482,8 @@ const Pharmacy = () => {
                           </TableCell>
                         </TableRow>
                       ))}
+                        </Fragment>
+                      ))}
                     </TableBody>
                   </Table>
                 )}
@@ -489,7 +516,7 @@ const Pharmacy = () => {
                           <p className="font-medium">{item.drug_name}</p>
                           {item.generic_name && <p className="text-sm text-muted-foreground">{item.generic_name}</p>}
                         </TableCell>
-                        <TableCell>{item.strength_size || "-"}</TableCell>
+                        <TableCell>{[item.formulation, item.strength_size].filter(Boolean).join(" · ") || "-"}</TableCell>
                         <TableCell>{item.package || "-"}</TableCell>
                         <TableCell>
                           <Badge variant={item.quantity <= (item.reorder_level || 50) ? "destructive" : "outline"}>
@@ -499,6 +526,7 @@ const Pharmacy = () => {
                         <TableCell>KES {item.unit_price}</TableCell>
                         <TableCell>{item.expiry_date ? new Date(item.expiry_date).toLocaleDateString() : "-"}</TableCell>
                         <TableCell className="flex gap-2">
+                          {canEditInventory && <Button size="sm" variant="outline" onClick={() => setEditItem(item)}><Pencil className="h-4 w-4 mr-1" /> Edit</Button>}
                           <Button size="sm" variant="outline" onClick={() => openStockCard(item)}>
                             <ClipboardList className="h-4 w-4 mr-1" /> Card
                           </Button>
@@ -569,6 +597,8 @@ const Pharmacy = () => {
       </div>
 
       {/* Dispense Dialog: full / partial / substitute */}
+      <InventoryEditDialog item={editItem} onClose={() => setEditItem(null)} onSaved={fetchInventory} />
+
       <Dialog open={!!dispenseConfirm} onOpenChange={(open) => !open && setDispenseConfirm(null)}>
         <DialogContent className="max-w-xl">
           <DialogHeader>
