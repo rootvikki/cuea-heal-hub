@@ -1,5 +1,6 @@
 import { AdmitPatientDialog, ProcedureOrderPanel, LabResultsTab } from "@/components/ConsultationExtras";
 import { FORMULATIONS, FREQUENCIES, formatRx } from "@/lib/rxFormat";
+import { FlaskConical as FlaskConical2, BedDouble } from "lucide-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { stockCheck, STOCK_LABELS } from "@/lib/pharmacyStock";
 import { supabase } from "@/integrations/supabase/client";
@@ -1265,7 +1266,7 @@ const Consultation = () => {
                           )}
                         </TabsTrigger>
                         <TabsTrigger value="labresults" className="gap-1.5 text-xs data-[state=active]:shadow-sm">
-                          <FlaskConical className="h-3.5 w-3.5" /> Lab Results
+                          <FlaskConical2 className="h-3.5 w-3.5" /> Lab Results
                         </TabsTrigger>
                         <TabsTrigger value="journey" className="gap-1.5 text-xs data-[state=active]:shadow-sm">
                           <ClipboardList className="h-3.5 w-3.5" /> Journey
