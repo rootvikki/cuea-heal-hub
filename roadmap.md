@@ -12,6 +12,7 @@
 - [x] Triage: nursing procedures list matches document (placeholder prices)
 - [ ] Reception/Triage: send directly to lab/pharmacy
 - [ ] Consultation: admit, order nursing procedures, lab results tab
-- [ ] Lab: group per visit, print, arrow keys, CBC report layout
+- [x] Lab: print, arrow keys, CBC report layout
+- [ ] Lab: group per visit
 - [ ] Pharmacy: group per visit, inventory/price edit rights, structured Rx
 - [ ] Blocked: official price list from user

@@ -268,7 +268,7 @@ const Laboratory = () => {
     setLoading(true);
     const { data } = await supabase
       .from("lab_orders")
-      .select("*, patients!inner(patient_id, user_id, profiles!inner(full_name, gender)), lab_tests_catalog!inner(test_name, test_code, normal_range, result_fields, gender_specific_ranges), lab_result_fields(*)")
+      .select("*, patients!inner(patient_id, user_id, profiles!inner(full_name, gender, date_of_birth)), lab_tests_catalog!inner(test_name, test_code, normal_range, result_fields, gender_specific_ranges), lab_result_fields(*)")
       .order("created_at", { ascending: false })
       .limit(100);
 
@@ -278,7 +278,7 @@ const Laboratory = () => {
         patient: {
           patient_id: order.patients?.patient_id,
           user_id: order.patients?.user_id,
-          profile: { full_name: order.patients?.profiles?.full_name, gender: order.patients?.profiles?.gender },
+          profile: { full_name: order.patients?.profiles?.full_name, gender: order.patients?.profiles?.gender, date_of_birth: order.patients?.profiles?.date_of_birth },
         },
         test: order.lab_tests_catalog,
         result_fields_data: order.lab_result_fields || [],
