@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { DirectOrderDialog } from "@/components/DirectOrderDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -162,6 +163,8 @@ const Reception = () => {
     }));
     setCheckInDialogOpen(true);
   };
+
+  const [direct, setDirect] = useState<{ mode: "lab" | "pharmacy"; ticket: any } | null>(null);
 
   // Handle check-in
   const handleCheckIn = async (e: React.FormEvent) => {
@@ -449,10 +452,18 @@ const Reception = () => {
                         <p className="text-sm">{patientDisplayName(ticket.patient?.profile, ticket.patient?.patient_id)}</p>
                         <p className="text-xs text-muted-foreground">{ticket.department?.name}</p>
                       </div>
-                      <Badge className={`text-xs ${mins >= 60 ? "bg-destructive text-destructive-foreground" : mins >= 30 ? "bg-warning" : "bg-muted text-muted-foreground"}`}>
-                        <Clock className="h-3 w-3 mr-1" />
-                        {mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`}
-                      </Badge>
+                      <div className="flex items-center gap-2">
+                        {["checked_in", "triage"].includes(ticket.status) && (
+                          <>
+                            <Button size="sm" variant="outline" onClick={() => setDirect({ mode: "lab", ticket })}>Send to Lab</Button>
+                            <Button size="sm" variant="outline" onClick={() => setDirect({ mode: "pharmacy", ticket })}>Send to Pharmacy</Button>
+                          </>
+                        )}
+                        <Badge className={`text-xs ${mins >= 60 ? "bg-destructive text-destructive-foreground" : mins >= 30 ? "bg-warning" : "bg-muted text-muted-foreground"}`}>
+                          <Clock className="h-3 w-3 mr-1" />
+                          {mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`}
+                        </Badge>
+                      </div>
                     </div>
                   );
                 })}
@@ -517,6 +528,14 @@ const Reception = () => {
         </DialogContent>
       </Dialog>
 
+      <DirectOrderDialog
+        open={!!direct}
+        onOpenChange={(o) => !o && setDirect(null)}
+        mode={direct?.mode ?? "lab"}
+        source="reception"
+        ticket={direct ? { id: direct.ticket.id, patient_id: direct.ticket.patient_id ?? direct.ticket.patient?.id, department_id: direct.ticket.department_id, patientName: patientDisplayName(direct.ticket.patient?.profile, direct.ticket.patient?.patient_id) } : null}
+        onDone={() => queryClient.invalidateQueries({ queryKey: ["reception-queue"] })}
+      />
     </div>
   );
 };

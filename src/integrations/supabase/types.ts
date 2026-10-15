@@ -1519,6 +1519,7 @@ export type Database = {
           created_at: string | null
           drug_name: string
           expiry_date: string | null
+          formulation: string | null
           generic_name: string | null
           id: string
           maximum_stock: number | null
@@ -1537,6 +1538,7 @@ export type Database = {
           created_at?: string | null
           drug_name: string
           expiry_date?: string | null
+          formulation?: string | null
           generic_name?: string | null
           id?: string
           maximum_stock?: number | null
@@ -1555,6 +1557,7 @@ export type Database = {
           created_at?: string | null
           drug_name?: string
           expiry_date?: string | null
+          formulation?: string | null
           generic_name?: string | null
           id?: string
           maximum_stock?: number | null
@@ -1774,6 +1777,7 @@ export type Database = {
           dosage: string
           duration: string
           encounter_id: string
+          formulation: string | null
           frequency: string
           id: string
           instructions: string | null
@@ -1786,6 +1790,7 @@ export type Database = {
           reviewed_at: string | null
           reviewed_by: string | null
           status: string
+          strength: string | null
           substituted_with: string | null
           substitution_reason: string | null
         }
@@ -1801,6 +1806,7 @@ export type Database = {
           dosage: string
           duration: string
           encounter_id: string
+          formulation?: string | null
           frequency: string
           id?: string
           instructions?: string | null
@@ -1813,6 +1819,7 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
+          strength?: string | null
           substituted_with?: string | null
           substitution_reason?: string | null
         }
@@ -1828,6 +1835,7 @@ export type Database = {
           dosage?: string
           duration?: string
           encounter_id?: string
+          formulation?: string | null
           frequency?: string
           id?: string
           instructions?: string | null
@@ -1840,6 +1848,7 @@ export type Database = {
           reviewed_at?: string | null
           reviewed_by?: string | null
           status?: string
+          strength?: string | null
           substituted_with?: string | null
           substitution_reason?: string | null
         }
@@ -1891,6 +1900,76 @@ export type Database = {
             columns: ["reviewed_by"]
             isOneToOne: false
             referencedRelation: "staff"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      procedure_orders: {
+        Row: {
+          created_at: string
+          encounter_id: string | null
+          id: string
+          notes: string | null
+          ordered_by: string | null
+          patient_id: string
+          performed_at: string | null
+          performed_by: string | null
+          price: number
+          procedure_label: string
+          procedure_type: string
+          status: string
+          ticket_id: string | null
+        }
+        Insert: {
+          created_at?: string
+          encounter_id?: string | null
+          id?: string
+          notes?: string | null
+          ordered_by?: string | null
+          patient_id: string
+          performed_at?: string | null
+          performed_by?: string | null
+          price?: number
+          procedure_label: string
+          procedure_type: string
+          status?: string
+          ticket_id?: string | null
+        }
+        Update: {
+          created_at?: string
+          encounter_id?: string | null
+          id?: string
+          notes?: string | null
+          ordered_by?: string | null
+          patient_id?: string
+          performed_at?: string | null
+          performed_by?: string | null
+          price?: number
+          procedure_label?: string
+          procedure_type?: string
+          status?: string
+          ticket_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "procedure_orders_encounter_id_fkey"
+            columns: ["encounter_id"]
+            isOneToOne: false
+            referencedRelation: "encounters"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procedure_orders_patient_id_fkey"
+            columns: ["patient_id"]
+            isOneToOne: false
+            referencedRelation: "patients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "procedure_orders_ticket_id_fkey"
+            columns: ["ticket_id"]
+            isOneToOne: false
+            referencedRelation: "tickets"
             referencedColumns: ["id"]
           },
         ]

@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, Fragment } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -503,14 +503,32 @@ const Laboratory = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {pendingOrders.map((order) => {
+                      {Object.values(pendingOrders.reduce<Record<string, any[]>>((acc, o) => { (acc[o.encounter_id] ||= []).push(o); return acc; }, {})).map((group) => (
+                        <Fragment key={group[0].encounter_id}>
+                        <TableRow className="bg-muted/50 hover:bg-muted/50">
+                          <TableCell colSpan={5}>
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                              <div>
+                                <span className="font-semibold">{group[0].patient?.profile?.full_name}</span>
+                                <span className="text-sm text-muted-foreground"> · {group[0].patient?.patient_id} · Visit request · {group.length} test(s)</span>
+                              </div>
+                              {canManageLab && (() => {
+                                const next = nextLabOrderStatus(group[0].status);
+                                const same = group.every(o => o.status === group[0].status);
+                                return next && next !== "completed" && same ? (
+                                  <Button size="sm" variant="outline" onClick={async () => { for (const o of group) await advanceLabOrder(o, next); }}>
+                                    {advanceActionLabel(next)} (all {group.length})
+                                  </Button>
+                                ) : null;
+                              })()}
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      {group.map((order) => {
                         const next = nextLabOrderStatus(order.status);
                         return (
                         <TableRow key={order.id}>
-                          <TableCell>
-                            <p className="font-medium">{order.patient?.profile?.full_name}</p>
-                            <p className="text-sm text-muted-foreground">{order.patient?.patient_id}</p>
-                          </TableCell>
+                          <TableCell className="pl-8 text-xs text-muted-foreground">↳ same visit</TableCell>
                           <TableCell>
                             <p className="font-medium">{order.test?.test_name}</p>
                             <p className="text-sm text-muted-foreground">{order.test?.test_code}</p>
@@ -547,6 +565,8 @@ const Laboratory = () => {
                         </TableRow>
                         );
                       })}
+                        </Fragment>
+                      ))}
                     </TableBody>
                   </Table>
                 )}

@@ -1,3 +1,6 @@
+import { AdmitPatientDialog, ProcedureOrderPanel, LabResultsTab } from "@/components/ConsultationExtras";
+import { FORMULATIONS, FREQUENCIES, formatRx } from "@/lib/rxFormat";
+import { FlaskConical as FlaskConical2, BedDouble } from "lucide-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { stockCheck, STOCK_LABELS } from "@/lib/pharmacyStock";
 import { supabase } from "@/integrations/supabase/client";
@@ -120,6 +123,8 @@ interface Prescription {
   quantity: number;
   instructions: string;
   route: string;
+  formulation?: string;
+  strength?: string;
   sent?: boolean;
 }
 
@@ -274,6 +279,7 @@ const Consultation = () => {
   const [labSearchTerm, setLabSearchTerm] = useState("");
   const [imagingSearchTerm, setImagingSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("encounter");
+  const [showAdmit, setShowAdmit] = useState(false);
   const [vitalsExpanded, setVitalsExpanded] = useState(false);
   const [queueCollapsed, setQueueCollapsed] = useState(false);
   const [activeEncounterId, setActiveEncounterId] = useState<string | null>(null);
@@ -833,6 +839,8 @@ const Consultation = () => {
         patient_id: selectedTicket.patient!.id,
         doctor_id: staffId,
         medication_name: p.medication_name,
+        formulation: p.formulation || null,
+        strength: p.strength || null,
         dosage: p.dosage,
         frequency: p.frequency,
         duration: p.duration,
@@ -1257,6 +1265,9 @@ const Consultation = () => {
                             <Badge className="ml-1 h-4 w-4 p-0 flex items-center justify-center text-[9px]">{totalOrders}</Badge>
                           )}
                         </TabsTrigger>
+                        <TabsTrigger value="labresults" className="gap-1.5 text-xs data-[state=active]:shadow-sm">
+                          <FlaskConical2 className="h-3.5 w-3.5" /> Lab Results
+                        </TabsTrigger>
                         <TabsTrigger value="journey" className="gap-1.5 text-xs data-[state=active]:shadow-sm">
                           <ClipboardList className="h-3.5 w-3.5" /> Journey
                         </TabsTrigger>
@@ -1439,6 +1450,12 @@ const Consultation = () => {
 
                       {/* ── Orders Tab ── */}
                       <TabsContent value="orders" className="space-y-4 mt-0">
+                        <div className="flex justify-end">
+                          <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setShowAdmit(true)}>
+                            <BedDouble className="h-4 w-4" /> Admit patient
+                          </Button>
+                        </div>
+                        <ProcedureOrderPanel patientId={selectedTicket.patient!.id} ticketId={selectedTicket.id} encounterId={activeEncounterId} patientName={selectedTicket.patient?.profile?.full_name || ""} />
                         {/* Cost Estimate Card */}
                         <Card className="border-primary/20 bg-primary/5">
                           <CardContent className="px-4 py-3">
@@ -1498,7 +1515,7 @@ const Consultation = () => {
                                         })()}
                                       </div>
                                       <p className="text-[11px] text-muted-foreground mt-0.5">
-                                        {p.route} · {p.dosage} · {p.frequency} · {p.duration} · Qty: {p.quantity}
+                                        {formatRx(p)} · {p.route} · {p.dosage} · Qty: {p.quantity}
                                       </p>
                                       {p.instructions && <p className="text-[11px] text-muted-foreground italic mt-0.5">{p.instructions}</p>}
                                     </div>
@@ -1724,6 +1741,10 @@ const Consultation = () => {
                             </div>
                           </CardContent>
                         </Card>
+                      </TabsContent>
+
+                      <TabsContent value="labresults" className="mt-0">
+                        <LabResultsTab patientId={selectedTicket.patient!.id} />
                       </TabsContent>
 
                       {/* ── Journey Tab ── */}
@@ -2019,6 +2040,17 @@ const Consultation = () => {
                 )}
               </Field>
 
+              <div className="grid grid-cols-2 gap-3">
+                <Field label="Formulation">
+                  <Select value={currentPrescription.formulation || ""} onValueChange={(v) => setCurrentPrescription({ ...currentPrescription, formulation: v })}>
+                    <SelectTrigger className="text-sm h-11"><SelectValue placeholder="e.g. Tabs" /></SelectTrigger>
+                    <SelectContent>{FORMULATIONS.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
+                  </Select>
+                </Field>
+                <Field label="Strength">
+                  <Input value={currentPrescription.strength || ""} onChange={(e) => setCurrentPrescription({ ...currentPrescription, strength: e.target.value })} placeholder="e.g. 100mg" className="text-sm h-11" />
+                </Field>
+              </div>
               <div className="grid grid-cols-3 gap-3">
                 <Field label="Route">
                   <Select value={currentPrescription.route} onValueChange={(v) => setCurrentPrescription({ ...currentPrescription, route: v })}>
@@ -2037,7 +2069,7 @@ const Consultation = () => {
                   <Select value={currentPrescription.frequency} onValueChange={(v) => setCurrentPrescription({ ...currentPrescription, frequency: v })}>
                     <SelectTrigger className="text-sm h-11"><SelectValue placeholder="Select" /></SelectTrigger>
                     <SelectContent>
-                      {["Once daily", "Twice daily", "Three times daily", "Four times daily", "Every 4 hours", "Every 6 hours", "Every 8 hours", "As needed", "At bedtime", "STAT"].map(f => (
+                      {FREQUENCIES.map(f => (
                         <SelectItem key={f} value={f}>{f}</SelectItem>
                       ))}
                     </SelectContent>
@@ -2090,6 +2122,10 @@ const Consultation = () => {
             </div>
           </DialogContent>
         </Dialog>
+
+        {selectedTicket?.patient && (
+          <AdmitPatientDialog open={showAdmit} onOpenChange={setShowAdmit} patientId={selectedTicket.patient.id} encounterId={activeEncounterId} ticketId={selectedTicket.id} patientName={selectedTicket.patient.profile?.full_name || ""} />
+        )}
 
         {/* Referral Form (controlled) */}
         {selectedTicket?.patient && (

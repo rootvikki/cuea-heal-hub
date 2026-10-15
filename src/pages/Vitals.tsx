@@ -1,3 +1,5 @@
+import { ProceduresToPerform } from "@/components/ConsultationExtras";
+import { DirectOrderDialog } from "@/components/DirectOrderDialog";
 import { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -64,6 +66,7 @@ const getRRClass = (val: string) => {
 const Vitals = () => {
   const { toast } = useToast();
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [directMode, setDirectMode] = useState<"lab" | "pharmacy" | null>(null);
   const [saving, setSaving] = useState(false);
   const [queueCollapsed, setQueueCollapsed] = useState(false);
   const [urgencyPriority, setUrgencyPriority] = useState("1");
@@ -405,6 +408,8 @@ const Vitals = () => {
               </CardContent>
             </Card>
 
+            <ProceduresToPerform />
+
             {/* Nursing Procedures */}
             <Card>
               <CardContent className="pt-6">
@@ -496,12 +501,22 @@ const Vitals = () => {
             )}
 
             {/* Save & Advance */}
-            <div className="flex justify-end pb-6">
+            <div className="flex flex-wrap justify-end gap-3 pb-6">
+              <Button size="lg" variant="outline" className="h-12" onClick={() => setDirectMode("lab")}>Send to Lab</Button>
+              <Button size="lg" variant="outline" className="h-12" onClick={() => setDirectMode("pharmacy")}>Send to Pharmacy</Button>
               <Button size="lg" onClick={handleSaveAndAdvance} disabled={saving} className="gap-2 h-12 px-8 text-base">
                 <Send className="h-5 w-5" />
                 {saving ? "Saving..." : "Save & Send to Doctor"}
               </Button>
             </div>
+            <DirectOrderDialog
+              open={!!directMode}
+              onOpenChange={(o) => !o && setDirectMode(null)}
+              mode={directMode ?? "lab"}
+              source="triage"
+              ticket={selectedTicket ? { id: selectedTicket.id, patient_id: selectedTicket.patient_id, department_id: selectedTicket.department_id, patientName: selectedTicket.patient?.profile?.full_name } : null}
+              onDone={() => setSelectedTicket(null)}
+            />
           </>
         )}
       </div>
