@@ -44,7 +44,7 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
       next_of_kin_phone: patient?.next_of_kin_phone || "",
       insurance_provider: patient?.insurance_provider || "",
       insurance_number: patient?.insurance_number || "",
-      preferred_payment_mode: allowedPaymentModes(patient?.patient_type).includes(patient?.preferred_payment_mode) ? patient.preferred_payment_mode : defaultPaymentMode(patient || {}),
+      preferred_payment_mode: allowedPaymentModes(patient?.patient_type).includes(patient?.preferred_payment_mode as any) ? patient.preferred_payment_mode : defaultPaymentMode(patient || {}),
     });
   }, [open, patient, profile]);
 
