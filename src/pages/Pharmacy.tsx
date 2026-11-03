@@ -1,3 +1,4 @@
+import { useLiveTable } from "@/lib/liveUpdates";
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { InventoryEditDialog } from "@/components/InventoryEditDialog";
 import { useUser } from "@/contexts/UserContext";
@@ -142,6 +143,13 @@ const Pharmacy = () => {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [fetchInventory, fetchPrescriptions]);
+
+  // Stock, prices and replenishment refresh the moment anyone saves a change
+  useLiveTable(["pharmacy_inventory", "pharmacy_stock_transactions"], () => {
+    void fetchInventory();
+    if (stockCardItem?.id) void fetchStockCard(stockCardItem.id);
+  });
+  useLiveTable(["pharmacy_replenishment_requests"], () => setReplenishKey((k) => k + 1));
 
   const sheets = useMemo<RxSheet[]>(() => {
     const m = new Map<string, RxSheet>();

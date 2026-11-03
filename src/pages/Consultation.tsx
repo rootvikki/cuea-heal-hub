@@ -1,3 +1,4 @@
+import { useLiveTable } from "@/lib/liveUpdates";
 import { AdmitPatientDialog, ProcedureOrderPanel, LabResultsTab } from "@/components/ConsultationExtras";
 import { FORMULATIONS, FREQUENCIES, DURATIONS, formatRx } from "@/lib/rxFormat";
 import { FlaskConical as FlaskConical2, BedDouble } from "lucide-react";
@@ -490,6 +491,9 @@ const Consultation = () => {
       .order("drug_name");
     setPharmacyInventory(data || []);
   };
+
+  // Live stock: prescribing sees the pharmacy's changes as soon as they are saved
+  useLiveTable(["pharmacy_inventory"], () => void fetchPharmacyInventory());
 
   // ─── Actions ──────────────────────────────────────────────────
   const selectPatient = (ticket: Ticket) => {
