@@ -55,8 +55,8 @@ const Patients = () => {
   });
 
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold">Patient Management</h1>
           <p className="text-muted-foreground mt-1">View and manage patient records</p>

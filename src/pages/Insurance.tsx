@@ -276,27 +276,27 @@ const Insurance = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
           <h1 className="text-3xl font-bold">Insurance Management</h1>
           <p className="text-muted-foreground">Claims, pre-authorizations & provider management</p>
         </div>
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-2 sm:gap-4 w-full sm:w-auto">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Search..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10 w-64"
+              className="pl-10 w-full sm:w-64"
             />
           </div>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4 flex items-center gap-4">
             <div className="p-3 rounded-full bg-yellow-100">
@@ -344,7 +344,7 @@ const Insurance = () => {
       </div>
 
       <Tabs defaultValue="claims" className="space-y-4">
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="claims">Claims</TabsTrigger>
           <TabsTrigger value="preauth">Pre-Authorizations</TabsTrigger>
           <TabsTrigger value="providers">Providers</TabsTrigger>

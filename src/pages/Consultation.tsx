@@ -195,7 +195,7 @@ const SectionGroup = ({ value, icon: Icon, title, badge, children }: {
         </div>
         <span className="font-semibold text-sm">{title}</span>
         {badge !== undefined && badge > 0 && (
-          <Badge variant="secondary" className="text-[10px] bg-[hsl(var(--success))]/15 text-[hsl(var(--success))]">
+          <Badge variant="soft" className="text-[10px] bg-[hsl(var(--success))]/15 text-[hsl(var(--success))]">
             <CheckCircle2 className="h-2.5 w-2.5 mr-0.5" />{badge} filled
           </Badge>
         )}
@@ -1072,6 +1072,17 @@ const Consultation = () => {
             <p className="text-[11px] text-muted-foreground">
               {queue.filter(t => t.workflow_stage === "waiting_for_doctor").length} waiting · {queue.filter(t => t.workflow_stage === "in_consult").length} active
             </p>
+            <Button
+              size="sm"
+              className="w-full mt-2 h-9"
+              disabled={!queue.some(t => t.workflow_stage === "waiting_for_doctor")}
+              onClick={() => {
+                const next = queue.find(t => t.workflow_stage === "waiting_for_doctor" && t.id !== selectedTicket?.id);
+                if (next) { selectPatient(next); void startConsultation(next); }
+              }}
+            >
+              <Stethoscope className="h-4 w-4 mr-1.5" /> Serve next patient
+            </Button>
           </div>
           <ScrollArea className="flex-1">
             <div className="p-2 space-y-1">
@@ -1176,8 +1187,8 @@ const Consultation = () => {
               {/* ── Patient Header Bar ── */}
               <div className="border-b bg-card shadow-sm">
                 <div className="px-5 py-3">
-                  <div className="flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+                    <div className="flex items-center gap-3 min-w-0 flex-1 basis-60">
                       <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
                         <User className="h-5 w-5 text-primary" />
                       </div>
@@ -1214,7 +1225,7 @@ const Consultation = () => {
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="flex flex-wrap items-center gap-2">
                       <div className="text-right mr-2 hidden md:flex items-center gap-2">
                         <span className="text-[10px] text-muted-foreground">Progress</span>
                         <Progress value={completionPct} className="w-20 h-1.5" />
@@ -1232,7 +1243,14 @@ const Consultation = () => {
                     </div>
                   </div>
 
-                  <PatientSummaryCard patientId={selectedTicket.patient.id} ticketId={selectedTicket.id} />
+                  <Collapsible className="mt-2">
+                    <CollapsibleTrigger className="text-xs font-medium text-primary hover:underline flex items-center gap-1">
+                      <ChevronsUpDown className="h-3 w-3" /> Patient summary (details, vitals, orders, charges)
+                    </CollapsibleTrigger>
+                    <CollapsibleContent className="pt-2">
+                      <PatientSummaryCard patientId={selectedTicket.patient.id} ticketId={selectedTicket.id} />
+                    </CollapsibleContent>
+                  </Collapsible>
 
                   {/* Allergy banner */}
                   {selectedTicket.patient?.allergies && selectedTicket.patient.allergies.length > 0 && (
@@ -1419,7 +1437,7 @@ const Consultation = () => {
                                 {encounter.diagnosis.length > 0 && (
                                   <div className="flex flex-wrap gap-1.5 mt-2">
                                     {encounter.diagnosis.map((d, i) => (
-                                      <Badge key={i} variant="secondary" className="gap-1 text-xs py-1 px-2.5">
+                                      <Badge key={i} variant="soft" className="gap-1 text-xs py-1 px-2.5">
                                         <CheckCircle2 className="h-3 w-3 text-[hsl(var(--success))]" />
                                         {d}
                                         <X className="h-3 w-3 cursor-pointer hover:text-destructive transition-colors ml-1" onClick={() => removeDiagnosis(i)} />
@@ -1484,7 +1502,7 @@ const Consultation = () => {
                               <CardTitle className="text-sm font-semibold flex items-center gap-2">
                                 <div className="p-1.5 rounded-lg bg-[hsl(var(--success))]/15 text-[hsl(var(--success))]"><Pill className="h-4 w-4" /></div>
                                 Prescriptions
-                                {prescriptions.length > 0 && <Badge variant="secondary" className="text-[10px]">{prescriptions.length}</Badge>}
+                                {prescriptions.length > 0 && <Badge variant="soft" className="text-[10px]">{prescriptions.length}</Badge>}
                               </CardTitle>
                               <Button size="sm" onClick={() => setShowPrescriptionDialog(true)} className="h-7 text-xs">
                                 <Plus className="h-3 w-3 mr-1" /> Add Medication
@@ -1578,7 +1596,7 @@ const Consultation = () => {
                             <CardTitle className="text-sm font-semibold flex items-center gap-2">
                               <div className="p-1.5 rounded-lg bg-blue-100 text-blue-700"><TestTube className="h-4 w-4" /></div>
                               Laboratory
-                              {selectedLabTests.length > 0 && <Badge variant="secondary" className="text-[10px]">{selectedLabTests.length}</Badge>}
+                              {selectedLabTests.length > 0 && <Badge variant="soft" className="text-[10px]">{selectedLabTests.length}</Badge>}
                             </CardTitle>
                           </CardHeader>
                           <CardContent className="px-4 pb-4 space-y-3">
@@ -1645,7 +1663,7 @@ const Consultation = () => {
                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                   <p className="text-xs font-semibold flex items-center gap-1.5">
                                     <Clock className="h-3.5 w-3.5 text-muted-foreground" /> Lab results — this visit
-                                    <Badge variant="secondary" className="text-[10px]">{sentLabOrders.filter(o => o.status === "completed").length}/{sentLabOrders.length} ready</Badge>
+                                    <Badge variant="soft" className="text-[10px]">{sentLabOrders.filter(o => o.status === "completed").length}/{sentLabOrders.length} ready</Badge>
                                   </p>
                                   {sentLabOrders.some(o => o.status === "completed") && (
                                     <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => printVisitLabReport({ ...selectedTicket.patient?.profile, patient_id: selectedTicket.patient?.patient_id }, sentLabOrders as any[])}>
@@ -1677,7 +1695,7 @@ const Consultation = () => {
                             <CardTitle className="text-sm font-semibold flex items-center gap-2">
                               <div className="p-1.5 rounded-lg bg-purple-100 text-purple-700"><Camera className="h-4 w-4" /></div>
                               Imaging
-                              {selectedImaging.length > 0 && <Badge variant="secondary" className="text-[10px]">{selectedImaging.length}</Badge>}
+                              {selectedImaging.length > 0 && <Badge variant="soft" className="text-[10px]">{selectedImaging.length}</Badge>}
                             </CardTitle>
                           </CardHeader>
                           <CardContent className="px-4 pb-4 space-y-3">
@@ -1865,8 +1883,8 @@ const Consultation = () => {
               </div>
 
               {/* ── Footer: Save Bar ── */}
-              <div className="border-t bg-card shadow-[0_-1px_4px_rgba(0,0,0,0.03)] px-4 py-2.5 flex items-center justify-between">
-                <div className="flex items-center gap-3 text-[11px] text-muted-foreground">
+              <div className="sticky bottom-0 z-20 border-t bg-card shadow-[0_-1px_4px_rgba(0,0,0,0.03)] px-4 py-2.5 flex flex-wrap items-center justify-between gap-2">
+                <div className="hidden sm:flex items-center gap-3 text-[11px] text-muted-foreground">
                   <span className="flex items-center gap-1"><Pill className="h-3 w-3" />{prescriptions.length} Rx</span>
                   <span className="flex items-center gap-1"><TestTube className="h-3 w-3" />{selectedLabTests.length} Labs</span>
                   <span className="flex items-center gap-1"><Camera className="h-3 w-3" />{selectedImaging.length} Img</span>
@@ -1875,11 +1893,11 @@ const Consultation = () => {
                     <Save className="h-2.5 w-2.5" /> Draft auto-saved
                   </span>
                 </div>
-                <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setSelectedTicket(null)}>Cancel</Button>
+                <div className="flex gap-2 w-full sm:w-auto">
+                  <Button variant="outline" size="sm" className="h-10 sm:h-8 text-xs flex-1 sm:flex-none" onClick={() => setSelectedTicket(null)}>Cancel</Button>
                   <Button
                     size="sm"
-                    className="h-8 text-xs min-w-[140px]"
+                    className="h-10 sm:h-8 text-xs min-w-[140px] flex-[2] sm:flex-none"
                     onClick={() => setShowConfirmSave(true)}
                     disabled={!encounter.chiefComplaint || savingEncounter}
                   >
@@ -1912,7 +1930,7 @@ const Consultation = () => {
                         <span className="text-muted-foreground">Diagnosis</span>
                         <div className="flex flex-wrap gap-1 justify-end max-w-[200px]">
                           {encounter.diagnosis.map((d, i) => (
-                            <Badge key={i} variant="secondary" className="text-[10px]">{d}</Badge>
+                            <Badge key={i} variant="soft" className="text-[10px]">{d}</Badge>
                           ))}
                         </div>
                       </div>

@@ -144,8 +144,10 @@ const Pharmacy = () => {
   const sheet = sheets.find((s) => s.key === openKey) || null;
   const paymentMode = sheet?.ticket?.payment_mode || selectedTicket?.payment_mode;
 
+  // Give the work area the full width while a patient is open
+  useEffect(() => { setQueueCollapsed(!!openKey); }, [openKey]);
+
   useEffect(() => {
-    setQueueCollapsed(!!selectedTicket);
     if (selectedTicket) setOpenKey(selectedTicket.id);
   }, [selectedTicket]);
 
@@ -466,15 +468,16 @@ const Pharmacy = () => {
                     const locked = !editable || closed || rx.status === "billed";
                     return (
                       <tr key={rx.id} className={cn(closed && "bg-muted/40")}>
-                        <td className="border px-2 py-1.5">
-                          <p className="font-medium">{formatRx(rx)}</p>
+                        <td className="border px-2 py-1.5 min-w-[180px]">
+                          <p className="font-semibold">{rx.medication_name} {rx.strength && <span className="font-normal text-muted-foreground">{rx.strength}</span>}</p>
+                          <p className="text-xs text-muted-foreground">{[rx.formulation, rx.frequency, rx.duration && `x ${rx.duration}`].filter(Boolean).join(" · ")}</p>
                           {rx.instructions && <p className="text-xs text-muted-foreground">{rx.instructions}</p>}
                         </td>
                         <td className="border px-2 py-1.5 text-center">{rx.quantity}</td>
                         <td className="border px-2 py-1.5 text-center">
                           {inv ? <span className={inv.quantity < (remainingQty(rx) || rx.quantity) ? "text-destructive font-semibold" : ""}>{inv.quantity}</span> : <span className="text-destructive text-xs">Not stocked</span>}
                         </td>
-                        <td className="border px-2 py-1.5">
+                        <td className="border px-2 py-1.5 min-w-[250px]">
                           {closed ? (
                             <Badge variant={rx.status === "not_dispensed" ? "destructive" : "default"}>{rx.status === "not_dispensed" ? "Not dispensed" : "Dispensed"}</Badge>
                           ) : (
@@ -502,7 +505,7 @@ const Pharmacy = () => {
                             </Button>
                           )}
                         </td>
-                        <td className="border px-2 py-1.5 w-24">
+                        <td className="border px-2 py-1.5 min-w-[5.5rem]">
                           {l?.decision !== "not_available" && !closed ? (
                             <Input type="number" min={1} className="h-9" disabled={locked} value={l?.qty ?? ""} onChange={(e) => setLine(rx.id, { qty: e.target.value })} />
                           ) : closed ? <span className="text-center block">{rx.quantity_dispensed || "—"}</span> : "—"}
@@ -529,7 +532,7 @@ const Pharmacy = () => {
                 const locked = !editable || closed || rx.status === "billed";
                 return (
                   <div key={rx.id} className="rounded-lg border p-3 space-y-2">
-                    <p className="font-medium text-sm">{formatRx(rx)}</p>
+                    <p className="font-semibold text-sm">{rx.medication_name} <span className="font-normal text-muted-foreground">{[rx.strength, rx.frequency, rx.duration && `x ${rx.duration}`].filter(Boolean).join(" · ")}</span></p>
                     <p className="text-xs text-muted-foreground">Prescribed {rx.quantity} · In stock {inv ? inv.quantity : "—"}</p>
                     {closed ? <Badge variant={rx.status === "not_dispensed" ? "destructive" : "default"}>{rx.status === "not_dispensed" ? "Not dispensed" : "Dispensed"}</Badge> : (
                       <>

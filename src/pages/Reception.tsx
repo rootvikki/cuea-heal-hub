@@ -389,7 +389,7 @@ const Reception = () => {
                           return (
                             <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
                               <td className="px-3 py-2 font-semibold">{displayName(p)}</td>
-                              <td className="px-3 py-2 font-mono">{p.patient_id}</td>
+                              <td className="px-3 py-2 font-mono whitespace-nowrap">{p.patient_id}</td>
                               <td className="px-3 py-2">{p.national_id || "—"}</td>
                               <td className="px-3 py-2 whitespace-nowrap">{p.phone || "—"}</td>
                               <td className="px-3 py-2">{calculateAgeYears(p.date_of_birth) ?? "—"}</td>
@@ -402,7 +402,7 @@ const Reception = () => {
                                 <div className="flex justify-end gap-1.5">
                                   <Button size="sm" variant="ghost" onClick={() => setEditPatient(p)} aria-label="Edit details"><Pencil className="h-4 w-4" /></Button>
                                   {t ? (
-                                    <Badge variant="secondary" className="whitespace-nowrap">{stageLabel(t.workflow_stage || t.status)}</Badge>
+                                    <Badge variant="soft" className="whitespace-nowrap">{stageLabel(t.workflow_stage || t.status)}</Badge>
                                   ) : (
                                     <Button size="sm" onClick={() => openCheckIn(p)} className="gap-1"><ArrowRight className="h-4 w-4" /> Check in</Button>
                                   )}
@@ -430,7 +430,7 @@ const Reception = () => {
                           <p className="text-sm text-muted-foreground">{p.phone || "No phone"} · {calculateAgeYears(p.date_of_birth) ?? "?"} yrs · <span className="capitalize">{p.gender || "—"}</span></p>
                           <div className="flex gap-2">
                             <Button size="sm" variant="outline" className="flex-1" onClick={() => setEditPatient(p)}><Pencil className="h-4 w-4 mr-1" /> Edit</Button>
-                            {t ? <Badge variant="secondary" className="flex-1 justify-center">{stageLabel(t.workflow_stage || t.status)}</Badge>
+                            {t ? <Badge variant="soft" className="flex-1 justify-center">{stageLabel(t.workflow_stage || t.status)}</Badge>
                               : <Button size="sm" className="flex-1" onClick={() => openCheckIn(p)}><ArrowRight className="h-4 w-4 mr-1" /> Check in</Button>}
                           </div>
                         </div>
@@ -458,7 +458,7 @@ const Reception = () => {
                 {visibleTickets.length === 0 ? (
                   <p className="text-center py-6 text-muted-foreground text-sm">No patients here</p>
                 ) : (
-                  <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
+                  <div className="space-y-2 lg:max-h-[560px] lg:overflow-y-auto lg:pr-1">
                     {visibleTickets.map((ticket: any) => {
                       const mins = waitMins(ticket.updated_at || ticket.checked_in_at);
                       const name = displayName({ ...ticket.patient?.profile, patient_id: ticket.patient?.patient_id });
@@ -469,7 +469,7 @@ const Reception = () => {
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="font-bold text-sm">{ticket.ticket_number}</span>
                                 <Badge variant="outline" className="text-xs">{stageLabel(ticket.workflow_stage || ticket.status)}</Badge>
-                                <Badge variant="secondary" className="text-[10px]">{paymentModeLabel(ticket.payment_mode)}</Badge>
+                                <Badge variant="soft" className="text-[10px]">{paymentModeLabel(ticket.payment_mode)}</Badge>
                                 {ticket.priority >= 3 && <Badge variant="destructive" className="text-[10px]">EMERGENCY</Badge>}
                               </div>
                               <p className="text-sm font-medium truncate">{name}</p>
@@ -501,7 +501,7 @@ const Reception = () => {
                 {todayAppointments.length === 0 ? (
                   <p className="text-center py-6 text-muted-foreground text-sm">No appointments today</p>
                 ) : (
-                  <div className="space-y-2 max-h-[520px] overflow-y-auto">
+                  <div className="space-y-2 lg:max-h-[560px] lg:overflow-y-auto">
                     {todayAppointments.map((apt: any) => (
                       <div key={apt.id} className="flex items-center justify-between gap-2 p-3 border rounded-lg">
                         <div className="space-y-0.5 min-w-0">

@@ -107,8 +107,10 @@ const Laboratory = () => {
   const openVisit = visits.find((v) => v.key === openVisitKey) || null;
 
   // Selecting from the queue opens that patient's request
+  // Give the work area the full width while a patient is open
+  useEffect(() => { setQueueCollapsed(!!openVisitKey); }, [openVisitKey]);
+
   useEffect(() => {
-    setQueueCollapsed(!!selectedTicket);
     if (selectedTicket) setOpenVisitKey(selectedTicket.id);
   }, [selectedTicket]);
 
@@ -253,7 +255,7 @@ const Laboratory = () => {
   const onResultKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (!["ArrowDown", "ArrowUp", "Enter"].includes(e.key)) return;
     e.preventDefault();
-    const all = Array.from(document.querySelectorAll<HTMLInputElement>("input[data-lab-field]"));
+    const all = Array.from(document.querySelectorAll<HTMLInputElement>("input[data-lab-field]")).filter((el) => el.offsetParent !== null);
     const i = all.indexOf(e.currentTarget);
     const next = all[e.key === "ArrowUp" ? i - 1 : i + 1];
     next?.focus(); next?.select();
@@ -281,7 +283,7 @@ const Laboratory = () => {
         </div>
         <div className="flex flex-wrap gap-1">
           {v.orders.map((o) => (
-            <Badge key={o.id} variant={o.status === "completed" ? "default" : "secondary"} className="text-[11px] font-normal">
+            <Badge key={o.id} variant={o.status === "completed" ? "default" : "soft"} className="text-[11px] font-normal">
               {o.status === "completed" && <CheckCircle2 className="h-3 w-3 mr-1" />}{o.test?.test_name}
             </Badge>
           ))}
@@ -357,7 +359,61 @@ const Laboratory = () => {
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">2</span>
                 Enter results <span className="text-muted-foreground text-xs hidden sm:inline">(Enter / ↑ ↓ move between boxes)</span>
               </div>
-              <div className="overflow-x-auto rounded-md">
+              {/* Phones: one card per test, one box per line */}
+              <div className="md:hidden space-y-3">
+                {openVisit.orders.map((o) => {
+                  const defs = STRUCTURED_FIELDS[o.test?.test_name || ""];
+                  const d = draft[o.id] || { fields: {}, value: "", notes: "" };
+                  const locked = !canManageLab || o.status === "completed";
+                  const gender = o.patient?.profile?.gender;
+                  return (
+                    <div key={o.id} className="rounded-lg border">
+                      <p className="px-3 py-2 border-b bg-muted/40 font-semibold text-sm flex items-center gap-1">
+                        {o.test?.test_name}
+                        {o.status === "completed" && <CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))]" />}
+                      </p>
+                      <div className="divide-y">
+                        {defs ? defs.map((def) => {
+                          const ref = refRangeFor(def, gender);
+                          const val = d.fields[def.name] || "";
+                          const flag = getFlag(val, ref);
+                          return (
+                            <div key={def.name} className={cn("flex items-center gap-2 px-3 py-1.5", flag && "bg-destructive/5")}>
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium">{def.name} {flag && <span className="text-destructive font-bold">{flag === "H" ? "↑" : "↓"}</span>}</p>
+                                <p className="text-[11px] text-muted-foreground truncate">{[ref, def.unit].filter(Boolean).join(" · ")}</p>
+                              </div>
+                              <Input data-lab-field inputMode="decimal" value={val} disabled={locked} onKeyDown={onResultKey}
+                                onChange={(e) => setField(o.id, { fields: { ...d.fields, [def.name]: e.target.value } })}
+                                className={cn("h-11 w-28 text-base", flag && "border-destructive font-bold text-destructive")} />
+                            </div>
+                          );
+                        }) : (
+                          <div className="px-3 py-2 space-y-2">
+                            <Input data-lab-field value={d.value} disabled={locked} onKeyDown={onResultKey} placeholder="Type result"
+                              onChange={(e) => setField(o.id, { value: e.target.value })} className="h-11 text-base" />
+                            {!locked && (
+                              <div className="grid grid-cols-2 gap-2">
+                                {["Positive", "Negative"].map((q) => (
+                                  <Button key={q} type="button" variant={d.value === q ? "default" : "outline"} className="h-10" onClick={() => setField(o.id, { value: q })}>
+                                    {q === "Positive" ? "+ve Positive" : "-ve Negative"}
+                                  </Button>
+                                ))}
+                              </div>
+                            )}
+                            {o.test?.normal_range && <p className="text-[11px] text-muted-foreground">Normal: {o.test.normal_range} {o.test.unit || ""}</p>}
+                          </div>
+                        )}
+                        <div className="px-3 py-2">
+                          <Textarea rows={2} placeholder="Comment (optional)" value={d.notes} disabled={locked}
+                            onChange={(e) => setField(o.id, { notes: e.target.value })} className="text-sm" />
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="hidden md:block overflow-x-auto rounded-md">
                 <table className="w-full border-collapse border border-border text-sm min-w-[640px]">
                   <thead>
                     <tr>{["Test", "Parameter", "Result", "Unit", "Reference range", "Flag"].map((h) => <th key={h} className="border bg-muted px-2 py-1.5 text-left font-semibold">{h}</th>)}</tr>
@@ -434,7 +490,7 @@ const Laboratory = () => {
 
             {/* Step 3 — send */}
             {canManageLab && (
-              <div className="sticky bottom-0 z-10 -mx-1 border-t bg-background/95 backdrop-blur px-1 py-3 flex flex-wrap items-center justify-between gap-2">
+              <div className="sticky bottom-0 z-10 -mx-4 sm:-mx-1 border-t bg-background/95 backdrop-blur px-4 sm:px-1 py-2 sm:py-3 flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2 text-sm">
                   <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">3</span>
                   Send the patient on

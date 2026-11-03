@@ -203,26 +203,26 @@ const Billing = () => {
           </CardHeader>
           <CardContent className="grid gap-6 lg:grid-cols-5">
             {/* Charges */}
-            <div className="lg:col-span-3 space-y-3">
+            <div className="lg:col-span-3 space-y-3 min-w-0">
               <div className="overflow-x-auto border rounded-lg">
-                <table className="w-full text-sm border-collapse min-w-[460px]">
+                <table className="w-full text-sm border-collapse">
                   <thead className="bg-muted/60">
                     <tr className="text-left">
-                      <th className="px-2 py-2 border-b w-8">#</th>
+                      <th className="px-2 py-2 border-b w-8 hidden sm:table-cell">#</th>
                       <th className="px-2 py-2 border-b">Service</th>
-                      <th className="px-2 py-2 border-b w-28">Dept.</th>
-                      <th className="px-2 py-2 border-b w-32 text-right">KES</th>
+                      <th className="px-2 py-2 border-b w-28 hidden sm:table-cell">Dept.</th>
+                      <th className="px-2 py-2 border-b w-24 sm:w-32 text-right">KES</th>
                       <th className="px-2 py-2 border-b w-10"></th>
                     </tr>
                   </thead>
                   <tbody>
                     {charges.map((c, i) => (
                       <tr key={c.id} className="border-b">
-                        <td className="px-2 py-1.5 text-muted-foreground">{i + 1}</td>
+                        <td className="px-2 py-1.5 text-muted-foreground hidden sm:table-cell">{i + 1}</td>
                         <td className="px-2 py-1.5">
                           {c.invoice_id ? c.description : <Input value={c.description} onChange={(e) => editCharge(c.id, { description: e.target.value })} className="h-8 text-sm" />}
                         </td>
-                        <td className="px-2 py-1.5 capitalize text-xs text-muted-foreground">{(c.billing_stage || "-").replace(/_/g, " ")}</td>
+                        <td className="px-2 py-1.5 capitalize text-xs text-muted-foreground hidden sm:table-cell">{(c.billing_stage || "-").replace(/_/g, " ")}</td>
                         <td className="px-2 py-1.5 text-right">
                           {c.invoice_id ? Number(c.amount).toLocaleString() : <Input type="number" min={0} value={c.amount} onChange={(e) => editCharge(c.id, { amount: e.target.value })} className="h-8 text-sm text-right" />}
                         </td>
@@ -234,17 +234,17 @@ const Billing = () => {
                       </tr>
                     ))}
                     <tr className="bg-muted/30">
-                      <td className="px-2 py-1.5"><Plus className="h-4 w-4 text-muted-foreground" /></td>
+                      <td className="px-2 py-1.5 hidden sm:table-cell"><Plus className="h-4 w-4 text-muted-foreground" /></td>
                       <td className="px-2 py-1.5"><Input placeholder="Add item…" value={newItem.desc} onChange={(e) => setNewItem({ ...newItem, desc: e.target.value })} className="h-8 text-sm" /></td>
-                      <td className="px-2 py-1.5 text-xs text-muted-foreground">manual</td>
+                      <td className="px-2 py-1.5 text-xs text-muted-foreground hidden sm:table-cell">manual</td>
                       <td className="px-2 py-1.5"><Input type="number" min={0} placeholder="0" value={newItem.amount} onChange={(e) => setNewItem({ ...newItem, amount: e.target.value })} className="h-8 text-sm text-right" /></td>
                       <td className="px-2 py-1.5"><Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={addCharge} disabled={!newItem.desc.trim() || !Number(newItem.amount)} aria-label="Add"><Plus className="h-3.5 w-3.5" /></Button></td>
                     </tr>
                   </tbody>
                   <tfoot>
-                    <tr className="font-bold"><td colSpan={3} className="px-2 py-2 text-right">Total</td><td className="px-2 py-2 text-right">{visitTotal.toLocaleString()}</td><td /></tr>
-                    <tr><td colSpan={3} className="px-2 py-1 text-right text-muted-foreground">Paid</td><td className="px-2 py-1 text-right">{visitPaid.toLocaleString()}</td><td /></tr>
-                    <tr className="font-bold text-primary"><td colSpan={3} className="px-2 py-2 text-right">Balance</td><td className="px-2 py-2 text-right">{Math.max(visitTotal - visitPaid, 0).toLocaleString()}</td><td /></tr>
+                    <tr className="font-bold"><td className="hidden sm:table-cell" colSpan={2} /><td className="px-2 py-2 text-right">Total</td><td className="px-2 py-2 text-right">{visitTotal.toLocaleString()}</td><td /></tr>
+                    <tr><td className="hidden sm:table-cell" colSpan={2} /><td className="px-2 py-1 text-right text-muted-foreground">Paid</td><td className="px-2 py-1 text-right">{visitPaid.toLocaleString()}</td><td /></tr>
+                    <tr className="font-bold text-primary"><td className="hidden sm:table-cell" colSpan={2} /><td className="px-2 py-2 text-right">Balance</td><td className="px-2 py-2 text-right">{Math.max(visitTotal - visitPaid, 0).toLocaleString()}</td><td /></tr>
                   </tfoot>
                 </table>
               </div>
@@ -256,7 +256,7 @@ const Billing = () => {
             </div>
 
             {/* Payment */}
-            <div className="lg:col-span-2">
+            <div className="lg:col-span-2 min-w-0">
               {openInvoice ? (
                 <PaymentPanel
                   invoice={openInvoice}

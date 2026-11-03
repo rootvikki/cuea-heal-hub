@@ -361,7 +361,7 @@ const Vitals = () => {
                 <div><span className="text-muted-foreground">Age</span> <strong>{age ?? "—"}</strong></div>
                 <div className="capitalize"><span className="text-muted-foreground">Sex</span> <strong>{selectedTicket.patient?.profile?.gender || "—"}</strong></div>
                 <Badge variant="outline">{paymentModeLabel(selectedTicket.payment_mode)}</Badge>
-                {previousVitals.length > 0 ? <Badge variant="secondary">Returning · {previousVitals.length} previous</Badge> : <Badge variant="secondary">First visit</Badge>}
+                {previousVitals.length > 0 ? <Badge variant="soft">Returning · {previousVitals.length} previous</Badge> : <Badge variant="soft">First visit</Badge>}
               </div>
               <InterimPayment ticketId={selectedTicket.id} patientId={selectedTicket.patient_id} />
             </CardContent>
@@ -541,11 +541,11 @@ const Vitals = () => {
           )}
 
           {/* Sticky action bar */}
-          <div className="sticky bottom-0 z-20 -mx-1 border-t bg-background/95 backdrop-blur px-1 py-3 flex flex-wrap items-center justify-end gap-2">
-            <Button variant="outline" className="h-12" onClick={() => openDirect("lab")}><FlaskConical className="h-4 w-4 mr-1.5" /> Lab request</Button>
-            <Button variant="outline" className="h-12" onClick={() => openDirect("pharmacy")}><Pill className="h-4 w-4 mr-1.5" /> Prescription</Button>
-            <Button variant="outline" className="h-12" onClick={() => setSendOpen(true)} disabled={saving || !!bpProblem}><Send className="h-4 w-4 mr-1.5" /> Save & send to…</Button>
-            <Button onClick={handleSaveAndAdvance} disabled={saving || !!bpProblem} className="gap-2 h-12 px-6 text-base">
+          <div className="sticky bottom-0 z-20 -mx-3 sm:-mx-1 border-t bg-background/95 backdrop-blur px-3 sm:px-1 py-2 sm:py-3 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
+            <Button variant="outline" className="h-11 sm:h-12 px-2 text-xs sm:text-sm" onClick={() => openDirect("lab")}><FlaskConical className="h-4 w-4 mr-1" /> Lab</Button>
+            <Button variant="outline" className="h-11 sm:h-12 px-2 text-xs sm:text-sm" onClick={() => openDirect("pharmacy")}><Pill className="h-4 w-4 mr-1" /> Prescription</Button>
+            <Button variant="outline" className="h-11 sm:h-12 px-2 text-xs sm:text-sm" onClick={() => setSendOpen(true)} disabled={saving || !!bpProblem}><Send className="h-4 w-4 mr-1" /> Send to…</Button>
+            <Button onClick={handleSaveAndAdvance} disabled={saving || !!bpProblem} className="col-span-3 gap-2 h-12 px-6 text-base">
               <Stethoscope className="h-5 w-5" /> {saving ? "Saving..." : "Save & send to Doctor"}
             </Button>
           </div>

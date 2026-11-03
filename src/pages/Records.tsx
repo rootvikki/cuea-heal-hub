@@ -48,21 +48,21 @@ const Records = () => {
   });
 
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold">Medical Records (EMR)</h1>
           <p className="text-muted-foreground mt-1">
             Electronic health records and clinical notes
           </p>
         </div>
-        <div className="relative">
+        <div className="relative w-full sm:w-auto">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search by patient, complaint, diagnosis..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10 w-80"
+            className="pl-10 w-full sm:w-80"
           />
         </div>
       </div>

@@ -278,7 +278,7 @@ const Reports = () => {
   const u = (field: string, value: string) => setFilters((prev) => ({ ...prev, [field]: value }));
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="space-y-6">
       <div>
         <h1 className="text-3xl font-bold">Reports & Analytics</h1>
         <p className="text-muted-foreground">Department and payment reporting with PDF, Excel & CSV export</p>

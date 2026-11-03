@@ -213,8 +213,8 @@ const Inpatient = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex justify-between items-center">
+    <div className="space-y-6">
+      <div className="flex flex-wrap justify-between items-center gap-3">
         <div>
           <h1 className="text-3xl font-bold">Inpatient Management</h1>
           <p className="text-muted-foreground">Admissions, Discharge & Transfers</p>
@@ -222,7 +222,7 @@ const Inpatient = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardContent className="p-4 flex items-center gap-4">
             <div className="p-3 rounded-full bg-blue-100">
@@ -270,7 +270,7 @@ const Inpatient = () => {
       </div>
 
       <Tabs defaultValue="admissions" className="space-y-4">
-        <TabsList>
+        <TabsList className="flex-wrap h-auto">
           <TabsTrigger value="admissions">Current Admissions</TabsTrigger>
           <TabsTrigger value="beds">Bed Management</TabsTrigger>
           <TabsTrigger value="wards">Wards Overview</TabsTrigger>

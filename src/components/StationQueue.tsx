@@ -179,7 +179,7 @@ export function StationQueue({ stationStages, nextStage, title, onSelectPatient,
               <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-muted-foreground">
                 <span className="font-mono">{ticket.patient?.patient_id}</span>
                 <span className="flex items-center gap-0.5"><Clock className="h-3 w-3" />{waitLabel(ticket.updated_at || ticket.checked_in_at)}</span>
-                {stationStages.length > 1 && <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{stageLabel(ticket.workflow_stage)}</Badge>}
+                {stationStages.length > 1 && <Badge variant="soft" className="text-[10px] px-1.5 py-0">{stageLabel(ticket.workflow_stage)}</Badge>}
                 {ticket.payment_mode === "insurance" && <Badge variant="outline" className="text-[10px] px-1.5 py-0">{paymentModeLabel(ticket.payment_mode)}</Badge>}
               </div>
               {triageClaimMode && ticket.assigned_to && (
@@ -216,7 +216,7 @@ export function StationQueue({ stationStages, nextStage, title, onSelectPatient,
             </Button>
           )}
           <h3 className="font-semibold text-sm">{title}</h3>
-          <Badge variant="secondary" className="text-xs">{tickets.length}</Badge>
+          <Badge variant="soft" className="text-xs">{tickets.length}</Badge>
         </div>
         {isLive && (
           <Badge variant="outline" className="gap-1 text-[hsl(var(--success))] border-[hsl(var(--success))] text-[10px]">
@@ -235,7 +235,7 @@ export function StationQueue({ stationStages, nextStage, title, onSelectPatient,
       {/* Mobile / small tablets: compact bar + slide-over list */}
       <div className="md:hidden flex items-center justify-between gap-2 rounded-lg border bg-muted/40 p-2">
         <Button variant="outline" size="sm" className="h-10" onClick={() => setMobileOpen(true)}>
-          <Users className="h-4 w-4 mr-1.5" /> {title} <Badge variant="secondary" className="ml-2">{tickets.length}</Badge>
+          <Users className="h-4 w-4 mr-1.5" /> {title} <Badge variant="soft" className="ml-2">{tickets.length}</Badge>
         </Button>
         <Button size="sm" className="h-10" onClick={serveNext} disabled={tickets.length === 0}>
           <FastForward className="h-4 w-4 mr-1" /> Next

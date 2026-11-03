@@ -36,7 +36,10 @@ export function UserProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [realRoles, setRealRoles] = useState<string[]>([]);
   const [realProfile, setRealProfile] = useState<UserProfile | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [authLoading, setLoading] = useState(true);
+  // The user id whose roles/profile have finished loading. Until then the app
+  // must not decide access, or a page refresh sends staff back to the dashboard.
+  const [loadedFor, setLoadedFor] = useState<string | null>(null);
 
   // Impersonation state
   const [impersonatedUserId, setImpersonatedUserId] = useState<string | null>(null);
@@ -57,6 +60,7 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
     setRealRoles(rolesRes.data?.map((r) => r.role) || []);
     setRealProfile(profileRes.data || null);
+    setLoadedFor(userId);
   };
 
   const refreshRoles = async () => {
@@ -124,6 +128,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  const loading = authLoading || (!!user && loadedFor !== user.id);
 
   const isAdmin = roles.includes("super_admin") || roles.includes("admin");
 

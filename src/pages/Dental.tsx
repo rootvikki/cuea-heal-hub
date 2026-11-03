@@ -234,7 +234,7 @@ const Dental = () => {
           <Tabs defaultValue="treat" className="space-y-4">
             <TabsList className="flex-wrap h-auto">
               <TabsTrigger value="treat">Treatment</TabsTrigger>
-              <TabsTrigger value="labs">Lab results {labOrders.length > 0 && <Badge variant="secondary" className="ml-1.5 text-[10px]">{labOrders.filter((o) => o.status === "completed").length}/{labOrders.length}</Badge>}</TabsTrigger>
+              <TabsTrigger value="labs">Lab results {labOrders.length > 0 && <Badge variant="soft" className="ml-1.5 text-[10px]">{labOrders.filter((o) => o.status === "completed").length}/{labOrders.length}</Badge>}</TabsTrigger>
               <TabsTrigger value="history" className="gap-1"><History className="h-4 w-4" /> Dental history ({pastHistory.length})</TabsTrigger>
             </TabsList>
 
@@ -304,7 +304,7 @@ const Dental = () => {
                     {todaysDone.map((h) => (
                       <div key={h.id} className="flex items-center justify-between p-2.5 border rounded-lg bg-muted/30 text-sm">
                         <span><strong>{h.procedure_name}</strong>{h.tooth_number && <span className="text-muted-foreground"> · tooth {h.tooth_number}</span>}</span>
-                        <Badge variant="secondary">Saved · {formatKES(h.price)}</Badge>
+                        <Badge variant="soft">Saved · {formatKES(h.price)}</Badge>
                       </div>
                     ))}
                     {entries.map((e, i) => (
@@ -354,7 +354,7 @@ const Dental = () => {
             </TabsContent>
           </Tabs>
 
-          <div className="sticky bottom-0 z-10 -mx-1 border-t bg-background/95 backdrop-blur px-1 py-3 flex flex-wrap justify-end gap-2">
+          <div className="sticky bottom-0 z-10 -mx-3 sm:-mx-1 border-t bg-background/95 backdrop-blur px-3 sm:px-1 py-2 sm:py-3 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-end">
             <Button variant="outline" className="h-11" onClick={handleSaveOnly} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />} Save
             </Button>

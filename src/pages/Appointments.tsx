@@ -193,8 +193,8 @@ const Appointments = () => {
   };
 
   return (
-    <div className="p-8 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-3xl font-bold">Appointments</h1>
           <p className="text-muted-foreground mt-1">
@@ -294,7 +294,7 @@ const Appointments = () => {
         </Dialog>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-[300px_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[300px_minmax(0,1fr)]">
         <Card>
           <CardHeader>
             <CardTitle className="text-lg">Select Date</CardTitle>
