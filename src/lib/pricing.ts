@@ -9,12 +9,12 @@
 export type PaymentMode = "mpesa_school_fees" | "insurance";
 
 export const PAYMENT_MODES: { value: PaymentMode; label: string; short: string; description: string }[] = [
-  { value: "mpesa_school_fees", label: "M-Pesa / School fees", short: "M-Pesa / Fees", description: "Pays by M-Pesa, or billed to school fees / staff account" },
+  { value: "mpesa_school_fees", label: "M-Pesa / School fees / Payroll", short: "M-Pesa / Fees / Payroll", description: "Pays by M-Pesa, billed to school fees, or deducted from staff payroll" },
   { value: "insurance", label: "Insurance", short: "Insurance", description: "Billed to the patient's insurance provider" },
 ];
 
 export const paymentModeLabel = (mode?: string | null) =>
-  PAYMENT_MODES.find((m) => m.value === mode)?.label ?? "M-Pesa / School fees";
+  PAYMENT_MODES.find((m) => m.value === mode)?.label ?? "M-Pesa / School fees / Payroll";
 
 export const isPaymentMode = (v: unknown): v is PaymentMode => v === "mpesa_school_fees" || v === "insurance";
 
