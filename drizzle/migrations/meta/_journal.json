@@ -15,6 +15,13 @@
       "when": 1792064863690,
       "tag": "0001_infirmary_improvements_phase2",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793669632835,
+      "tag": "0002_workflow_simplification",
+      "breakpoints": true
     }
   ]
 }
