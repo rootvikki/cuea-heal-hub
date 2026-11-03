@@ -19,7 +19,7 @@ interface Props {
   onOpenChange: (o: boolean) => void;
   mode: "lab" | "pharmacy";
   ticket: { id: string; patient_id: string; department_id: string; patientName?: string } | null;
-  source: "reception" | "triage" | "dental";
+  source: "reception" | "triage" | "dental" | "pharmacy";
   onDone?: () => void;
 }
 
@@ -124,7 +124,7 @@ export function DirectOrderDialog({ open, onOpenChange, mode, ticket, source, on
 
       const count = mode === "lab" ? selectedTests.length : lines.length;
       logAuditEvent({ action: `direct_${mode}_request`, module: source, details: { ticket_id: ticket.id, encounter_id: encounterId, count, origin } });
-      await notifyRoles([mode === "lab" ? "lab_technician" : "pharmacist"], {
+      if (source !== "pharmacy") await notifyRoles([mode === "lab" ? "lab_technician" : "pharmacist"], {
         title: mode === "lab" ? "New lab request" : "New prescription",
         message: `${ticket.patientName || "A patient"}: ${count} ${mode === "lab" ? "test(s)" : "item(s)"} sent from ${source}.`,
         category: mode === "lab" ? "lab" : "pharmacy",

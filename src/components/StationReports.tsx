@@ -3,6 +3,7 @@ import { format, startOfDay, endOfDay, subDays, startOfMonth } from "date-fns";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { supabase } from "@/integrations/supabase/client";
+import { drawInfirmaryLetterhead, openPdfWindow } from "@/lib/letterhead";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,27 +32,30 @@ const downloadCsv = (name: string, csv: string) => {
   URL.revokeObjectURL(url);
 };
 
-const printPdf = <T,>(title: string, subtitle: string, rows: T[], cols: Col<T>[], summary: string[]) => {
-  const doc = new jsPDF({ orientation: cols.length > 7 ? "landscape" : "portrait" });
-  const W = doc.internal.pageSize.getWidth();
-  doc.setFont("helvetica", "bold"); doc.setFontSize(13);
-  doc.text("CUEA UNIVERSITY INFIRMARY", W / 2, 14, { align: "center" });
-  doc.setFontSize(11); doc.text(title, W / 2, 21, { align: "center" });
-  doc.setFont("helvetica", "normal"); doc.setFontSize(9);
-  doc.text(subtitle, W / 2, 27, { align: "center" });
-  doc.text(summary.join("   ·   "), 14, 34, { maxWidth: W - 28 });
-  autoTable(doc, {
-    startY: 40,
-    head: [cols.map((c) => c.label)],
-    body: rows.map((r) => cols.map((c) => String(c.value(r) ?? ""))),
-    theme: "grid",
-    styles: { fontSize: 8, cellPadding: 1.4 },
-    headStyles: { fillColor: [128, 0, 32] },
+const printPdf = <T,>(title: string, subtitle: string, rows: T[], cols: Col<T>[], summary: string[]) =>
+  openPdfWindow(async () => {
+    const doc = new jsPDF({ orientation: cols.length > 7 ? "landscape" : "portrait" });
+    const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+    const t = await drawInfirmaryLetterhead(doc, { title });
+    doc.setFont("helvetica", "normal"); doc.setFontSize(9);
+    doc.text(subtitle, W / 2, t, { align: "center" });
+    doc.text(summary.join("   ·   "), 14, t + 7, { maxWidth: W - 28 });
+    autoTable(doc, {
+      startY: t + 13,
+      head: [cols.map((c) => c.label)],
+      body: rows.map((r) => cols.map((c) => String(c.value(r) ?? ""))),
+      theme: "grid",
+      styles: { fontSize: 8, cellPadding: 1.4 },
+      headStyles: { fillColor: [128, 0, 32] },
+      margin: { bottom: 14 },
+    });
+    const pages = doc.getNumberOfPages();
+    for (let i = 1; i <= pages; i++) {
+      doc.setPage(i); doc.setFontSize(8); doc.setTextColor(120, 120, 120);
+      doc.text(`CUEA Infirmary  |  Generated ${format(new Date(), "dd MMM yyyy HH:mm")}  |  Page ${i} of ${pages}`, W / 2, H - 8, { align: "center" });
+    }
+    return doc;
   });
-  doc.setFontSize(8);
-  doc.text(`Generated ${format(new Date(), "dd MMM yyyy HH:mm")}`, 14, doc.internal.pageSize.getHeight() - 8);
-  window.open(doc.output("bloburl"), "_blank");
-};
 
 const PRESETS = [
   { label: "Today", from: () => new Date(), to: () => new Date() },

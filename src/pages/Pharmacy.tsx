@@ -3,6 +3,7 @@ import { InventoryEditDialog } from "@/components/InventoryEditDialog";
 import { useUser } from "@/contexts/UserContext";
 import { formatRx } from "@/lib/rxFormat";
 import { supabase } from "@/integrations/supabase/client";
+import { printWithLetterhead } from "@/lib/letterhead";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -24,6 +25,7 @@ import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
 import { MedicationInteractionCheck } from "@/components/MedicationInteractionCheck";
 import { SendToDialog } from "@/components/SendToDialog";
+import { DirectOrderDialog } from "@/components/DirectOrderDialog";
 import { authUserIdForStaff, notifyUser } from "@/lib/notifications";
 import { currentStaffId, sendPatientTo } from "@/lib/stations";
 import { formatKES, paymentModeLabel, priceFor } from "@/lib/pricing";
@@ -84,6 +86,8 @@ const Pharmacy = () => {
   const [lines, setLines] = useState<Record<string, Line>>({});
   const [busy, setBusy] = useState<"bill" | "dispense" | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
+  const [addRxOpen, setAddRxOpen] = useState(false);
+  const [lookingUpRx, setLookingUpRx] = useState(false);
   const [replenish, setReplenish] = useState<{ medicationName: string; inventoryId?: string; prescriptionId?: string; qty?: number } | null>(null);
   const [replenishKey, setReplenishKey] = useState(0);
   const [editItem, setEditItem] = useState<any>(null);
@@ -101,14 +105,21 @@ const Pharmacy = () => {
     setLoading(false);
   }, []);
 
+  const RX_SELECT = "*, encounters!inner(ticket_id, chief_complaint), patients!inner(id, patient_id, user_id, allergies, profiles!inner(full_name, gender, date_of_birth))";
   const fetchPrescriptions = useCallback(async () => {
     const since = new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString();
-    const { data } = await supabase
-      .from("prescriptions")
-      .select("*, encounters!inner(ticket_id, chief_complaint), patients!inner(id, patient_id, user_id, allergies, profiles!inner(full_name, gender, date_of_birth))")
-      .gte("created_at", since)
-      .order("created_at", { ascending: true });
-    const rows = (data || []).map((p: any) => ({
+    const [{ data: recent }, { data: atPharmacy }] = await Promise.all([
+      supabase.from("prescriptions").select(RX_SELECT).gte("created_at", since).order("created_at", { ascending: true }),
+      // Patients waiting at the pharmacy now — include their prescriptions however old they are
+      supabase.from("tickets").select("id").in("workflow_stage", ["at_pharmacy", "at_billing"]),
+    ]);
+    let data: any[] = recent || [];
+    const waitingIds = (atPharmacy || []).map((t: any) => t.id);
+    if (waitingIds.length) {
+      const { data: older } = await supabase.from("prescriptions").select(RX_SELECT).in("encounters.ticket_id", waitingIds).lt("created_at", since);
+      if (older?.length) data = [...older, ...data];
+    }
+    const rows = data.map((p: any) => ({
       ...p,
       ticket_id: p.encounters?.ticket_id ?? null,
       patient: { id: p.patients?.id, patient_id: p.patients?.patient_id, user_id: p.patients?.user_id, allergies: p.patients?.allergies, profile: p.patients?.profiles },
@@ -151,6 +162,15 @@ const Pharmacy = () => {
   useEffect(() => {
     if (selectedTicket) setOpenKey(selectedTicket.id);
   }, [selectedTicket]);
+
+  // Serving a patient whose prescription is not on screen: refresh once before showing "no prescription"
+  useEffect(() => {
+    if (!selectedTicket || sheets.some((s) => s.key === selectedTicket.id)) return;
+    let cancelled = false;
+    setLookingUpRx(true);
+    fetchPrescriptions().finally(() => { if (!cancelled) setLookingUpRx(false); });
+    return () => { cancelled = true; };
+  }, [selectedTicket?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Receive: opening a sheet marks new prescriptions as received
   useEffect(() => {
@@ -311,8 +331,6 @@ const Pharmacy = () => {
 
   /** Prints the full prescription with what was / was not dispensed and alternatives. */
   const printSheet = (s: RxSheet) => {
-    const w = window.open("", "_blank");
-    if (!w) return toast.error("Allow pop-ups to print");
     const rows = s.items.map((rx, i) => {
       const l = lines[rx.id];
       const decision = (rx.pharmacy_decision || l?.decision || "") as string;
@@ -332,30 +350,27 @@ const Pharmacy = () => {
       </tr>`;
     }).join("");
     const p = s.patient || {};
-    w.document.write(`<html><head><title>Prescription — ${esc(p.profile?.full_name)}</title>
-      <style>
+    const ok = printWithLetterhead({
+      docTitle: `Prescription — ${p.profile?.full_name || ""}`,
+      title: "Prescription & Dispensing Record",
+      css: `
         body{font-family:Arial,Helvetica,sans-serif;padding:24px;color:#111;max-width:900px;margin:auto}
-        h1{font-size:16px;text-align:center;margin:0}h2{font-size:13px;text-align:center;margin:4px 0 16px;font-weight:normal}
         .meta{display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;font-size:12px;margin-bottom:12px}
         table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #555;padding:6px;vertical-align:top}
         th{background:#eee;text-align:left}.c{text-align:center}.big{font-size:18px}
-        .key{font-size:11px;margin-top:8px}.sign{display:flex;justify-content:space-between;margin-top:36px;font-size:12px}
-      </style></head><body>
-      <h1>THE CATHOLIC UNIVERSITY OF EASTERN AFRICA — UNIVERSITY INFIRMARY</h1>
-      <h2>PRESCRIPTION &amp; DISPENSING RECORD</h2>
+        .key{font-size:11px;margin-top:8px}.sign{display:flex;justify-content:space-between;margin-top:36px;font-size:12px}`,
+      body: `
       <div class="meta">
-        <div><b>Patient:</b> ${esc(p.profile?.full_name)}</div><div><b>Date:</b> ${new Date().toLocaleString()}</div>
+        <div><b>Patient:</b> ${esc(p.profile?.full_name)}</div><div><b>Date:</b> ${new Date().toLocaleString("en-GB", { timeZone: "Africa/Nairobi" })}</div>
         <div><b>OPD No.:</b> ${esc(p.patient_id)}</div><div><b>Age / Sex:</b> ${esc(calculateAge(p.profile?.date_of_birth))} / ${esc(p.profile?.gender || "")}</div>
         <div><b>Payment mode:</b> ${esc(paymentModeLabel(s.ticket?.payment_mode))}</div><div><b>Ticket:</b> ${esc(s.ticket?.ticket_number || "")}</div>
       </div>
       <table><thead><tr><th>#</th><th>Medication</th><th>Qty prescribed</th><th>Qty given</th><th>Dispensed</th><th>Alternative given</th><th>Pharmacist note</th></tr></thead>
       <tbody>${rows}</tbody></table>
       <p class="key">&#9745; dispensed &nbsp; &#9746; not dispensed (not available) &nbsp; &#9744; pending</p>
-      <div class="sign"><span>Pharmacist: ____________________</span><span>Patient signature: ____________________</span></div>
-      </body></html>`);
-    w.document.close();
-    w.focus();
-    w.print();
+      <div class="sign"><span>Pharmacist: ____________________</span><span>Patient signature: ____________________</span></div>`,
+    });
+    if (!ok) toast.error("Allow pop-ups to print");
   };
 
   const fetchStockCard = async (inventoryId: string) => {
@@ -585,6 +600,48 @@ const Pharmacy = () => {
             </div>
           </CardContent>
         </Card>
+      ) : selectedTicket ? (
+        <Card className="border-primary/30">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex items-start gap-2">
+                <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => { setOpenKey(null); setSelectedTicket(null); }} aria-label="Back"><ArrowLeft className="h-4 w-4" /></Button>
+                <div>
+                  <CardTitle className="text-lg">{selectedTicket.patient?.profile?.full_name || "Patient"}</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedTicket.patient?.patient_id} · {selectedTicket.ticket_number} · {calculateAge(selectedTicket.patient?.profile?.date_of_birth)} · <span className="capitalize">{selectedTicket.patient?.profile?.gender || "—"}</span>
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">Being served</Badge>
+                    <Badge variant="outline">{paymentModeLabel(selectedTicket.payment_mode)}</Badge>
+                    {selectedTicket.patient?.allergies?.length > 0 && <Badge variant="destructive">Allergies: {selectedTicket.patient.allergies.join(", ")}</Badge>}
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <InterimPayment ticketId={selectedTicket.id} patientId={selectedTicket.patient?.id || selectedTicket.patient_id} />
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setSendOpen(true)}><Send className="h-4 w-4 mr-1" /> Send to…</Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {lookingUpRx ? (
+              <p className="flex items-center justify-center gap-2 py-10 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Looking for this patient's prescription…</p>
+            ) : (
+              <div className="py-8 text-center space-y-3">
+                <Pill className="h-10 w-10 mx-auto text-muted-foreground" />
+                <p className="font-medium">No prescription has been sent for this patient yet</p>
+                <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                  They were sent to the pharmacy without a prescription (for example from triage). Enter the drugs from their prescription paper, or send them to the right department.
+                </p>
+                <div className="flex flex-wrap justify-center gap-2 pt-2">
+                  <Button className="h-11 px-6" onClick={() => setAddRxOpen(true)}><Plus className="h-4 w-4 mr-2" /> Enter prescription</Button>
+                  <Button variant="outline" className="h-11" onClick={() => setSendOpen(true)}><Send className="h-4 w-4 mr-2" /> Send to…</Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       ) : (
         <>
           {lowStockItems.length > 0 && (
@@ -810,11 +867,20 @@ const Pharmacy = () => {
       <SendToDialog
         open={sendOpen}
         onOpenChange={setSendOpen}
-        ticket={sheet?.ticketId ? { id: sheet.ticketId, patientName: sheet.patient?.profile?.full_name } : null}
+        ticket={sheet?.ticketId ? { id: sheet.ticketId, patientName: sheet.patient?.profile?.full_name } : selectedTicket ? { id: selectedTicket.id, patientName: selectedTicket.patient?.profile?.full_name } : null}
         from="Pharmacy"
         exclude={["pharmacy"]}
         recommended="billing"
         onSent={() => { setSelectedTicket(null); setOpenKey(null); void fetchPrescriptions(); }}
+      />
+
+      <DirectOrderDialog
+        open={addRxOpen}
+        onOpenChange={setAddRxOpen}
+        mode="pharmacy"
+        source="pharmacy"
+        ticket={selectedTicket ? { id: selectedTicket.id, patient_id: selectedTicket.patient?.id || selectedTicket.patient_id, department_id: selectedTicket.department_id, patientName: selectedTicket.patient?.profile?.full_name } : null}
+        onDone={() => void fetchPrescriptions()}
       />
     </StationShell>
   );
