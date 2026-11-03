@@ -71,9 +71,9 @@ export async function buildInvoiceReceipt(invoiceId: string): Promise<jsPDF> {
     head: [["#", "Service", "Qty", "Unit price (KES)", "Amount (KES)"]],
     body: lines.map((l, i) => [String(i + 1), l.description, String(l.quantity), money(l.unit_price), money(l.total_price)]),
     foot: [
-      ["", "Total charged", "", "", money(gross)],
-      ...(discount ? [["", "Discount", "", "", `- ${money(discount)}`]] : []),
-      ["", "Amount payable", "", "", money(total)],
+      ["", "Total charged", "", "", { content: money(gross), styles: { halign: "right" } }],
+      ...(discount ? [["", "Discount", "", "", { content: `- ${money(discount)}`, styles: { halign: "right" as const } }]] : []),
+      ["", "Amount payable", "", "", { content: money(total), styles: { halign: "right" } }],
     ],
     theme: "grid",
     headStyles: { fillColor: [128, 0, 32], fontStyle: "bold" },
