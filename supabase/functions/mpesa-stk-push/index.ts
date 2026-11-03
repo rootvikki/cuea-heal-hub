@@ -81,28 +81,7 @@ serve(async (req) => {
     // ── Connection test (administrators, from Settings). Sends no prompt to anyone. ──
     if (body.action === "test") {
       if (!roles.some((r) => ADMIN_ROLES.includes(r))) return json({ success: false, error: "Only administrators can test the M-Pesa connection." }, 403);
-      // Ask about a made-up payment: "does not exist" means the Passkey matches this number; "credentials" means it does not.
-      const probe = async (code: string) => {
-        const ts = darajaTimestamp();
-        const r = await fetch(`${cfg.baseUrl}/mpesa/stkpushquery/v1/query`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ BusinessShortCode: code, Password: btoa(`${code}${cfg.passkey}${ts}`), Timestamp: ts, CheckoutRequestID: "ws_CO_000000000000000000" }),
-        });
-        const j = await r.json().catch(() => ({}));
-        const msg = String(j.errorMessage || j.ResultDesc || "");
-        console.log(`Probe ${code}:`, msg);
-        return /not\s*exist/i.test(msg) ? "match" : /credential|password|invalid/i.test(msg) ? "mismatch" : "unknown";
-      };
-      const passkeyCheck = await probe(cfg.businessShortCode);
-      const otherNumber = cfg.type === "till" && cfg.partyB !== cfg.businessShortCode ? cfg.partyB : null;
-      const swappedCheck = otherNumber ? await probe(otherNumber) : null;
-      const warning = passkeyCheck === "mismatch"
-        ? swappedCheck === "match"
-          ? `The Passkey belongs to ${otherNumber}, so the Till and Store numbers look swapped. Swap them and save.`
-          : "The Passkey does not match the store / paybill number. Ask Safaricom for the Passkey of this number."
-        : null;
-      return json({ success: true, message: warning || "M-Pesa accepted the app keys and the Passkey.", warning, passkeyCheck, swappedCheck, config: summary });
+      return json({ success: true, message: "M-Pesa accepted the app keys. Send a KES 1 prompt to your own phone to confirm the till and passkey.", config: summary });
     }
 
     const timestamp = darajaTimestamp();
@@ -114,6 +93,7 @@ serve(async (req) => {
       if (!checkoutRequestId) return json({ success: false, error: "checkoutRequestId is required" }, 400);
 
       const { data: tx } = await supabase.from("mpesa_transactions").select("*").eq("checkout_request_id", checkoutRequestId).maybeSingle();
+      if (!(await mayUseInvoice(tx?.invoice_id))) return json({ success: false, error: "Payment not found." }, 404);
       if (tx && tx.status !== "pending") return json({ success: true, status: tx.status, receipt: tx.mpesa_receipt_number, message: tx.result_desc });
 
       const qRes = await fetch(`${cfg.baseUrl}/mpesa/stkpushquery/v1/query`, {
