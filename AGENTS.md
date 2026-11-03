@@ -12,3 +12,6 @@
 - Profile gender is normalised to "Male"/"Female" by a database trigger; reports show a missing gender as "Not recorded" — so gaps stay visible instead of looking blank.
 - A visit's payment mode lives on `tickets.payment_mode`, set at check-in, and every station and Billing reads it from there. Later changes go through `setVisitPaymentMode` in `src/lib/billing.ts` (the edit-patient form applies it to open visits) — so reception's choice carries through to payment.
 - `EditBiodataDialog` reloads the full patient and profile rows before editing — callers pass partial objects, and saving those wiped untouched fields.
+- Ticket numbers come only from the `next_ticket_number()` database function via `src/lib/tickets.ts` (daily Nairobi counter, prefix in `system_settings.ticket_prefix`; uniqueness is per `tickets.queue_date`) — the first ticket of a day also closes previous-day triage.
+- Instant updates use one app-wide realtime channel (`src/lib/liveUpdates.ts`, mounted by `LiveUpdatesHub`); screens listen with `useLiveTable` instead of opening their own channels; the `live_updates` setting switches to 60-second refresh.
+- Form autosave uses `useFormDraft` + `DraftStatus` (per-user browser drafts, 24 h expiry, wiped on sign-out because machines are shared); inventory edits save only changed fields so concurrent stock movements are not overwritten.
