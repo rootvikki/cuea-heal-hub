@@ -15,7 +15,7 @@ import { Receipt, CreditCard, FileText, DollarSign, Plus, Trash2, Send, Printer,
 import { logAuditEvent } from "@/lib/auditLog";
 import { PaymentPanel } from "@/components/PaymentPanel";
 import { SendToDialog } from "@/components/SendToDialog";
-import { createInvoiceForTicket, routeAfterPayment, setVisitPaymentMode, type Invoice } from "@/lib/billing";
+import { createInvoiceForTicket, routeAfterPayment, setVisitPaymentMode, updateUnpaidBill, type Invoice } from "@/lib/billing";
 import { PAYMENT_MODES, allowedPaymentModes, formatKES, paymentModeLabel, type PaymentMode } from "@/lib/pricing";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { drawInfirmaryLetterhead, openPdfWindow } from "@/lib/letterhead";
@@ -67,12 +67,12 @@ const Billing = () => {
       supabase.from("invoices").select("*").eq("ticket_id", ticket.id).order("created_at"),
       supabase.from("patients").select("patient_id, patient_type, payroll_number, admission_number, national_id, insurance_provider, insurance_number, profiles!inner(full_name, phone)").eq("id", ticket.patient_id).maybeSingle(),
     ]);
-    // Keep amounts the desk has typed but not yet confirmed — a live refresh must not undo them
+    // Keep amounts the desk has typed but not yet saved — a live refresh must not undo them
     setCharges((prev) => {
-      const edited = new Map(prev.filter((c) => c._edited && !c.invoice_id).map((c) => [c.id, c]));
+      const edited = new Map(prev.filter((c) => c._edited).map((c) => [c.id, c]));
       return (chg.data || []).map((c: any) => {
         const e = edited.get(c.id);
-        return e && !c.invoice_id ? { ...c, description: e.description, amount: e.amount, _edited: true } : { ...c, _edited: false };
+        return e && (e.invoice_id ?? null) === (c.invoice_id ?? null) ? { ...c, description: e.description, amount: e.amount, _edited: true } : { ...c, _edited: false };
       });
     });
     setVisitInvoices((inv.data || []) as Invoice[]);
@@ -89,6 +89,10 @@ const Billing = () => {
 
   const unbilled = charges.filter((c) => !c.invoice_id);
   const openInvoice = visitInvoices.find((i) => i.status !== "paid");
+  // A confirmed bill stays editable at the desk until anything is paid on it
+  const editableInvoice = openInvoice && openInvoice.status === "pending" && Number(openInvoice.amount_paid || 0) === 0 ? openInvoice : null;
+  const canEditLine = (c: any) => !c.invoice_id || c.invoice_id === editableInvoice?.id;
+  const billEdits = editableInvoice ? charges.filter((c) => c._edited && c.invoice_id === editableInvoice.id) : [];
   const visitTotal = charges.reduce((s, c) => s + Number(c.amount || 0), 0);
   const visitPaid = visitInvoices.reduce((s, i) => s + Number(i.amount_paid || 0), 0);
 
@@ -126,14 +130,22 @@ const Billing = () => {
     if (!selectedTicket) return;
     setSavingBill(true);
     try {
+      // Amounts changed on the already-confirmed (unpaid) bill are saved first
+      if (editableInvoice && billEdits.length > 0) {
+        const updated = await updateUnpaidBill(editableInvoice, billEdits.map((c) => ({ id: c.id, description: c.description, amount: Number(c.amount) || 0 })));
+        setCharges((prev) => prev.map((c) => (c.invoice_id === editableInvoice.id ? { ...c, _edited: false } : c)));
+        if (unbilled.length === 0) toast.success(`Bill ${updated.invoice_number} updated`, { description: formatKES(updated.net_amount) });
+      }
       // Bill exactly what is on screen now, with the amounts as last shown
-      const inv = await createInvoiceForTicket(selectedTicket.id, unbilled.map((c) => ({ id: c.id, description: c.description, amount: Number(c.amount) || 0 })));
-      if (!inv) toast.info("Nothing new to bill");
-      else toast.success(`Bill ${inv.invoice_number} ready`, { description: formatKES(inv.net_amount) });
+      if (unbilled.length > 0) {
+        const inv = await createInvoiceForTicket(selectedTicket.id, unbilled.map((c) => ({ id: c.id, description: c.description, amount: Number(c.amount) || 0 })));
+        if (!inv) toast.info("Nothing new to bill");
+        else toast.success(`Bill ${inv.invoice_number} ready`, { description: formatKES(inv.net_amount) });
+      }
       await loadVisit(selectedTicket);
       void fetchInvoices();
     } catch (e) {
-      toast.error("Could not create bill", { description: e instanceof Error ? e.message : String(e) });
+      toast.error("Could not save the bill", { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setSavingBill(false);
     }
@@ -265,11 +277,11 @@ const Billing = () => {
                       <tr key={c.id} className="border-b">
                         <td className="px-2 py-1.5 text-muted-foreground hidden sm:table-cell">{i + 1}</td>
                         <td className="px-2 py-1.5">
-                          {c.invoice_id ? c.description : <Input value={c.description} onChange={(e) => editCharge(c.id, { description: e.target.value })} className="h-8 text-sm" />}
+                          {canEditLine(c) ? <Input value={c.description} onChange={(e) => editCharge(c.id, { description: e.target.value })} className="h-8 text-sm" aria-label={`Service ${i + 1}`} /> : c.description}
                         </td>
                         <td className="px-2 py-1.5 capitalize text-xs text-muted-foreground hidden sm:table-cell">{(c.billing_stage || "-").replace(/_/g, " ")}</td>
                         <td className="px-2 py-1.5 text-right">
-                          {c.invoice_id ? Number(c.amount).toLocaleString() : <Input type="number" min={0} value={c.amount} onChange={(e) => editCharge(c.id, { amount: e.target.value })} className="h-8 text-sm text-right" />}
+                          {canEditLine(c) ? <Input type="number" min={0} inputMode="decimal" value={c.amount} onChange={(e) => editCharge(c.id, { amount: e.target.value })} className={`h-8 text-sm text-right ${c._edited ? "border-primary ring-1 ring-primary/40" : ""}`} aria-label={`KES for ${c.description}`} /> : Number(c.amount).toLocaleString()}
                         </td>
                         <td className="px-2 py-1.5">
                           {c.invoice_id ? <CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))]" aria-label="On a bill" /> : (
@@ -293,18 +305,24 @@ const Billing = () => {
                   </tfoot>
                 </table>
               </div>
-              {unbilled.length > 0 && (
+              {editableInvoice && unbilled.length === 0 && billEdits.length === 0 && (
+                <p className="text-xs text-muted-foreground">You can still change amounts on bill {editableInvoice.invoice_number} until a payment is taken.</p>
+              )}
+              {(unbilled.length > 0 || billEdits.length > 0) && (
                 <Button onClick={createBill} disabled={savingBill} className="w-full h-11">
-                  <FileText className="h-4 w-4 mr-2" /> {savingBill ? "Preparing…" : `Confirm bill (${unbilled.length} item${unbilled.length > 1 ? "s" : ""})`}
+                  <FileText className="h-4 w-4 mr-2" />
+                  {savingBill ? "Saving…" : unbilled.length > 0 ? `Confirm bill (${unbilled.length + billEdits.length} item${unbilled.length + billEdits.length > 1 ? "s" : ""})` : `Save changed amounts (${billEdits.length})`}
                 </Button>
               )}
             </div>
 
             {/* Payment */}
             <div className="lg:col-span-2 min-w-0">
-              {openInvoice ? (
+              {openInvoice && billEdits.length > 0 ? (
+                <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Save the changed amounts to take payment.</div>
+              ) : openInvoice ? (
                 <PaymentPanel
-                  key={`${openInvoice.id}-${selectedTicket.payment_mode}`}
+                  key={`${openInvoice.id}-${selectedTicket.payment_mode}-${openInvoice.net_amount}`}
                   invoice={openInvoice}
                   paymentMode={selectedTicket.payment_mode}
                   patientPhone={patientInfo?.profiles?.phone}

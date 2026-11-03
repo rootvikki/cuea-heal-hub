@@ -123,6 +123,7 @@ export function PaymentPanel({ invoice, paymentMode, patientPhone, patient, onPa
     const amt = Number(amount);
     if (!toMpesaPhone(phone)) return toast.error("Enter a Kenyan Safaricom number, e.g. 0712 345 678");
     if (!(amt >= 1)) return toast.error("Enter the amount to pay");
+    if (amt > owed) return toast.error(`That is more than the bill (${formatKES(owed)})`, { description: "If the charge is wrong, change the amount on the bill first, then take payment." });
     setMpesa({ step: "sending" });
     const { data, error } = await supabase.functions.invoke("mpesa-stk-push", {
       body: { phoneNumber: toMpesaPhone(phone), amount: amt, invoiceId: invoice.id, accountReference: invoice.invoice_number },
