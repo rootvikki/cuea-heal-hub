@@ -534,7 +534,7 @@ const PatientPortal = () => {
           </Tabs>
 
           {/* Payment Dialog */}
-          <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+          <Dialog open={paymentDialogOpen} onOpenChange={(o) => { setPaymentDialogOpen(o); if (!o) setPayStatus(null); }}>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Pay Invoice</DialogTitle>
@@ -547,14 +547,22 @@ const PatientPortal = () => {
                   <Label htmlFor="phone">M-Pesa Phone Number</Label>
                   <Input
                     id="phone"
-                    placeholder="254712345678"
+                    placeholder="0712 345 678"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Enter your phone number in international format (254...)
+                    The Safaricom number that will receive the M-Pesa prompt
                   </p>
                 </div>
+                {payStatus && (
+                  <p className={`flex items-center gap-2 rounded-lg border p-3 text-sm ${payStatus.kind === "error" ? "border-destructive/40 bg-destructive/10 text-destructive" : "border-primary/30 bg-primary/5"}`}>
+                    {payStatus.kind === "waiting" && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {payStatus.kind === "done" && <CheckCircle className="h-4 w-4" />}
+                    {payStatus.kind === "error" && <XCircle className="h-4 w-4" />}
+                    {payStatus.text}
+                  </p>
+                )}
                 <Button
                   className="w-full"
                   onClick={handlePayment}
