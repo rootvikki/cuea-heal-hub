@@ -2457,6 +2457,7 @@ export type Database = {
           patient_id: string
           payment_mode: string
           priority: number | null
+          queue_date: string | null
           status: Database["public"]["Enums"]["ticket_status"] | null
           ticket_number: string
           updated_at: string | null
@@ -2474,6 +2475,7 @@ export type Database = {
           patient_id: string
           payment_mode?: string
           priority?: number | null
+          queue_date?: string | null
           status?: Database["public"]["Enums"]["ticket_status"] | null
           ticket_number: string
           updated_at?: string | null
@@ -2491,6 +2493,7 @@ export type Database = {
           patient_id?: string
           payment_mode?: string
           priority?: number | null
+          queue_date?: string | null
           status?: Database["public"]["Enums"]["ticket_status"] | null
           ticket_number?: string
           updated_at?: string | null
@@ -2700,6 +2703,8 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      clear_old_triage: { Args: { _stuck_minutes?: number }; Returns: Json }
+      close_previous_day_triage: { Args: never; Returns: number }
       get_all_users_with_roles: {
         Args: never
         Returns: {
@@ -2737,6 +2742,7 @@ export type Database = {
           patient_id: string
           payment_mode: string
           priority: number | null
+          queue_date: string | null
           status: Database["public"]["Enums"]["ticket_status"] | null
           ticket_number: string
           updated_at: string | null
@@ -2750,6 +2756,7 @@ export type Database = {
         }
       }
       next_opd_number: { Args: never; Returns: string }
+      next_ticket_number: { Args: never; Returns: string }
       notify_roles: {
         Args: {
           _category?: string
