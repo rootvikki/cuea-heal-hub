@@ -342,9 +342,10 @@ export function fieldFlag(def: LabFieldDef, value: string, gender?: string | nul
     if (def.critHigh != null && n > def.critHigh) return "HH";
     return getFlag(v, refRangeFor(def, gender, ageYears));
   }
-  if (kind === "text" || !def.normal) return null;
+  if (kind === "text") return null;
   const answers = kind === "multi" ? splitMulti(v) : [v];
   if (answers.some((a) => def.criticalOptions?.includes(a))) return "C";
+  if (!def.normal) return null;
   if (answers.every((a) => def.normal!.includes(a) || def.neutral?.includes(a))) return null;
   return def.abnormalFlag ?? "A";
 }
