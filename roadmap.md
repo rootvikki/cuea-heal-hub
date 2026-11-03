@@ -56,3 +56,9 @@
 - [x] Clear old triage (automatic at day start + button on Triage)
 - [x] Instant updates setting (inventory, billing, orders, patients)
 - [x] Autosave drafts: registration, triage, add drug, edit patient
+
+## Admin & lab (Nov 3 2026, part 3)
+- [x] Lock ticket/OPD counters so only the system changes them
+- [x] "Log in as" opens a new tab with the user's real session, no banner
+- [x] Research: structured lab result entry and flagging (proposal sent)
+- [ ] Waiting on user: pick which lab improvements to build + lab SOP values (ranges, critical values)
