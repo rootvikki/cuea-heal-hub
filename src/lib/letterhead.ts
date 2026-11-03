@@ -40,7 +40,7 @@ export async function drawInfirmaryLetterhead(doc: jsPDF, opts: { title?: string
   doc.setTextColor(0, 0, 0);
   doc.setFont("times", "bold"); doc.setFontSize(15);
   doc.text("THE CATHOLIC UNIVERSITY OF EASTERN AFRICA", cx, 14, { align: "center" });
-  if (crest) doc.addImage(crest, "PNG", m + 4, 17, 26, 23);
+  if (crest) doc.addImage(crest, "PNG", m + 4, 17, 24, 23.6);
   doc.setFontSize(12);
   doc.text("A. M. E. C. E. A", cx, 25, { align: "center" });
 
