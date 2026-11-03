@@ -41,4 +41,5 @@
 - [x] Finance roles (finance officer, cashier, accountant) can open and export the Payments report
 - [x] Payments report: filter by period, type, method, status, staff, department, visit mode, amount, search; group totals; PDF on letterhead, Excel with formula sheets + M-Pesa prompts, CSV
 - [ ] Waiting on user: confirm which number is the till and which is the store (a live KES 1 test)
-- [ ] Waiting on user: use the letterhead on other printed documents too?
+- [x] Official letterhead on every printout (prescriptions, referrals, lab reports, charge sheet, station & department reports, payments)
+- [x] Pharmacy: Serve on a patient with no prescription no longer disappears — enter prescription or send on
