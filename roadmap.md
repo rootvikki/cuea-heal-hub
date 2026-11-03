@@ -33,3 +33,12 @@
 - [x] Dental: tooth chart, full procedure list, lab/prescription/referral, dental history
 - [x] Pharmacy: receive → tick (give / not available / alternative) → billing → dispense & print
 - [ ] Blocked: insurance price list from user
+
+## Payments (Nov 2026, part 2)
+- [x] M-Pesa: separate till / store numbers in Settings, connection test, plain-language failure reasons
+- [x] M-Pesa: payments confirmed by status check are recorded even if Safaricom's callback is lost
+- [x] Patient portal: patients can pay their own bills by M-Pesa (was blocked) with live status
+- [x] Finance roles (finance officer, cashier, accountant) can open and export the Payments report
+- [x] Payments report: filter by period, type, method, status, staff, department, visit mode, amount, search; group totals; PDF on letterhead, Excel with formula sheets + M-Pesa prompts, CSV
+- [ ] Waiting on user: confirm which number is the till and which is the store (a live KES 1 test)
+- [ ] Waiting on user: use the letterhead on other printed documents too?

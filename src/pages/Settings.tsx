@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { BarChart3, TrendingUp, Users, DollarSign, Activity, Settings2, Smartphone, Loader2, CheckCircle2, Timer } from "lucide-react";
 import { AdminTemplates } from "@/components/AdminTemplates";
 import { useToast } from "@/hooks/use-toast";
+import { functionErrorMessage } from "@/lib/billing";
 
 const Settings = () => {
   const { toast } = useToast();
@@ -20,15 +21,21 @@ const Settings = () => {
   });
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
-  // M-Pesa config state
+  // M-Pesa config state — secret values are never loaded into the browser; blank = keep saved value
   const [mpesaConfig, setMpesaConfig] = useState({
     consumerKey: "",
     consumerSecret: "",
-    shortcode: "",
     passkey: "",
+    paymentType: "till" as "till" | "paybill",
+    tillNumber: "",
+    storeNumber: "",
+    paybillNumber: "",
   });
+  const [mpesaSaved, setMpesaSaved] = useState<Record<string, boolean>>({});
   const [mpesaEnvironment, setMpesaEnvironment] = useState("sandbox");
   const [savingMpesa, setSavingMpesa] = useState(false);
+  const [testingMpesa, setTestingMpesa] = useState(false);
+  const [mpesaTest, setMpesaTest] = useState<{ ok: boolean; message: string; config?: { environment: string; type: string; tillOrPaybill: string; storeNumber: string | null } } | null>(null);
   const [mpesaConfigured, setMpesaConfigured] = useState(false);
   const [idleTimeout, setIdleTimeout] = useState("5");
   const [savingIdle, setSavingIdle] = useState(false);
@@ -52,40 +59,70 @@ const Settings = () => {
   };
 
   const fetchMpesaConfig = async () => {
-    const { data } = await supabase
-      .from("system_settings")
-      .select("key, value")
-      .in("key", ["mpesa_consumer_key", "mpesa_consumer_secret", "mpesa_shortcode", "mpesa_passkey", "mpesa_environment"]);
+    const { data } = await supabase.from("system_settings").select("key, value").like("key", "mpesa_%");
+    const map: Record<string, string> = {};
+    (data || []).forEach((s: any) => { map[s.key] = s.value || ""; });
+    setMpesaSaved({ consumerKey: !!map.mpesa_consumer_key, consumerSecret: !!map.mpesa_consumer_secret, passkey: !!map.mpesa_passkey });
+    setMpesaConfig((prev) => ({
+      ...prev,
+      consumerKey: "", consumerSecret: "", passkey: "",
+      paymentType: map.mpesa_type === "paybill" ? "paybill" : "till",
+      tillNumber: map.mpesa_till_number || "",
+      storeNumber: map.mpesa_store_number || "",
+      paybillNumber: map.mpesa_type === "paybill" ? map.mpesa_shortcode || "" : "",
+    }));
+    setMpesaEnvironment(map.mpesa_environment || "sandbox");
+    // Show what the payment function is actually using right now (also fills numbers kept in project secrets)
+    await testMpesa(true);
+  };
 
-    if (data) {
-      const map: Record<string, string> = {};
-      data.forEach((s: any) => { map[s.key] = s.value || ""; });
-      setMpesaConfig({
-        consumerKey: map["mpesa_consumer_key"] || "",
-        consumerSecret: map["mpesa_consumer_secret"] || "",
-        shortcode: map["mpesa_shortcode"] || "",
-        passkey: map["mpesa_passkey"] || "",
-      });
-      setMpesaEnvironment(map["mpesa_environment"] || "sandbox");
-      setMpesaConfigured(!!(map["mpesa_consumer_key"] && map["mpesa_shortcode"]));
+  const testMpesa = async (prefill = false) => {
+    setTestingMpesa(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("mpesa-stk-push", { body: { action: "test" } });
+      const message = await functionErrorMessage(error, data);
+      const cfg = data?.config ?? (await (error as any)?.context?.json?.().catch(() => null))?.config;
+      const ok = !error && !!data?.success;
+      setMpesaTest({ ok, message: ok ? data.message : message, config: cfg });
+      setMpesaConfigured(ok);
+      if (prefill && cfg) {
+        setMpesaConfig((prev) => ({
+          ...prev,
+          paymentType: cfg.type === "paybill" ? "paybill" : "till",
+          tillNumber: prev.tillNumber || (cfg.type === "till" ? cfg.tillOrPaybill || "" : ""),
+          storeNumber: prev.storeNumber || cfg.storeNumber || "",
+          paybillNumber: prev.paybillNumber || (cfg.type === "paybill" ? cfg.tillOrPaybill || "" : ""),
+        }));
+      }
+    } finally {
+      setTestingMpesa(false);
     }
   };
 
   const saveMpesaConfig = async () => {
+    const c = mpesaConfig;
+    if (c.paymentType === "till" && (!c.tillNumber.trim() || !c.storeNumber.trim())) {
+      toast({ title: "Enter both numbers", description: "A Buy Goods till needs the Till number and the Store (head office) number.", variant: "destructive" });
+      return;
+    }
+    if (c.paymentType === "paybill" && !c.paybillNumber.trim()) {
+      toast({ title: "Enter the Paybill number", variant: "destructive" });
+      return;
+    }
     setSavingMpesa(true);
     try {
-      const { error } = await supabase.functions.invoke("update-mpesa-config", {
+      const { data, error } = await supabase.functions.invoke("update-mpesa-config", {
         body: {
-          consumerKey: mpesaConfig.consumerKey,
-          consumerSecret: mpesaConfig.consumerSecret,
-          shortcode: mpesaConfig.shortcode,
-          passkey: mpesaConfig.passkey,
-          environment: mpesaEnvironment,
+          consumerKey: c.consumerKey, consumerSecret: c.consumerSecret, passkey: c.passkey,
+          environment: mpesaEnvironment, paymentType: c.paymentType,
+          tillNumber: c.paymentType === "till" ? c.tillNumber : undefined,
+          storeNumber: c.paymentType === "till" ? c.storeNumber : undefined,
+          shortcode: c.paymentType === "paybill" ? c.paybillNumber : undefined,
         },
       });
-      if (error) throw error;
-      toast({ title: "M-Pesa config saved", description: "Credentials updated successfully" });
-      setMpesaConfigured(!!(mpesaConfig.consumerKey && mpesaConfig.shortcode));
+      if (error || data?.success === false) throw new Error(await functionErrorMessage(error, data));
+      toast({ title: "M-Pesa settings saved" });
+      await fetchMpesaConfig();
     } catch (err: any) {
       toast({ title: "Save failed", description: err.message, variant: "destructive" });
     } finally {
@@ -259,9 +296,26 @@ const Settings = () => {
                   <Smartphone className="h-5 w-5 text-green-600" /> M-Pesa Configuration
                   {mpesaConfigured && <CheckCircle2 className="h-4 w-4 text-green-600" />}
                 </CardTitle>
-                <CardDescription>Configure M-Pesa STK Push credentials for payment processing</CardDescription>
+                <CardDescription>The till and keys used to send M-Pesa prompts to patients' phones</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                <div className={`rounded-lg border p-4 space-y-2 ${!mpesaTest ? "border-border" : mpesaTest.ok ? "border-primary/40 bg-primary/5" : "border-destructive/40 bg-destructive/5"}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-medium">Currently in use</p>
+                    <Button size="sm" variant="outline" onClick={() => testMpesa(false)} disabled={testingMpesa}>
+                      {testingMpesa ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Test connection
+                    </Button>
+                  </div>
+                  {mpesaTest?.config && (
+                    <div className="grid gap-1 text-sm sm:grid-cols-3">
+                      <p><span className="text-muted-foreground">System:</span> {mpesaTest.config.environment === "production" ? "Live" : "Sandbox (test)"}</p>
+                      <p><span className="text-muted-foreground">{mpesaTest.config.type === "till" ? "Till number:" : "Paybill:"}</span> <strong>{mpesaTest.config.tillOrPaybill || "—"}</strong></p>
+                      {mpesaTest.config.type === "till" && <p><span className="text-muted-foreground">Store / head office:</span> <strong>{mpesaTest.config.storeNumber || "—"}</strong></p>}
+                    </div>
+                  )}
+                  <p className="text-sm">{testingMpesa && !mpesaTest ? "Checking…" : mpesaTest?.message}</p>
+                </div>
+
                 <div className="flex items-center justify-between p-4 rounded-lg bg-muted">
                   <div>
                     <p className="font-medium">Environment</p>
@@ -277,41 +331,49 @@ const Settings = () => {
                   </div>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Type of M-Pesa account</Label>
+                  <Select value={mpesaConfig.paymentType} onValueChange={(v) => setMpesaConfig(prev => ({ ...prev, paymentType: v as "till" | "paybill" }))}>
+                    <SelectTrigger className="h-12 md:w-80"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="till">Buy Goods (Till number)</SelectItem>
+                      <SelectItem value="paybill">Paybill</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-2">
+                  {mpesaConfig.paymentType === "till" ? (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Till number</Label>
+                        <Input className="h-12" inputMode="numeric" value={mpesaConfig.tillNumber} onChange={e => setMpesaConfig(prev => ({ ...prev, tillNumber: e.target.value }))} placeholder="The number patients pay to" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Store / head office number</Label>
+                        <Input className="h-12" inputMode="numeric" value={mpesaConfig.storeNumber} onChange={e => setMpesaConfig(prev => ({ ...prev, storeNumber: e.target.value }))} placeholder="The number the Passkey was issued for" />
+                      </div>
+                      <p className="md:col-span-2 text-xs text-muted-foreground">
+                        If M-Pesa says “the Agent number and Store number do not match”, these two numbers are wrong or swapped. Safaricom's Go-Live email lists both.
+                      </p>
+                    </>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label>Paybill number</Label>
+                      <Input className="h-12" inputMode="numeric" value={mpesaConfig.paybillNumber} onChange={e => setMpesaConfig(prev => ({ ...prev, paybillNumber: e.target.value }))} placeholder="e.g. 174379" />
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <Label>Consumer Key</Label>
-                    <Input
-                      type="password"
-                      value={mpesaConfig.consumerKey}
-                      onChange={e => setMpesaConfig(prev => ({ ...prev, consumerKey: e.target.value }))}
-                      placeholder="Enter Consumer Key"
-                    />
+                    <Input className="h-12" type="password" autoComplete="off" value={mpesaConfig.consumerKey} onChange={e => setMpesaConfig(prev => ({ ...prev, consumerKey: e.target.value }))} placeholder={mpesaSaved.consumerKey ? "Saved — leave blank to keep" : "Enter Consumer Key"} />
                   </div>
                   <div className="space-y-2">
                     <Label>Consumer Secret</Label>
-                    <Input
-                      type="password"
-                      value={mpesaConfig.consumerSecret}
-                      onChange={e => setMpesaConfig(prev => ({ ...prev, consumerSecret: e.target.value }))}
-                      placeholder="Enter Consumer Secret"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Business Shortcode</Label>
-                    <Input
-                      value={mpesaConfig.shortcode}
-                      onChange={e => setMpesaConfig(prev => ({ ...prev, shortcode: e.target.value }))}
-                      placeholder="e.g. 174379"
-                    />
+                    <Input className="h-12" type="password" autoComplete="off" value={mpesaConfig.consumerSecret} onChange={e => setMpesaConfig(prev => ({ ...prev, consumerSecret: e.target.value }))} placeholder={mpesaSaved.consumerSecret ? "Saved — leave blank to keep" : "Enter Consumer Secret"} />
                   </div>
                   <div className="space-y-2">
                     <Label>Passkey</Label>
-                    <Input
-                      type="password"
-                      value={mpesaConfig.passkey}
-                      onChange={e => setMpesaConfig(prev => ({ ...prev, passkey: e.target.value }))}
-                      placeholder="Enter Passkey"
-                    />
+                    <Input className="h-12" type="password" autoComplete="off" value={mpesaConfig.passkey} onChange={e => setMpesaConfig(prev => ({ ...prev, passkey: e.target.value }))} placeholder={mpesaSaved.passkey ? "Saved — leave blank to keep" : "Enter Passkey"} />
                   </div>
                 </div>
 

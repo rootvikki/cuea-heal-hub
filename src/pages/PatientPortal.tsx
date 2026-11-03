@@ -9,6 +9,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { toMpesaPhone } from "@/lib/validation";
+import { functionErrorMessage } from "@/lib/billing";
 import { 
   Calendar, 
   TestTube, 
@@ -97,6 +99,7 @@ const PatientPortal = () => {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [payStatus, setPayStatus] = useState<{ kind: "waiting" | "done" | "error"; text: string } | null>(null);
 
   useEffect(() => {
     fetchPatientData();
@@ -171,26 +174,34 @@ const PatientPortal = () => {
 
   const handlePayment = async () => {
     if (!selectedInvoice || !phoneNumber) return;
+    const phone = toMpesaPhone(phoneNumber);
+    if (!phone) { setPayStatus({ kind: "error", text: "Enter a Safaricom number, e.g. 0712 345 678" }); return; }
 
     setProcessingPayment(true);
+    setPayStatus(null);
     try {
       const { data, error } = await supabase.functions.invoke("mpesa-stk-push", {
-        body: {
-          phoneNumber: phoneNumber,
-          amount: selectedInvoice.balance,
-          invoiceId: selectedInvoice.id,
-          accountReference: selectedInvoice.invoice_number
-        }
+        body: { phoneNumber: phone, amount: selectedInvoice.balance, invoiceId: selectedInvoice.id, accountReference: selectedInvoice.invoice_number },
       });
+      if (error || !data?.success) throw new Error(await functionErrorMessage(error, data));
 
-      if (error) throw error;
-
-      toast.success("Payment request sent! Check your phone to complete the transaction.");
-      setPaymentDialogOpen(false);
-      setPhoneNumber("");
+      setPayStatus({ kind: "waiting", text: "Check your phone and enter your M-Pesa PIN…" });
+      const checkoutRequestId = data.checkoutRequestId as string;
+      // Poll every 5 s for up to 2 minutes
+      for (let i = 0; i < 24; i++) {
+        await new Promise((r) => setTimeout(r, 5000));
+        const { data: s } = await supabase.functions.invoke("mpesa-stk-push", { body: { action: "query", checkoutRequestId } });
+        if (s?.status === "completed") {
+          setPayStatus({ kind: "done", text: s.receipt ? `Paid — receipt ${s.receipt}` : "Payment received. Thank you!" });
+          toast.success("Payment received");
+          fetchPatientData();
+          return;
+        }
+        if (s?.status === "failed") { setPayStatus({ kind: "error", text: s.message || "The payment was not completed." }); return; }
+      }
+      setPayStatus({ kind: "error", text: "No confirmation yet. If you paid, it will show on your bill shortly." });
     } catch (error) {
-      console.error("Payment error:", error);
-      toast.error("Failed to initiate payment");
+      setPayStatus({ kind: "error", text: error instanceof Error ? error.message : "Could not send the M-Pesa request" });
     } finally {
       setProcessingPayment(false);
     }
@@ -523,7 +534,7 @@ const PatientPortal = () => {
           </Tabs>
 
           {/* Payment Dialog */}
-          <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
+          <Dialog open={paymentDialogOpen} onOpenChange={(o) => { setPaymentDialogOpen(o); if (!o) setPayStatus(null); }}>
             <DialogContent>
               <DialogHeader>
                 <DialogTitle>Pay Invoice</DialogTitle>
@@ -536,14 +547,22 @@ const PatientPortal = () => {
                   <Label htmlFor="phone">M-Pesa Phone Number</Label>
                   <Input
                     id="phone"
-                    placeholder="254712345678"
+                    placeholder="0712 345 678"
                     value={phoneNumber}
                     onChange={(e) => setPhoneNumber(e.target.value)}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Enter your phone number in international format (254...)
+                    The Safaricom number that will receive the M-Pesa prompt
                   </p>
                 </div>
+                {payStatus && (
+                  <p className={`flex items-center gap-2 rounded-lg border p-3 text-sm ${payStatus.kind === "error" ? "border-destructive/40 bg-destructive/10 text-destructive" : "border-primary/30 bg-primary/5"}`}>
+                    {payStatus.kind === "waiting" && <Loader2 className="h-4 w-4 animate-spin" />}
+                    {payStatus.kind === "done" && <CheckCircle className="h-4 w-4" />}
+                    {payStatus.kind === "error" && <XCircle className="h-4 w-4" />}
+                    {payStatus.text}
+                  </p>
+                )}
                 <Button
                   className="w-full"
                   onClick={handlePayment}
