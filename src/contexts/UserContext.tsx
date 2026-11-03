@@ -1,7 +1,6 @@
-import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, ReactNode } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { User, Session } from "@supabase/supabase-js";
-import { logAuditEvent } from "@/lib/auditLog";
 
 interface UserProfile {
   full_name: string;
@@ -21,12 +20,6 @@ interface UserContextType {
   hasRole: (role: string) => boolean;
   hasAnyRole: (roles: string[]) => boolean;
   refreshRoles: () => Promise<void>;
-  // Impersonation
-  isImpersonating: boolean;
-  impersonatedProfile: UserProfile | null;
-  impersonatedRoles: string[];
-  startImpersonation: (userId: string) => Promise<void>;
-  stopImpersonation: () => void;
 }
 
 const UserContext = createContext<UserContextType | undefined>(undefined);
@@ -41,16 +34,8 @@ export function UserProvider({ children }: { children: ReactNode }) {
   // must not decide access, or a page refresh sends staff back to the dashboard.
   const [loadedFor, setLoadedFor] = useState<string | null>(null);
 
-  // Impersonation state
-  const [impersonatedUserId, setImpersonatedUserId] = useState<string | null>(null);
-  const [impersonatedProfile, setImpersonatedProfile] = useState<UserProfile | null>(null);
-  const [impersonatedRoles, setImpersonatedRoles] = useState<string[]>([]);
-
-  const isImpersonating = !!impersonatedUserId;
-
-  // Active roles/profile depend on impersonation state
-  const roles = isImpersonating ? impersonatedRoles : realRoles;
-  const profile = isImpersonating ? impersonatedProfile : realProfile;
+  const roles = realRoles;
+  const profile = realProfile;
 
   const fetchUserData = async (userId: string) => {
     const [rolesRes, profileRes] = await Promise.all([
@@ -70,36 +55,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const startImpersonation = useCallback(async (targetUserId: string) => {
-    const [rolesRes, profileRes] = await Promise.all([
-      supabase.from("user_roles").select("role").eq("user_id", targetUserId),
-      supabase.from("profiles").select("full_name, email, phone, avatar_url, status").eq("user_id", targetUserId).maybeSingle(),
-    ]);
-
-    setImpersonatedUserId(targetUserId);
-    setImpersonatedRoles(rolesRes.data?.map((r) => r.role) || []);
-    setImpersonatedProfile(profileRes.data || null);
-
-    logAuditEvent({
-      action: "START_IMPERSONATION",
-      module: "user_management",
-      details: { target_user_id: targetUserId, target_name: profileRes.data?.full_name },
-    });
-  }, []);
-
-  const stopImpersonation = useCallback(() => {
-    if (impersonatedUserId) {
-      logAuditEvent({
-        action: "STOP_IMPERSONATION",
-        module: "user_management",
-        details: { target_user_id: impersonatedUserId, target_name: impersonatedProfile?.full_name },
-      });
-    }
-    setImpersonatedUserId(null);
-    setImpersonatedProfile(null);
-    setImpersonatedRoles([]);
-  }, [impersonatedUserId, impersonatedProfile]);
-
   useEffect(() => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
@@ -111,7 +66,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
         } else {
           setRealRoles([]);
           setRealProfile(null);
-          stopImpersonation();
         }
         setLoading(false);
       }
@@ -142,7 +96,6 @@ export function UserProvider({ children }: { children: ReactNode }) {
     <UserContext.Provider
       value={{
         user, session, roles, profile, loading, isAdmin, hasRole, hasAnyRole, refreshRoles,
-        isImpersonating, impersonatedProfile, impersonatedRoles, startImpersonation, stopImpersonation,
       }}
     >
       {children}

@@ -10,6 +10,7 @@ import ProtectedLayout from "@/components/ProtectedLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import LoginAs from "./pages/LoginAs";
 import ResetPassword from "./pages/ResetPassword";
 import AdminUserManagement from "./pages/AdminUserManagement";
 import Dashboard from "./pages/Dashboard";
@@ -68,6 +69,7 @@ const App = () => (
           {/* Public routes */}
           <Route path="/" element={<Index />} />
           <Route path="/auth" element={<Auth />} />
+          <Route path="/login-as" element={<LoginAs />} />
           <Route path="/reset-password" element={<ResetPassword />} />
           <Route path="/queue-display" element={<QueueDisplay />} />
           <Route path="/staff-registration" element={<StaffRegistration />} />
