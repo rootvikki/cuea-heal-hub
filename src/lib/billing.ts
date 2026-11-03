@@ -41,7 +41,18 @@ export async function patientTypeOf(patientId: string, known?: string | null): P
 }
 
 export type { ConfirmedCharge };
-...
+
+/**
+ * Puts the visit's un-invoiced charges on its bill.
+ * - `confirmed`: exactly the lines (and amounts) shown on screen when billing pressed Confirm — the bill
+ *   uses those figures (desk edits are final), and charges that arrived after the screen was shown wait
+ *   for the next confirm.
+ * - When the visit already has an unpaid bill with nothing paid yet, the new lines are added to it, so
+ *   one bill carries the whole visit and the amount to pay equals what was confirmed.
+ * If nothing is new, returns the visit's latest unpaid invoice (or null).
+ */
+export async function createInvoiceForTicket(ticketId: string, confirmed?: ConfirmedCharge[]): Promise<Invoice | null> {
+  let charges = await unbilledCharges(ticketId);
   if (confirmed) {
     const { lines, changed } = applyConfirmedCharges(charges, confirmed);
     for (const c of changed) {
