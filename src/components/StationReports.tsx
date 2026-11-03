@@ -425,7 +425,6 @@ export function LabReport() {
     if (test !== "all" && r.test !== test) return false;
     if (result !== "all" && r.category !== result) return false;
     if (gender !== "all" && (gender === "not_recorded" ? r.gender !== NOT_RECORDED : r.gender.toLowerCase() !== gender)) return false;
-    if (missingOnly === "missing" && !r.missing) return false;
     if (minAge && (r.age == null || r.age < Number(minAge))) return false;
     if (maxAge && (r.age == null || r.age > Number(maxAge))) return false;
     if (text) {
