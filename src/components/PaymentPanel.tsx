@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Loader2, Smartphone, XCircle, GraduationCap, Shield, RefreshCw, Receipt } from "lucide-react";
+import { CheckCircle2, Loader2, Smartphone, XCircle, GraduationCap, Shield, RefreshCw, Receipt, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { PhoneInput } from "@/components/PhoneInput";
@@ -12,6 +12,8 @@ import { toMpesaPhone } from "@/lib/validation";
 import { formatKES } from "@/lib/pricing";
 import { functionErrorMessage, recordPayment, type Invoice, type PaymentMethod } from "@/lib/billing";
 import { logAuditEvent } from "@/lib/auditLog";
+import { queryMpesa, waitForMpesa } from "@/lib/mpesaWait";
+import { printInvoiceReceipt } from "@/lib/receipt";
 
 interface PaymentPanelProps {
   invoice: Invoice;
@@ -26,7 +28,7 @@ interface PaymentPanelProps {
 type MpesaState =
   | { step: "idle" }
   | { step: "sending" }
-  | { step: "waiting"; checkoutRequestId: string; since: number; message?: string }
+  | { step: "waiting"; checkoutRequestId: string; since: number; message?: string; remainingMs?: number }
   | { step: "paid"; receipt?: string | null }
   | { step: "failed"; message: string };
 
@@ -179,15 +181,24 @@ export function PaymentPanel({ invoice, paymentMode, patientPhone, patient, onPa
 
           {mpesa.step === "waiting" && (
             <div className="rounded-lg border border-green-300 bg-green-50 p-3 text-sm space-y-2">
-              <p className="flex items-center gap-2 font-medium text-green-800"><Loader2 className="h-4 w-4 animate-spin" /> Waiting for the patient to pay…</p>
+              <p className="flex items-center gap-2 font-medium text-green-800">
+                {mpesa.remainingMs === 0 ? <RefreshCw className="h-4 w-4" /> : <Loader2 className="h-4 w-4 animate-spin" />}
+                {mpesa.remainingMs === 0 ? "Still no confirmation" : "Waiting for the payment…"}
+                {!!mpesa.remainingMs && <span className="ml-auto text-xs font-normal tabular-nums">{Math.floor(mpesa.remainingMs / 60000)}:{String(Math.floor((mpesa.remainingMs % 60000) / 1000)).padStart(2, "0")} left</span>}
+              </p>
               <p className="text-green-900/80">{mpesa.message}</p>
-              <Button size="sm" variant="outline" onClick={() => void checkStatus(mpesa.checkoutRequestId, true)}><RefreshCw className="h-3.5 w-3.5 mr-1" /> Check again</Button>
+              <Button size="sm" variant="outline" disabled={checking} onClick={() => void checkNow(mpesa.checkoutRequestId)}>
+                {checking ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />} Check again
+              </Button>
             </div>
           )}
           {mpesa.step === "paid" && (
-            <p className="flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 p-3 text-sm font-medium text-green-800">
-              <CheckCircle2 className="h-4 w-4" /> Paid{mpesa.receipt ? ` — receipt ${mpesa.receipt}` : ""}
-            </p>
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-green-300 bg-green-50 p-3 text-sm font-medium text-green-800">
+              <CheckCircle2 className="h-4 w-4" /> Paid{mpesa.receipt ? ` — M-Pesa code ${mpesa.receipt}` : ""}
+              <Button size="sm" variant="outline" className="ml-auto" onClick={() => void printInvoiceReceipt(invoice.id).catch((e) => toast.error(e instanceof Error ? e.message : String(e)))}>
+                <Printer className="h-3.5 w-3.5 mr-1" /> Print receipt
+              </Button>
+            </div>
           )}
           {mpesa.step === "failed" && (
             <p className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
@@ -195,9 +206,9 @@ export function PaymentPanel({ invoice, paymentMode, patientPhone, patient, onPa
             </p>
           )}
 
-          <Button onClick={sendStk} disabled={mpesa.step === "sending" || mpesa.step === "waiting" || mpesa.step === "paid"} className="w-full h-12 bg-green-600 hover:bg-green-700 text-white">
+          <Button onClick={sendStk} disabled={mpesa.step === "sending" || (mpesa.step === "waiting" && mpesa.remainingMs !== 0) || mpesa.step === "paid"} className="w-full h-12 bg-green-600 hover:bg-green-700 text-white">
             {mpesa.step === "sending" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Smartphone className="h-4 w-4 mr-2" />}
-            {mpesa.step === "failed" ? "Try again" : "Send M-Pesa prompt"}
+            {mpesa.step === "failed" ? "Try again" : mpesa.step === "waiting" ? "Send a new prompt" : "Send M-Pesa prompt"}
           </Button>
         </div>
       ) : (
