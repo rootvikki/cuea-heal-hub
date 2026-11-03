@@ -4,9 +4,9 @@ export const TZ = "Africa/Nairobi";
 
 export const PATIENT_TYPES: Record<string, string> = { cuea_staff: "CUEA Staff", cuea_student: "CUEA Student", outsider: "Outsider" };
 export const METHODS: Record<string, string> = {
-  mpesa: "M-Pesa", school_fees: "School fees / Staff", insurance: "Insurance", bank_transfer: "Bank Transfer", card: "Card", cash: "Cash (old records)",
+  mpesa: "M-Pesa", school_fees: "School fees", payroll: "Payroll", insurance: "Insurance", bank_transfer: "Bank Transfer", card: "Card", cash: "Cash (old records)",
 };
-export const PAYMENT_MODES: Record<string, string> = { mpesa: "M-Pesa / School fees", school_fees: "M-Pesa / School fees", insurance: "Insurance" };
+export const PAYMENT_MODES: Record<string, string> = { mpesa: "M-Pesa", school_fees: "School fees", payroll: "Payroll", insurance: "Insurance", mpesa_school_fees: "M-Pesa / School fees (old)" };
 
 export const PERIODS = ["today", "yesterday", "this_week", "last_7", "this_month", "last_month", "last_30", "this_year", "last_year", "custom"] as const;
 export const PERIOD_LABELS: Record<string, string> = {
@@ -120,14 +120,13 @@ export function filterPayments(rows: PaymentRow[], f: PaymentFilters): PaymentRo
   const s = f.search.trim().toLowerCase();
   const min = f.minAmount === "" ? null : Number(f.minAmount);
   const max = f.maxAmount === "" ? null : Number(f.maxAmount);
-  const modeOf = (m: string) => (m === "insurance" ? "insurance" : m === "-" ? "-" : "mpesa");
   return rows.filter((r) =>
     (f.patientType === "all" || r.patientType === f.patientType) &&
     (f.method === "all" || r.method === f.method) &&
     (f.status === "all" || r.status === f.status) &&
     (f.receivedBy === "all" || (f.receivedBy === "system" ? !r.receivedById : r.receivedById === f.receivedBy)) &&
     (f.department === "all" || r.department === f.department) &&
-    (f.paymentMode === "all" || modeOf(r.paymentMode) === f.paymentMode) &&
+    (f.paymentMode === "all" || r.paymentMode === f.paymentMode) &&
     (min === null || r.amount >= min) &&
     (max === null || r.amount <= max) &&
     (!s || [r.patient, r.opd, r.receipt, r.invoice, r.ticket, r.phone, r.memberNo].some((v) => v.toLowerCase().includes(s))),

@@ -2,11 +2,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { logAuditEvent } from "@/lib/auditLog";
 import { notifyRoles } from "@/lib/notifications";
 
-export type PaymentMethod = "mpesa" | "school_fees" | "insurance";
+export type PaymentMethod = "mpesa" | "school_fees" | "payroll" | "insurance";
 
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   mpesa: "M-Pesa",
-  school_fees: "School fees / Staff account",
+  school_fees: "School fees",
+  payroll: "Payroll deduction",
   insurance: "Insurance",
   bank_transfer: "Bank transfer",
   card: "Card",

@@ -13,7 +13,7 @@ import { logAuditEvent } from "@/lib/auditLog";
 import { Download, FileSpreadsheet, FileText, Wallet, Receipt, Smartphone, RotateCcw, Loader2, Calculator } from "lucide-react";
 import * as XLSX from "xlsx";
 import {
-  EMPTY_FILTERS, GROUPS, METHODS, PATIENT_TYPES, PERIODS, PERIOD_LABELS,
+  EMPTY_FILTERS, GROUPS, METHODS, PATIENT_TYPES, PAYMENT_MODES, PERIODS, PERIOD_LABELS,
   filterPayments, groupPayments, nairobiParts, normalisePayment, queryBounds, rangeFor,
   type GroupBy, type PaymentFilters, type PaymentRow,
 } from "@/lib/paymentsQuery";
@@ -97,7 +97,7 @@ export function PaymentsReport() {
     if (filters.status !== "all") out.push(`Status: ${STATUSES[filters.status] || filters.status}`);
     if (filters.receivedBy !== "all") out.push(`Received by: ${filters.receivedBy === "system" ? "M-Pesa (auto)" : staffNames[filters.receivedBy] || "Staff"}`);
     if (filters.department !== "all") out.push(`Department: ${filters.department}`);
-    if (filters.paymentMode !== "all") out.push(`Visit payment mode: ${filters.paymentMode === "insurance" ? "Insurance" : "M-Pesa / School fees"}`);
+    if (filters.paymentMode !== "all") out.push(`Visit payment mode: ${PAYMENT_MODES[filters.paymentMode] || filters.paymentMode}`);
     if (filters.minAmount || filters.maxAmount) out.push(`Amount: ${filters.minAmount || "0"} – ${filters.maxAmount || "any"}`);
     if (filters.search.trim()) out.push(`Search: "${filters.search.trim()}"`);
     if (out.length === 1) out.push("All patients, all methods, all users");
@@ -161,7 +161,7 @@ export function PaymentsReport() {
             {sel("Received by", filters.receivedBy, (v) => set("receivedBy", v), [["system", "M-Pesa (auto)"], ...receivers], "All users")}
             {sel("Status", filters.status, (v) => set("status", v), Object.entries(STATUSES), "Any status")}
             {sel("Department", filters.department, (v) => set("department", v), departments.map((d) => [d, d] as [string, string]), "All departments")}
-            {sel("Visit payment mode", filters.paymentMode, (v) => set("paymentMode", v), [["mpesa", "M-Pesa / School fees"], ["insurance", "Insurance"]], "Any mode")}
+            {sel("Visit payment mode", filters.paymentMode, (v) => set("paymentMode", v), [["mpesa", "M-Pesa"], ["school_fees", "School fees"], ["payroll", "Payroll"], ["insurance", "Insurance"]], "Any mode")}
             <div className="space-y-2"><Label>Amount from (KES)</Label><Input type="number" min={0} value={filters.minAmount} onChange={(e) => set("minAmount", e.target.value)} placeholder="0" className="h-12" /></div>
             <div className="space-y-2"><Label>Amount up to (KES)</Label><Input type="number" min={0} value={filters.maxAmount} onChange={(e) => set("maxAmount", e.target.value)} placeholder="Any" className="h-12" /></div>
             <div className="space-y-2 sm:col-span-2"><Label>Search</Label><Input value={filters.search} onChange={(e) => set("search", e.target.value)} placeholder="Name, OPD no., receipt, invoice, ticket, phone, admission/staff no." className="h-12" /></div>
