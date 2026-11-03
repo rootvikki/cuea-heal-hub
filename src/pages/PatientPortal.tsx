@@ -9,6 +9,8 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { toMpesaPhone } from "@/lib/validation";
+import { functionErrorMessage } from "@/lib/billing";
 import { 
   Calendar, 
   TestTube, 
@@ -97,6 +99,7 @@ const PatientPortal = () => {
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [phoneNumber, setPhoneNumber] = useState("");
   const [processingPayment, setProcessingPayment] = useState(false);
+  const [payStatus, setPayStatus] = useState<{ kind: "waiting" | "done" | "error"; text: string } | null>(null);
 
   useEffect(() => {
     fetchPatientData();
@@ -171,26 +174,34 @@ const PatientPortal = () => {
 
   const handlePayment = async () => {
     if (!selectedInvoice || !phoneNumber) return;
+    const phone = toMpesaPhone(phoneNumber);
+    if (!phone) { setPayStatus({ kind: "error", text: "Enter a Safaricom number, e.g. 0712 345 678" }); return; }
 
     setProcessingPayment(true);
+    setPayStatus(null);
     try {
       const { data, error } = await supabase.functions.invoke("mpesa-stk-push", {
-        body: {
-          phoneNumber: phoneNumber,
-          amount: selectedInvoice.balance,
-          invoiceId: selectedInvoice.id,
-          accountReference: selectedInvoice.invoice_number
-        }
+        body: { phoneNumber: phone, amount: selectedInvoice.balance, invoiceId: selectedInvoice.id, accountReference: selectedInvoice.invoice_number },
       });
+      if (error || !data?.success) throw new Error(await functionErrorMessage(error, data));
 
-      if (error) throw error;
-
-      toast.success("Payment request sent! Check your phone to complete the transaction.");
-      setPaymentDialogOpen(false);
-      setPhoneNumber("");
+      setPayStatus({ kind: "waiting", text: "Check your phone and enter your M-Pesa PIN…" });
+      const checkoutRequestId = data.checkoutRequestId as string;
+      // Poll every 5 s for up to 2 minutes
+      for (let i = 0; i < 24; i++) {
+        await new Promise((r) => setTimeout(r, 5000));
+        const { data: s } = await supabase.functions.invoke("mpesa-stk-push", { body: { action: "query", checkoutRequestId } });
+        if (s?.status === "completed") {
+          setPayStatus({ kind: "done", text: s.receipt ? `Paid — receipt ${s.receipt}` : "Payment received. Thank you!" });
+          toast.success("Payment received");
+          fetchPatientData();
+          return;
+        }
+        if (s?.status === "failed") { setPayStatus({ kind: "error", text: s.message || "The payment was not completed." }); return; }
+      }
+      setPayStatus({ kind: "error", text: "No confirmation yet. If you paid, it will show on your bill shortly." });
     } catch (error) {
-      console.error("Payment error:", error);
-      toast.error("Failed to initiate payment");
+      setPayStatus({ kind: "error", text: error instanceof Error ? error.message : "Could not send the M-Pesa request" });
     } finally {
       setProcessingPayment(false);
     }
