@@ -69,10 +69,31 @@ serve(async (req) => {
       return json({ success: false, error: `M-Pesa rejected the Consumer Key / Secret for the ${cfg.environment === "production" ? "live (production)" : "sandbox"} system. Re-enter them in Settings → M-Pesa.`, config: summary }, 400);
     }
 
-    // ── Connection test (administrators, from Settings) ──
+    // ── Connection test (administrators, from Settings). Sends no prompt to anyone. ──
     if (body.action === "test") {
       if (!roles.some((r) => ADMIN_ROLES.includes(r))) return json({ success: false, error: "Only administrators can test the M-Pesa connection." }, 403);
-      return json({ success: true, message: "M-Pesa accepted the app keys.", config: summary });
+      // Ask about a made-up payment: "does not exist" means the Passkey matches this number; "credentials" means it does not.
+      const probe = async (code: string) => {
+        const ts = darajaTimestamp();
+        const r = await fetch(`${cfg.baseUrl}/mpesa/stkpushquery/v1/query`, {
+          method: "POST",
+          headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ BusinessShortCode: code, Password: btoa(`${code}${cfg.passkey}${ts}`), Timestamp: ts, CheckoutRequestID: "ws_CO_000000000000000000" }),
+        });
+        const j = await r.json().catch(() => ({}));
+        const msg = String(j.errorMessage || j.ResultDesc || "");
+        console.log(`Probe ${code}:`, msg);
+        return /not\s*exist/i.test(msg) ? "match" : /credential|password|invalid/i.test(msg) ? "mismatch" : "unknown";
+      };
+      const passkeyCheck = await probe(cfg.businessShortCode);
+      const otherNumber = cfg.type === "till" && cfg.partyB !== cfg.businessShortCode ? cfg.partyB : null;
+      const swappedCheck = passkeyCheck !== "match" && otherNumber ? await probe(otherNumber) : null;
+      const warning = passkeyCheck === "mismatch"
+        ? swappedCheck === "match"
+          ? `The Passkey belongs to ${otherNumber}, so the Till and Store numbers look swapped. Swap them and save.`
+          : "The Passkey does not match the store / paybill number. Ask Safaricom for the Passkey of this number."
+        : null;
+      return json({ success: true, message: warning || "M-Pesa accepted the app keys and the Passkey.", warning, passkeyCheck, config: summary });
     }
 
     const timestamp = darajaTimestamp();
