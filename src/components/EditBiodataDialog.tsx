@@ -13,6 +13,7 @@ import { PAYMENT_MODES, allowedPaymentModes, defaultPaymentMode, paymentModeLabe
 import { openVisitIds, setVisitPaymentMode } from "@/lib/billing";
 import { useFormDraft } from "@/hooks/useFormDraft";
 import { DraftStatus } from "@/components/DraftStatus";
+import { useUser } from "@/contexts/UserContext";
 
 const normGender = (g?: string | null) => { const x = (g || "").trim().toLowerCase(); return x === "male" || x === "m" ? "Male" : x === "female" || x === "f" ? "Female" : ""; };
 
@@ -27,6 +28,9 @@ interface Props {
 export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSaved }: Props) {
   const [f, setF] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
+  const { user, hasAnyRole } = useUser();
+  // Nobody edits their own personal details (the database refuses it too); administrators keep control
+  const ownRecord = !!user && patient?.user_id === user.id && !hasAnyRole(["admin", "super_admin"]);
 
   // Always edit the full saved record — the caller may only have a few fields,
   // and saving a partial copy would wipe the rest (nationality, next of kin…).
@@ -201,7 +205,8 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={save} disabled={saving || !fresh}>{saving ? "Saving..." : "Save changes"}</Button>
+          {ownRecord && <p className="text-sm text-destructive mr-auto">This is your own record — ask another staff member or the administrator to change it.</p>}
+          <Button onClick={save} disabled={saving || !fresh || ownRecord}>{saving ? "Saving..." : "Save changes"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
