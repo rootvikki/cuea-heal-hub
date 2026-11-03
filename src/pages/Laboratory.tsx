@@ -377,6 +377,38 @@ const Laboratory = () => {
 
   const setField = (orderId: string, patch: Partial<Draft[string]>) => setDraft((p) => ({ ...p, [orderId]: { ...p[orderId], ...patch } }));
 
+  /** Comment box, standard-comment picker and Reject sample, shown with each test. */
+  const testTools = (o: any, d: Draft[string], locked: boolean) => (
+    <div className="space-y-1.5">
+      <Textarea rows={2} placeholder="Comment (optional)" value={d.notes} disabled={locked}
+        onChange={(e) => setField(o.id, { notes: e.target.value })} className="text-xs min-h-[48px]" />
+      {!locked && (
+        <div className="flex flex-wrap gap-1.5">
+          <Select value="" onValueChange={(c) => setField(o.id, { notes: d.notes.trim() ? `${d.notes.trim()} ${c}` : c })}>
+            <SelectTrigger className="h-8 text-xs w-auto min-w-[9rem]" aria-label="Add a standard comment"><SelectValue placeholder="+ Standard comment" /></SelectTrigger>
+            <SelectContent>{CANNED_COMMENTS.map((c) => <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button type="button" size="sm" variant="outline" className="h-8 text-xs text-destructive" onClick={() => { setRejecting(o); setRejectReason(""); setRejectNote(""); }}>
+            <Ban className="h-3.5 w-3.5 mr-1" /> Reject sample
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+
+  const rejectedBlock = (o: any) => (
+    <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 md:px-0 md:py-0">
+      <p className="text-sm"><span className="font-semibold text-destructive">Sample rejected:</span> {o.rejection_reason || "—"}
+        {o.rejected_at && <span className="text-muted-foreground text-xs"> · {new Date(o.rejected_at).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>}
+      </p>
+      {canManageLab && (
+        <Button size="sm" variant="outline" className="h-8" onClick={() => void newSampleReceived(o)}>
+          <RotateCcw className="h-3.5 w-3.5 mr-1" /> New sample received
+        </Button>
+      )}
+    </div>
+  );
+
   const renderVisitCard = (v: LabVisit) => {
     const st = STATUS_BADGE[v.status];
     const done = v.orders.filter((o) => !isOpen(o)).length;
@@ -467,105 +499,119 @@ const Laboratory = () => {
               )}
             </div>
 
+            {/* Critical values raised for this request */}
+            {alerts.length > 0 && (
+              <div className="space-y-1.5">
+                {alerts.map((al) => (
+                  <div key={al.id} className={cn("flex flex-wrap items-center gap-2 rounded-md border p-2 text-sm", al.acknowledged ? "bg-muted/40" : "border-destructive bg-destructive/10")}>
+                    <Siren className={cn("h-4 w-4", al.acknowledged ? "text-muted-foreground" : "text-destructive")} />
+                    <span className="font-semibold">{al.title}</span>
+                    <span className="text-muted-foreground">
+                      {al.acknowledged
+                        ? `Acknowledged by ${al.ackName || "staff"}${al.acknowledged_at ? ` at ${new Date(al.acknowledged_at).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""}${al.acknowledged_note ? ` — ${al.acknowledged_note}` : ""}`
+                        : "Doctor alerted — waiting for acknowledgement. Phone the doctor if no response."}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Step 2 — results, all tests in one bordered table */}
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">2</span>
-                Enter results <span className="text-muted-foreground text-xs hidden sm:inline">(Enter / ↑ ↓ move between boxes)</span>
+                Enter results <span className="text-muted-foreground text-xs hidden sm:inline">(pick the answer; number boxes: Enter / ↑ ↓ move)</span>
               </div>
-              {/* Phones: one card per test, one box per line */}
+              {/* Phones: one card per test, one answer per line */}
               <div className="md:hidden space-y-3">
                 {openVisit.orders.map((o) => {
-                  const defs = STRUCTURED_FIELDS[o.test?.test_name || ""];
+                  const defs = defsFor(o);
                   const d = draft[o.id] || { fields: {}, value: "", notes: "" };
-                  const locked = !canManageLab || o.status === "completed";
+                  const locked = !canManageLab || !isOpen(o);
                   const gender = o.patient?.profile?.gender;
+                  const age = calculateAgeYears(o.patient?.profile?.date_of_birth);
                   return (
                     <div key={o.id} className="rounded-lg border">
                       <p className="px-3 py-2 border-b bg-muted/40 font-semibold text-sm flex items-center gap-1">
                         {o.test?.test_name}
                         {o.status === "completed" && <CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))]" />}
                       </p>
-                      <div className="divide-y">
-                        {defs ? defs.map((def) => {
-                          const ref = refRangeFor(def, gender);
-                          const val = d.fields[def.name] || "";
-                          const flag = getFlag(val, ref);
-                          return (
-                            <div key={def.name} className={cn("flex items-center gap-2 px-3 py-1.5", flag && "bg-destructive/5")}>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium">{def.name} {flag && <span className="text-destructive font-bold">{flag === "H" ? "↑" : "↓"}</span>}</p>
-                                <p className="text-[11px] text-muted-foreground truncate">{[ref, def.unit].filter(Boolean).join(" · ")}</p>
+                      {o.status === "rejected" ? rejectedBlock(o) : (
+                        <div className="divide-y">
+                          {defs ? visibleFields(defs, d.fields).map((def) => {
+                            const ref = refRangeFor(def, gender, age);
+                            const val = d.fields[def.name] || "";
+                            const flag = fieldFlag(def, val, gender, age);
+                            return (
+                              <div key={def.name} className={cn("px-3 py-2 space-y-1", flag && "bg-destructive/5")}>
+                                <div className="flex items-baseline justify-between gap-2">
+                                  <p className="text-sm font-medium">{def.name}{def.optional && <span className="text-muted-foreground font-normal text-xs"> (if done)</span>} {flag && <span className="text-destructive font-bold text-xs">{flagLabel(flag)}</span>}</p>
+                                  <p className="text-[11px] text-muted-foreground truncate">{[ref, def.unit].filter(Boolean).join(" · ")}</p>
+                                </div>
+                                <LabFieldInput def={def} value={val} flag={flag} size="lg" disabled={locked} onKeyDown={onResultKey}
+                                  onChange={(v) => setField(o.id, { fields: { ...d.fields, [def.name]: v } })} />
                               </div>
-                              <Input data-lab-field inputMode="decimal" value={val} disabled={locked} onKeyDown={onResultKey}
-                                onChange={(e) => setField(o.id, { fields: { ...d.fields, [def.name]: e.target.value } })}
-                                className={cn("h-11 w-28 text-base", flag && "border-destructive font-bold text-destructive")} />
+                            );
+                          }) : (
+                            <div className="px-3 py-2 space-y-2">
+                              <Input data-lab-field value={d.value} disabled={locked} onKeyDown={onResultKey} placeholder="Type result"
+                                onChange={(e) => setField(o.id, { value: e.target.value })} className="h-11 text-base" />
+                              {o.test?.normal_range && <p className="text-[11px] text-muted-foreground">Normal: {o.test.normal_range} {o.test.unit || ""}</p>}
                             </div>
-                          );
-                        }) : (
-                          <div className="px-3 py-2 space-y-2">
-                            <Input data-lab-field value={d.value} disabled={locked} onKeyDown={onResultKey} placeholder="Type result"
-                              onChange={(e) => setField(o.id, { value: e.target.value })} className="h-11 text-base" />
-                            {!locked && (
-                              <div className="grid grid-cols-2 gap-2">
-                                {["Positive", "Negative"].map((q) => (
-                                  <Button key={q} type="button" variant={d.value === q ? "default" : "outline"} className="h-10" onClick={() => setField(o.id, { value: q })}>
-                                    {q === "Positive" ? "+ve Positive" : "-ve Negative"}
-                                  </Button>
-                                ))}
-                              </div>
-                            )}
-                            {o.test?.normal_range && <p className="text-[11px] text-muted-foreground">Normal: {o.test.normal_range} {o.test.unit || ""}</p>}
-                          </div>
-                        )}
-                        <div className="px-3 py-2">
-                          <Textarea rows={2} placeholder="Comment (optional)" value={d.notes} disabled={locked}
-                            onChange={(e) => setField(o.id, { notes: e.target.value })} className="text-sm" />
+                          )}
+                          <div className="px-3 py-2">{testTools(o, d, locked)}</div>
                         </div>
-                      </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
               <div className="hidden md:block overflow-x-auto rounded-md">
-                <table className="w-full border-collapse border border-border text-sm min-w-[640px]">
+                <table className="w-full border-collapse border border-border text-sm min-w-[720px]">
                   <thead>
                     <tr>{["Test", "Parameter", "Result", "Unit", "Reference range", "Flag"].map((h) => <th key={h} className="border bg-muted px-2 py-1.5 text-left font-semibold">{h}</th>)}</tr>
                   </thead>
                   <tbody>
                     {openVisit.orders.map((o) => {
-                      const defs = STRUCTURED_FIELDS[o.test?.test_name || ""];
+                      const defs = defsFor(o);
                       const d = draft[o.id] || { fields: {}, value: "", notes: "" };
-                      const locked = !canManageLab || o.status === "completed";
+                      const locked = !canManageLab || !isOpen(o);
                       const gender = o.patient?.profile?.gender;
+                      const age = calculateAgeYears(o.patient?.profile?.date_of_birth);
                       const testCell = (span: number) => (
-                        <td rowSpan={span} className="border px-2 py-1.5 align-top font-semibold bg-muted/30 min-w-[150px]">
+                        <td rowSpan={span} className="border px-2 py-1.5 align-top font-semibold bg-muted/30 min-w-[170px] max-w-[220px]">
                           {o.test?.test_name}
                           {o.status === "completed" && <CheckCircle2 className="inline h-4 w-4 ml-1 text-[hsl(var(--success))]" />}
-                          <Textarea rows={2} placeholder="Comment (optional)" value={d.notes} disabled={locked}
-                            onChange={(e) => setField(o.id, { notes: e.target.value })}
-                            className="mt-2 text-xs font-normal min-h-[48px]" />
+                          {o.status !== "rejected" && <div className="mt-2 font-normal">{testTools(o, d, locked)}</div>}
                         </td>
                       );
+                      if (o.status === "rejected") {
+                        return (
+                          <tr key={o.id}>
+                            {testCell(1)}
+                            <td colSpan={5} className="border px-2 py-2">{rejectedBlock(o)}</td>
+                          </tr>
+                        );
+                      }
                       if (defs) {
+                        const shown = visibleFields(defs, d.fields);
                         return (
                           <Fragment key={o.id}>
-                            {defs.map((def, i) => {
-                              const ref = refRangeFor(def, gender);
+                            {shown.map((def, i) => {
+                              const ref = refRangeFor(def, gender, age);
                               const val = d.fields[def.name] || "";
-                              const flag = getFlag(val, ref);
+                              const flag = fieldFlag(def, val, gender, age);
                               return (
-                                <tr key={def.name} className={flag ? "bg-destructive/5" : undefined}>
-                                  {i === 0 && testCell(defs.length)}
-                                  <td className="border px-2 py-1">{def.name}</td>
-                                  <td className="border px-1 py-0.5">
-                                    <Input data-lab-field value={val} disabled={locked} onKeyDown={onResultKey}
-                                      onChange={(e) => setField(o.id, { fields: { ...d.fields, [def.name]: e.target.value } })}
-                                      className={cn("h-9 w-28 text-sm", flag && "border-destructive font-bold text-destructive")} />
+                                <tr key={def.name} className={isCriticalFlag(flag) ? "bg-destructive/15" : flag ? "bg-destructive/5" : undefined}>
+                                  {i === 0 && testCell(shown.length)}
+                                  <td className="border px-2 py-1">{def.name}{def.optional && <span className="text-muted-foreground text-xs"> (if done)</span>}</td>
+                                  <td className="border px-1 py-1">
+                                    <LabFieldInput def={def} value={val} flag={flag} disabled={locked} onKeyDown={onResultKey}
+                                      onChange={(v) => setField(o.id, { fields: { ...d.fields, [def.name]: v } })} />
                                   </td>
                                   <td className="border px-2 py-1 text-muted-foreground">{def.unit}</td>
                                   <td className="border px-2 py-1 text-muted-foreground">{ref || ""}</td>
-                                  <td className="border px-2 py-1 text-center font-bold text-destructive">{flag === "H" ? "↑ H" : flag === "L" ? "↓ L" : ""}</td>
+                                  <td className="border px-2 py-1 text-center font-bold text-destructive whitespace-nowrap">{flagLabel(flag)}</td>
                                 </tr>
                               );
                             })}
@@ -581,19 +627,10 @@ const Laboratory = () => {
                             <Input data-lab-field value={d.value} disabled={locked} onKeyDown={onResultKey}
                               onChange={(e) => setField(o.id, { value: e.target.value })}
                               placeholder="Type result" className={cn("h-9 w-full min-w-[9rem] text-sm", flag && "border-destructive font-bold text-destructive")} />
-                            {!locked && (
-                              <div className="flex gap-1 mt-1">
-                                {["Positive", "Negative"].map((q) => (
-                                  <Button key={q} type="button" size="sm" variant={d.value === q ? "default" : "outline"} className="h-7 px-2 text-xs" onClick={() => setField(o.id, { value: q })}>
-                                    {q === "Positive" ? "+ve" : "-ve"}
-                                  </Button>
-                                ))}
-                              </div>
-                            )}
                           </td>
                           <td className="border px-2 py-1 text-muted-foreground">{o.test?.unit || ""}</td>
                           <td className="border px-2 py-1 text-muted-foreground">{o.test?.normal_range || ""}</td>
-                          <td className="border px-2 py-1 text-center font-bold text-destructive">{flag === "H" ? "↑ H" : flag === "L" ? "↓ L" : ""}</td>
+                          <td className="border px-2 py-1 text-center font-bold text-destructive">{flagLabel(flag)}</td>
                         </tr>
                       );
                     })}
@@ -670,6 +707,32 @@ const Laboratory = () => {
           </TabsContent>
         </Tabs>
       )}
+
+      <Dialog open={!!rejecting} onOpenChange={(v) => { if (!v) setRejecting(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject sample — {rejecting?.test?.test_name}</DialogTitle>
+            <DialogDescription>The doctor is told a new sample is needed. The rejection is recorded in the lab reports.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Reason *</Label>
+              <Select value={rejectReason || undefined} onValueChange={setRejectReason}>
+                <SelectTrigger className="h-12"><SelectValue placeholder="Choose a reason" /></SelectTrigger>
+                <SelectContent>{REJECTION_REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Note (optional)</Label>
+              <Textarea rows={3} value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} placeholder="e.g. only 0.5 mL received" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejecting(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={!rejectReason} onClick={() => void rejectSample()}><Ban className="h-4 w-4 mr-1" /> Reject sample</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <SendToDialog
         open={sendOpen}
