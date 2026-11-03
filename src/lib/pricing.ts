@@ -1,22 +1,54 @@
 /**
  * Payment modes and price selection.
  *
- * Every visit (ticket) is either paid by M-Pesa / school fees, or by insurance.
- * Catalog items may carry a separate `insurance_price`. Until the official
- * insurance price list is loaded, `insurance_price` is empty and the normal
- * price is used for both modes.
+ * Every visit (ticket) has one payment mode: M-Pesa, school fees, payroll or insurance.
+ * Which modes a patient may use depends on their patient type.
+ * Prices are two-tier: catalog items may carry a separate `insurance_price`, used
+ * for insurance visits; every other mode pays the normal price.
  */
-export type PaymentMode = "mpesa_school_fees" | "insurance";
+export type PaymentMode = "mpesa" | "school_fees" | "payroll" | "insurance";
 
 export const PAYMENT_MODES: { value: PaymentMode; label: string; short: string; description: string }[] = [
-  { value: "mpesa_school_fees", label: "M-Pesa / School fees / Payroll", short: "M-Pesa / Fees / Payroll", description: "Pays by M-Pesa, billed to school fees, or deducted from staff payroll" },
+  { value: "mpesa", label: "M-Pesa", short: "M-Pesa", description: "Pays by M-Pesa at the billing desk" },
+  { value: "school_fees", label: "School fees", short: "School fees", description: "Billed to the student's school fees account" },
+  { value: "payroll", label: "Payroll", short: "Payroll", description: "Deducted from the staff member's payroll" },
   { value: "insurance", label: "Insurance", short: "Insurance", description: "Billed to the patient's insurance provider" },
 ];
 
-export const paymentModeLabel = (mode?: string | null) =>
-  PAYMENT_MODES.find((m) => m.value === mode)?.label ?? "M-Pesa / School fees / Payroll";
+const LEGACY_LABELS: Record<string, string> = { mpesa_school_fees: "M-Pesa / School fees" };
 
-export const isPaymentMode = (v: unknown): v is PaymentMode => v === "mpesa_school_fees" || v === "insurance";
+export const paymentModeLabel = (mode?: string | null) =>
+  PAYMENT_MODES.find((m) => m.value === mode)?.label ?? (mode ? LEGACY_LABELS[mode] ?? mode : "M-Pesa");
+
+export const isPaymentMode = (v: unknown): v is PaymentMode => PAYMENT_MODES.some((m) => m.value === v);
+
+/** Payment modes a patient of this type may use (in the order they are offered). */
+export function allowedPaymentModes(patientType?: string | null): PaymentMode[] {
+  if (patientType === "cuea_student") return ["school_fees", "mpesa", "insurance"];
+  if (patientType === "cuea_staff") return ["payroll", "mpesa", "insurance"];
+  return ["mpesa", "insurance"];
+}
+
+/**
+ * Default payment mode at check-in: insurance when the patient has insurance on file
+ * (provider and member number), otherwise school fees for students, payroll for staff,
+ * M-Pesa for everyone else.
+ */
+export function defaultPaymentMode(p: { patient_type?: string | null; insurance_provider?: string | null; insurance_number?: string | null }): PaymentMode {
+  if (p.insurance_provider?.trim() && p.insurance_number?.trim()) return "insurance";
+  return allowedPaymentModes(p.patient_type)[0];
+}
+
+/** Billing methods the desk may use for a visit with this payment mode. M-Pesa is the co-pay for insurance. */
+export type BillingMethod = "mpesa" | "mpesa_manual" | "school_fees" | "payroll" | "insurance";
+export function billingMethodsFor(mode?: string | null): BillingMethod[] {
+  switch (mode) {
+    case "insurance": return ["insurance", "mpesa"];
+    case "school_fees": return ["school_fees"];
+    case "payroll": return ["payroll"];
+    default: return ["mpesa", "mpesa_manual"];
+  }
+}
 
 /** Price for a catalog item (lab test, drug, imaging) under the visit's payment mode. */
 export function priceFor(
@@ -32,15 +64,15 @@ export function priceFor(
 }
 
 /** Fixed service fees. Insurance values are placeholders equal to the normal fee until prices are provided. */
-export const SERVICE_FEES: Record<string, { mpesa_school_fees: number; insurance: number }> = {
-  triage: { mpesa_school_fees: 200, insurance: 200 },
-  admission: { mpesa_school_fees: 1000, insurance: 1000 },
+export const SERVICE_FEES: Record<string, { normal: number; insurance: number }> = {
+  triage: { normal: 200, insurance: 200 },
+  admission: { normal: 1000, insurance: 1000 },
 };
 
 export const serviceFee = (key: keyof typeof SERVICE_FEES | string, mode?: string | null) => {
   const fee = SERVICE_FEES[key];
   if (!fee) return 0;
-  return mode === "insurance" ? fee.insurance : fee.mpesa_school_fees;
+  return mode === "insurance" ? fee.insurance : fee.normal;
 };
 
 export const formatKES = (n: number | string | null | undefined) =>
