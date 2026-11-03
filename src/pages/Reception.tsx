@@ -1,3 +1,4 @@
+import { nextTicketNumber } from "@/lib/tickets";
 import { useState, useEffect, useMemo } from "react";
 import { DirectOrderDialog } from "@/components/DirectOrderDialog";
 import { supabase } from "@/integrations/supabase/client";
@@ -250,7 +251,7 @@ const Reception = () => {
 
       const stop = checkIn.firstStop;
       const stationStage = stop === "lab_request" || stop === "pharmacy_request" ? "checked_in" : STATIONS.find((s) => s.key === stop)!.stage;
-      const ticketNumber = `T-${Date.now().toString().slice(-6)}`;
+      const ticketNumber = await nextTicketNumber();
       const { data: ticket, error } = await supabase.from("tickets").insert({
         ticket_number: ticketNumber,
         patient_id: p.id,
@@ -298,7 +299,7 @@ const Reception = () => {
         return;
       }
       const isDental = apt.patients?.visit_reason === "dental";
-      const ticketNumber = `T-${Date.now().toString().slice(-6)}`;
+      const ticketNumber = await nextTicketNumber();
       const { error } = await supabase.from("tickets").insert({
         ticket_number: ticketNumber, patient_id: patientId, department_id: apt.department_id, priority: 1,
         status: isDental ? "at_dental" : "triage", workflow_stage: isDental ? "at_dental" : "triage", appointment_id: apt.id,

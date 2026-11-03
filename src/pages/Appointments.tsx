@@ -1,3 +1,4 @@
+import { nextTicketNumber } from "@/lib/tickets";
 import { visitPaymentModeFor } from "@/lib/billing";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -162,7 +163,7 @@ const Appointments = () => {
       return;
     }
 
-    const ticketNumber = `T-${Date.now().toString().slice(-6)}`;
+    const ticketNumber = await nextTicketNumber();
     const { error } = await supabase.from("tickets").insert({
       ticket_number: ticketNumber,
       patient_id: patientRecord.id,
