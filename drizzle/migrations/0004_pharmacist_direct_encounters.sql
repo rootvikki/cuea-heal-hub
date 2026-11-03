@@ -1,0 +1,1 @@
+CREATE POLICY "Pharmacists create direct encounters" ON public.encounters FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'pharmacist'::app_role));

@@ -118,20 +118,26 @@ export function DirectOrderDialog({ open, onOpenChange, mode, ticket, source, on
         if (error) throw new Error(error.message);
       }
 
-      const stage = mode === "lab" ? "at_lab" : "at_pharmacy";
+      const atPharmacy = source === "pharmacy";
+      const stage = mode === "lab" ? "at_lab" : atPharmacy ? "at_billing" : "at_pharmacy";
       const { error: tErr } = await supabase.from("tickets").update({ status: stage, workflow_stage: stage, assigned_to: null, claimed_at: null }).eq("id", ticket.id);
       if (tErr) throw new Error(tErr.message);
 
       const count = mode === "lab" ? selectedTests.length : lines.length;
       logAuditEvent({ action: `direct_${mode}_request`, module: source, details: { ticket_id: ticket.id, encounter_id: encounterId, count, origin } });
-      if (source !== "pharmacy") await notifyRoles([mode === "lab" ? "lab_technician" : "pharmacist"], {
+      if (atPharmacy) await notifyRoles(["cashier", "finance_officer"], {
+        title: "Patient sent to Billing",
+        message: `${ticket.patientName || "A patient"}: ${count} item(s) from Pharmacy.`,
+        category: "billing", referenceId: ticket.id, link: "/billing",
+      });
+      else await notifyRoles([mode === "lab" ? "lab_technician" : "pharmacist"], {
         title: mode === "lab" ? "New lab request" : "New prescription",
         message: `${ticket.patientName || "A patient"}: ${count} ${mode === "lab" ? "test(s)" : "item(s)"} sent from ${source}.`,
         category: mode === "lab" ? "lab" : "pharmacy",
         referenceId: ticket.id,
         link: mode === "lab" ? "/laboratory" : "/pharmacy",
       });
-      toast({ title: mode === "lab" ? "Sent to Laboratory" : "Sent to Pharmacy", description: `${ticket.patientName || "Patient"} — one request with ${count} ${mode === "lab" ? "test(s)" : "item(s)"}.` });
+      toast({ title: mode === "lab" ? "Sent to Laboratory" : atPharmacy ? "Sent to Billing" : "Sent to Pharmacy", description: `${ticket.patientName || "Patient"} — one request with ${count} ${mode === "lab" ? "test(s)" : "item(s)"}.` });
       onOpenChange(false);
       onDone?.();
     } catch (e: any) {
@@ -155,10 +161,10 @@ export function DirectOrderDialog({ open, onOpenChange, mode, ticket, source, on
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {mode === "lab" ? <FlaskConical className="h-5 w-5" /> : <Pill className="h-5 w-5" />}
-            Send directly to {mode === "lab" ? "Laboratory" : "Pharmacy"}
+            {source === "pharmacy" ? "Enter outside prescription" : `Send directly to ${mode === "lab" ? "Laboratory" : "Pharmacy"}`}
           </DialogTitle>
           <DialogDescription>
-            {ticket?.patientName} · <Badge variant="outline" className="text-[10px]">{paymentModeLabel(paymentMode)}</Badge> · skips triage and the doctor.
+            {ticket?.patientName} · <Badge variant="outline" className="text-[10px]">{paymentModeLabel(paymentMode)}</Badge> · {source === "pharmacy" ? "saved to the visit, then sent to Billing." : "skips triage and the doctor."}
           </DialogDescription>
         </DialogHeader>
 
@@ -243,7 +249,7 @@ export function DirectOrderDialog({ open, onOpenChange, mode, ticket, source, on
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
           <Button onClick={() => void submit()} disabled={!canSubmit || saving}>
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            Send to {mode === "lab" ? "Laboratory" : "Pharmacy"}
+            Send to {mode === "lab" ? "Laboratory" : source === "pharmacy" ? "Billing" : "Pharmacy"}
           </Button>
         </div>
       </DialogContent>
