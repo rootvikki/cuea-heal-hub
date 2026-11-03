@@ -7,6 +7,7 @@ import { Separator } from "@/components/ui/separator";
 import { Activity, TestTube, Camera, Pill, Receipt, Stethoscope, Heart } from "lucide-react";
 import { LabOrderTimeline, labOrderStatusLabel } from "@/components/LabOrderTimeline";
 import { LabResultSignOff } from "@/components/LabResultSignOff";
+import { flagLabel } from "@/lib/labFields";
 import { PrescriptionTimeline, prescriptionStatusLabel } from "@/components/PrescriptionTimeline";
 
 interface PatientJourneyProps {
@@ -135,7 +136,7 @@ export function PatientJourney({ ticketId, patientId }: PatientJourneyProps) {
                               <span className="col-span-3 font-mono font-medium">{f.field_value || "—"} {f.unit || ""}</span>
                               <span className="col-span-4 text-muted-foreground">Ref: {f.reference_range || "—"}</span>
                               <span className="col-span-1">
-                                {f.flag && <Badge variant={f.flag === "H" ? "destructive" : "secondary"} className="text-[10px] px-1">{f.flag}</Badge>}
+                                {flagLabel(f.flag) && <Badge variant={f.flag === "L" ? "secondary" : "destructive"} className="text-[10px] px-1 whitespace-nowrap">{flagLabel(f.flag)}</Badge>}
                               </span>
                             </div>
                           ))}
@@ -144,7 +145,7 @@ export function PatientJourney({ ticketId, patientId }: PatientJourneyProps) {
                         <div className="p-2 bg-muted rounded text-xs">
                           <span className="font-mono font-medium">{lo.result_value}</span> {testUnit}
                           {testRef && <span className="text-muted-foreground ml-2">(ref: {testRef})</span>}
-                          {lo.flag && <Badge variant={lo.flag === "H" ? "destructive" : "secondary"} className="ml-2">{lo.flag}</Badge>}
+                          {lo.flag && lo.flag !== "negative" && <Badge variant="destructive" className="ml-2 capitalize">{lo.flag === "positive" ? "+ve" : lo.flag}</Badge>}
                         </div>
                       ) : (
                         <p className="text-xs text-muted-foreground italic">Awaiting results...</p>
