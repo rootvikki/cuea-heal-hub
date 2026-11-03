@@ -585,6 +585,48 @@ const Pharmacy = () => {
             </div>
           </CardContent>
         </Card>
+      ) : selectedTicket ? (
+        <Card className="border-primary/30">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex items-start gap-2">
+                <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => { setOpenKey(null); setSelectedTicket(null); }} aria-label="Back"><ArrowLeft className="h-4 w-4" /></Button>
+                <div>
+                  <CardTitle className="text-lg">{selectedTicket.patient?.profile?.full_name || "Patient"}</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedTicket.patient?.patient_id} · {selectedTicket.ticket_number} · {calculateAge(selectedTicket.patient?.profile?.date_of_birth)} · <span className="capitalize">{selectedTicket.patient?.profile?.gender || "—"}</span>
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    <Badge variant="outline" className="bg-primary/10 text-primary border-primary/30">Being served</Badge>
+                    <Badge variant="outline">{paymentModeLabel(selectedTicket.payment_mode)}</Badge>
+                    {selectedTicket.patient?.allergies?.length > 0 && <Badge variant="destructive">Allergies: {selectedTicket.patient.allergies.join(", ")}</Badge>}
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <InterimPayment ticketId={selectedTicket.id} patientId={selectedTicket.patient?.id || selectedTicket.patient_id} />
+                <Button variant="outline" size="sm" className="h-8" onClick={() => setSendOpen(true)}><Send className="h-4 w-4 mr-1" /> Send to…</Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            {lookingUpRx ? (
+              <p className="flex items-center justify-center gap-2 py-10 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> Looking for this patient's prescription…</p>
+            ) : (
+              <div className="py-8 text-center space-y-3">
+                <Pill className="h-10 w-10 mx-auto text-muted-foreground" />
+                <p className="font-medium">No prescription has been sent for this patient yet</p>
+                <p className="text-sm text-muted-foreground max-w-md mx-auto">
+                  They were sent to the pharmacy without a prescription (for example from triage). Enter the drugs from their prescription paper, or send them to the right department.
+                </p>
+                <div className="flex flex-wrap justify-center gap-2 pt-2">
+                  <Button className="h-11 px-6" onClick={() => setAddRxOpen(true)}><Plus className="h-4 w-4 mr-2" /> Enter prescription</Button>
+                  <Button variant="outline" className="h-11" onClick={() => setSendOpen(true)}><Send className="h-4 w-4 mr-2" /> Send to…</Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
       ) : (
         <>
           {lowStockItems.length > 0 && (
@@ -810,11 +852,20 @@ const Pharmacy = () => {
       <SendToDialog
         open={sendOpen}
         onOpenChange={setSendOpen}
-        ticket={sheet?.ticketId ? { id: sheet.ticketId, patientName: sheet.patient?.profile?.full_name } : null}
+        ticket={sheet?.ticketId ? { id: sheet.ticketId, patientName: sheet.patient?.profile?.full_name } : selectedTicket ? { id: selectedTicket.id, patientName: selectedTicket.patient?.profile?.full_name } : null}
         from="Pharmacy"
         exclude={["pharmacy"]}
         recommended="billing"
         onSent={() => { setSelectedTicket(null); setOpenKey(null); void fetchPrescriptions(); }}
+      />
+
+      <DirectOrderDialog
+        open={addRxOpen}
+        onOpenChange={setAddRxOpen}
+        mode="pharmacy"
+        source="pharmacy"
+        ticket={selectedTicket ? { id: selectedTicket.id, patient_id: selectedTicket.patient?.id || selectedTicket.patient_id, department_id: selectedTicket.department_id, patientName: selectedTicket.patient?.profile?.full_name } : null}
+        onDone={() => void fetchPrescriptions()}
       />
     </StationShell>
   );
