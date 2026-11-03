@@ -52,7 +52,7 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
     nationalId: "", nationality: "Kenyan", postalAddress: "", address: "",
     patientType: "" as "" | "cuea_staff" | "cuea_student" | "outsider",
     payrollNumber: "", admissionNumber: "", visitReason: "outpatient" as "outpatient" | "dental",
-    insuranceProvider: "", insuranceNumber: "", paymentMode: "mpesa_school_fees",
+    insuranceProvider: "Pacis", insuranceNumber: "", paymentMode: "mpesa_school_fees",
     nextOfKinName: "", nextOfKinRelationship: "", nextOfKinPhone: "",
   });
 
@@ -161,7 +161,7 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
         fullName: "", phone: "", email: "", dateOfBirth: "", gender: "",
         nationalId: "", nationality: "Kenyan", postalAddress: "", address: "",
         patientType: "", payrollNumber: "", admissionNumber: "", visitReason: "outpatient",
-        insuranceProvider: "", insuranceNumber: "", paymentMode: "mpesa_school_fees",
+        insuranceProvider: "Pacis", insuranceNumber: "", paymentMode: "mpesa_school_fees",
         nextOfKinName: "", nextOfKinRelationship: "", nextOfKinPhone: "",
       });
       onSuccess?.(registrationData);
