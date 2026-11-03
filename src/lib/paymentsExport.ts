@@ -1,5 +1,5 @@
 import * as XLSX from "xlsx";
-import { GROUPS, METHODS, PATIENT_TYPES, PAYMENT_MODES, type GroupBy, type PaymentRow } from "./paymentsQuery";
+import { METHODS, PATIENT_TYPES, PAYMENT_MODES, type GroupBy, type PaymentRow } from "./paymentsQuery";
 
 export const DETAIL_HEADERS = [
   "Date", "Time", "Receipt / Ref", "Patient", "OPD No.", "Phone", "Patient Type", "Admission / Staff No.",
@@ -110,6 +110,5 @@ export function buildPaymentsWorkbook(rows: PaymentRow[], meta: { filters: strin
     ws["!autofilter"] = { ref: `A1:G${meta.mpesa.length + 1}` };
     XLSX.utils.book_append_sheet(wb, ws, "M-Pesa prompts");
   }
-  void GROUPS;
   return wb;
 }
