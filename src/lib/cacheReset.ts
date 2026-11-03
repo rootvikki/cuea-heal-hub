@@ -14,10 +14,12 @@ const CHECK_MS = 60_000;
 /** Sign-in sessions survive a cache clear so nobody is logged out mid-shift. */
 export const isKeptKey = (k: string) => k === CACHE_VERSION_KEY || (k.startsWith("sb-") && k.includes("auth-token"));
 
-/** What to do with the version the server reports: first visit just remembers it; a different one clears. */
-export function cacheAction(stored: string | null, server: string | null): "none" | "remember" | "clear" {
+/**
+ * What to do with the version the server reports. A browser that has never seen a version clears too —
+ * that way a clear also reaches computers that were last used before this feature existed.
+ */
+export function cacheAction(stored: string | null, server: string | null): "none" | "clear" {
   if (!server) return "none";
-  if (!stored) return "remember";
   return stored === server ? "none" : "clear";
 }
 
@@ -39,7 +41,8 @@ async function readServerVersion(): Promise<string | null> {
 export function useCacheReset(signedIn: boolean) {
   const queryClient = useQueryClient();
   useEffect(() => {
-    if (!signedIn) return;
+    // The "log in as" hand-over page must finish signing in before anything reloads
+    if (!signedIn || window.location.pathname === "/login-as") return;
     let busy = false;
     const check = async () => {
       if (busy) return;
@@ -47,7 +50,6 @@ export function useCacheReset(signedIn: boolean) {
       try {
         const server = await readServerVersion();
         const action = cacheAction(localStorage.getItem(CACHE_VERSION_KEY), server);
-        if (action === "remember") localStorage.setItem(CACHE_VERSION_KEY, server!);
         if (action === "clear") {
           await clearThisBrowser(queryClient);
           localStorage.setItem(CACHE_VERSION_KEY, server!);

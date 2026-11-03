@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { cacheAction, isKeptKey } from "./cacheReset";
 
-test("a browser seeing the version for the first time only remembers it", () => expect(cacheAction(null, "v1")).toBe("remember"));
+test("a browser that never saw a version clears (reaches computers last used before this existed)", () => expect(cacheAction(null, "v1")).toBe("clear"));
 test("same version: nothing to clear", () => expect(cacheAction("v1", "v1")).toBe("none"));
 test("new version from the admin: clear", () => expect(cacheAction("v1", "v2")).toBe("clear"));
 test("no version set yet: nothing happens", () => expect(cacheAction("v1", null)).toBe("none"));
