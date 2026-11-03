@@ -3,6 +3,7 @@ import { InventoryEditDialog } from "@/components/InventoryEditDialog";
 import { useUser } from "@/contexts/UserContext";
 import { formatRx } from "@/lib/rxFormat";
 import { supabase } from "@/integrations/supabase/client";
+import { printWithLetterhead } from "@/lib/letterhead";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

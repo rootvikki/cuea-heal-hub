@@ -1,6 +1,7 @@
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
+import { drawInfirmaryLetterhead, openPdfWindow } from "./letterhead";
 
 type FieldDef = { name: string; unit?: string; ref?: string; refMale?: string; refFemale?: string };
 
@@ -29,24 +30,11 @@ export async function printLabReport(
   singleValue: string,
   notes: string,
 ) {
+  return openPdfWindow(async () => {
   const doc = new jsPDF();
   const W = doc.internal.pageSize.getWidth();
   const maroon: [number, number, number] = [128, 0, 32];
-  const orange: [number, number, number] = [230, 126, 34];
-  let logo: string | null = null;
-  try {
-    const blob = await (await fetch("/favicon.png")).blob();
-    logo = await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.readAsDataURL(blob); });
-  } catch { /* no logo */ }
-
-  doc.setFillColor(...maroon); doc.rect(0, 0, W, 26, "F");
-  doc.setFillColor(...orange); doc.rect(0, 26, W, 2, "F");
-  if (logo) doc.addImage(logo, "PNG", 10, 3, 20, 20);
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold"); doc.setFontSize(14);
-  doc.text("THE CATHOLIC UNIVERSITY CLINIC", W / 2, 12, { align: "center" });
-  doc.setFont("helvetica", "normal"); doc.setFontSize(10);
-  doc.text("Laboratory Department", W / 2, 19, { align: "center" });
+  const top = await drawInfirmaryLetterhead(doc, { title: "Laboratory Report" });
 
   const p = order.patient || {};
   const prof = p.profile || {};
@@ -58,7 +46,7 @@ export async function printLabReport(
     [`Gender: ${prof.gender || ""}`, `Test: ${order.test?.test_name || ""}${order.test?.test_name === "Full Hemogram" ? "   Mode: CBC+DIFF" : ""}`],
     [`Patient Type: Outpatient`, `Sample: ${order.id?.slice(0, 8).toUpperCase() || ""}`],
   ];
-  let y = 36;
+  let y = top + 2;
   rows.forEach(([a, b]) => { doc.text(a, 14, y); doc.text(b, W / 2 + 5, y); y += 6; });
 
   const body = fields
@@ -89,9 +77,8 @@ export async function printLabReport(
   doc.text("Doctor: ______________________________", 14, fy);
   doc.text("Lab Technician: ______________________", W / 2 + 5, fy);
 
-  doc.autoPrint();
-  const url = doc.output("bloburl");
-  window.open(url, "_blank");
+  return doc;
+  }, { autoPrint: true });
 }
 
 /**
@@ -102,24 +89,11 @@ export async function printVisitLabReport(
   patient: { full_name?: string | null; patient_id?: string | null; gender?: string | null; date_of_birth?: string | null; inpatient?: boolean },
   orders: any[],
 ) {
+  return openPdfWindow(async () => {
   const doc = new jsPDF();
   const W = doc.internal.pageSize.getWidth();
   const maroon: [number, number, number] = [128, 0, 32];
-  const orange: [number, number, number] = [230, 126, 34];
-  let logo: string | null = null;
-  try {
-    const blob = await (await fetch("/favicon.png")).blob();
-    logo = await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.readAsDataURL(blob); });
-  } catch { /* no logo */ }
-
-  doc.setFillColor(...maroon); doc.rect(0, 0, W, 26, "F");
-  doc.setFillColor(...orange); doc.rect(0, 26, W, 2, "F");
-  if (logo) doc.addImage(logo, "PNG", 10, 3, 20, 20);
-  doc.setTextColor(255, 255, 255);
-  doc.setFont("helvetica", "bold"); doc.setFontSize(14);
-  doc.text("THE CATHOLIC UNIVERSITY CLINIC", W / 2, 12, { align: "center" });
-  doc.setFont("helvetica", "normal"); doc.setFontSize(10);
-  doc.text("Laboratory Department — Results", W / 2, 19, { align: "center" });
+  const top = await drawInfirmaryLetterhead(doc, { title: "Laboratory Results" });
 
   const done = orders.map((o) => o.completed_at || o.result_entered_at).filter(Boolean).sort().pop();
   doc.setTextColor(0, 0, 0); doc.setFontSize(9);
@@ -128,7 +102,7 @@ export async function printVisitLabReport(
     [`Patient ID: ${patient.patient_id || ""}`, `Age: ${ageOf(patient.date_of_birth)}`],
     [`Gender: ${patient.gender || ""}`, `Patient Type: ${patient.inpatient ? "Inpatient" : "Outpatient"}`],
   ];
-  let y = 36;
+  let y = top + 2;
   rows.forEach(([a, b]) => { doc.text(a, 14, y); doc.text(b, W / 2 + 5, y); y += 6; });
 
   const body: any[] = [];
@@ -175,6 +149,6 @@ export async function printVisitLabReport(
   doc.text("Doctor: ______________________________", 14, fy);
   doc.text("Lab Technician: ______________________", W / 2 + 5, fy);
 
-  doc.autoPrint();
-  window.open(doc.output("bloburl"), "_blank");
+  return doc;
+  }, { autoPrint: true });
 }

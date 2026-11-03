@@ -8,6 +8,23 @@ const loadCrest = () =>
     .then((b) => new Promise<string>((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.readAsDataURL(b); }))
     .catch(() => null));
 
+// Start loading the crest as soon as any printing code is imported
+void loadCrest();
+
+/** Opens a PDF in a new tab. The tab is opened first, so pop-up blockers allow it even though the PDF is built afterwards. */
+export async function openPdfWindow(build: () => Promise<jsPDF>, opts: { autoPrint?: boolean } = {}): Promise<void> {
+  const w = window.open("", "_blank");
+  try {
+    const doc = await build();
+    if (opts.autoPrint) doc.autoPrint();
+    const url = String(doc.output("bloburl"));
+    if (w) w.location.href = url; else window.open(url, "_blank");
+  } catch (e) {
+    w?.close();
+    throw e;
+  }
+}
+
 const ddmmyyyy = (d: Date) =>
   new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Nairobi", day: "2-digit", month: "2-digit", year: "numeric" }).format(d);
 

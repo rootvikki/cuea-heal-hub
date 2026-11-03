@@ -15,6 +15,7 @@ import { PaymentPanel } from "@/components/PaymentPanel";
 import { SendToDialog } from "@/components/SendToDialog";
 import { createInvoiceForTicket, routeAfterPayment, type Invoice } from "@/lib/billing";
 import { formatKES, paymentModeLabel } from "@/lib/pricing";
+import { drawInfirmaryLetterhead, openPdfWindow } from "@/lib/letterhead";
 
 const statusColor: Record<string, string> = { pending: "bg-yellow-100 text-yellow-800", partial: "bg-blue-100 text-blue-800", paid: "bg-green-100 text-green-800", cancelled: "bg-muted" };
 
@@ -117,39 +118,33 @@ const Billing = () => {
 
   const printChargeSheet = () => {
     if (!selectedTicket || !patientInfo) return;
-    const doc = new jsPDF();
-    const regId = patientInfo.admission_number || patientInfo.payroll_number || patientInfo.national_id || patientInfo.patient_id;
-    doc.setFontSize(14); doc.setFont("helvetica", "bold");
-    doc.text("THE CATHOLIC UNIVERSITY OF EASTERN AFRICA", 105, 20, { align: "center" });
-    doc.setFontSize(11); doc.text("UNIVERSITY INFIRMARY", 105, 28, { align: "center" });
-    doc.setFontSize(10); doc.setFont("helvetica", "normal");
-    doc.text("P.O. BOX 62157-00200, NAIROBI | TEL: 020-8891601", 105, 34, { align: "center" });
-    doc.line(20, 38, 190, 38);
-    doc.setFontSize(12); doc.setFont("helvetica", "bold");
-    doc.text("INFIRMARY CHARGE SHEET", 105, 48, { align: "center" });
-    doc.setFontSize(10); doc.text("TO: CREDIT CONTROLLER", 20, 58);
-    doc.setFont("helvetica", "normal");
-    doc.text(`Patient Name: ${patientInfo.profiles?.full_name || ""}`, 20, 68);
-    doc.text(`REG/ID No.: ${regId}`, 20, 76);
-    doc.text(`Payment mode: ${paymentModeLabel(selectedTicket.payment_mode)}${selectedTicket.payment_mode === "insurance" && patientInfo.insurance_provider ? ` (${patientInfo.insurance_provider} ${patientInfo.insurance_number || ""})` : ""}`, 20, 84);
-    doc.text(`Patient Type: ${(patientInfo.patient_type || "outsider").replace("cuea_", "").toUpperCase()}`, 120, 68);
-    doc.text(`Date: ${new Date().toLocaleDateString()}`, 120, 76);
-    autoTable(doc, {
-      startY: 92,
-      head: [["#", "Service Description", "Department", "Amount (KES)"]],
-      body: charges.map((c, i) => [String(i + 1), c.description, (c.billing_stage || "-").replace(/_/g, " "), Number(c.amount).toLocaleString()]),
-      foot: [["", "", "TOTAL BILL", visitTotal.toLocaleString()], ["", "", "PAID", visitPaid.toLocaleString()], ["", "", "BALANCE", Math.max(visitTotal - visitPaid, 0).toLocaleString()]],
-      theme: "grid",
-      headStyles: { fillColor: [128, 0, 32], fontStyle: "bold" },
-      footStyles: { fillColor: [240, 240, 240], fontStyle: "bold", textColor: [0, 0, 0] },
-      styles: { fontSize: 9 },
-    });
-    const y = (doc as any).lastAutoTable.finalY + 20;
-    doc.text("SR. IN CHARGE: _________________________", 20, y);
-    doc.text("Date: _________________________", 120, y);
-    doc.setFontSize(8); doc.text("CUEA/DVC/ADM/INF/04/fm01", 20, y + 20);
-    doc.autoPrint();
-    window.open(doc.output("bloburl"), "_blank");
+    void openPdfWindow(async () => {
+      const doc = new jsPDF();
+      const regId = patientInfo.admission_number || patientInfo.payroll_number || patientInfo.national_id || patientInfo.patient_id;
+      const t = await drawInfirmaryLetterhead(doc, { title: "Infirmary Charge Sheet" });
+      doc.setFontSize(10); doc.setFont("helvetica", "bold"); doc.text("TO: CREDIT CONTROLLER", 20, t + 4);
+      doc.setFont("helvetica", "normal");
+      doc.text(`Patient Name: ${patientInfo.profiles?.full_name || ""}`, 20, t + 14);
+      doc.text(`REG/ID No.: ${regId}`, 20, t + 22);
+      doc.text(`Payment mode: ${paymentModeLabel(selectedTicket.payment_mode)}${selectedTicket.payment_mode === "insurance" && patientInfo.insurance_provider ? ` (${patientInfo.insurance_provider} ${patientInfo.insurance_number || ""})` : ""}`, 20, t + 30);
+      doc.text(`Patient Type: ${(patientInfo.patient_type || "outsider").replace("cuea_", "").toUpperCase()}`, 120, t + 14);
+      doc.text(`Date: ${new Date().toLocaleDateString("en-GB")}`, 120, t + 22);
+      autoTable(doc, {
+        startY: t + 38,
+        head: [["#", "Service Description", "Department", "Amount (KES)"]],
+        body: charges.map((c, i) => [String(i + 1), c.description, (c.billing_stage || "-").replace(/_/g, " "), Number(c.amount).toLocaleString()]),
+        foot: [["", "", "TOTAL BILL", visitTotal.toLocaleString()], ["", "", "PAID", visitPaid.toLocaleString()], ["", "", "BALANCE", Math.max(visitTotal - visitPaid, 0).toLocaleString()]],
+        theme: "grid",
+        headStyles: { fillColor: [128, 0, 32], fontStyle: "bold" },
+        footStyles: { fillColor: [240, 240, 240], fontStyle: "bold", textColor: [0, 0, 0] },
+        styles: { fontSize: 9 },
+      });
+      const y = (doc as any).lastAutoTable.finalY + 20;
+      doc.text("SR. IN CHARGE: _________________________", 20, y);
+      doc.text("Date: _________________________", 120, y);
+      doc.setFontSize(8); doc.text("CUEA/DVC/ADM/INF/04/fm01", 20, y + 20);
+      return doc;
+    }, { autoPrint: true });
   };
 
   const filteredInvoices = invoices.filter((i) => {

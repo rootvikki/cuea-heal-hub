@@ -13,6 +13,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { PaymentsReport } from "@/components/PaymentsReport";
 import { useUser } from "@/contexts/UserContext";
+import { drawInfirmaryLetterhead } from "@/lib/letterhead";
 
 const AGE_GROUPS = [
   { label: "0-5 years", min: 0, max: 5 },
@@ -221,21 +222,12 @@ const Reports = () => {
     a.click();
   };
 
-  const exportPDF = () => {
+  const exportPDF = async () => {
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.getWidth();
 
-    // Header
-    doc.setFontSize(16);
-    doc.setFont("helvetica", "bold");
-    doc.text("CUEA Infirmary", pageWidth / 2, 20, { align: "center" });
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text("The Catholic University of Eastern Africa", pageWidth / 2, 27, { align: "center" });
-
-    doc.setFontSize(13);
-    doc.setFont("helvetica", "bold");
-    doc.text(`${department} Report`, pageWidth / 2, 38, { align: "center" });
+    // Official Infirmary letterhead (content below starts at the same place as before)
+    await drawInfirmaryLetterhead(doc, { title: `${department} Report` });
 
     // Filters applied
     doc.setFontSize(9);
@@ -247,13 +239,13 @@ const Reports = () => {
       filters.ageGroup && filters.ageGroup !== "all" && `Age: ${filters.ageGroup}`,
       filters.diagnosis && filters.diagnosis !== "all" && `Diagnosis: ${filters.diagnosis}`,
     ].filter(Boolean).join(" | ");
-    if (filterText) doc.text(filterText, 14, 45);
+    if (filterText) doc.text(filterText, 14, 62);
 
     // Summary
     doc.setFontSize(10);
-    doc.text(`Total Records: ${results.length}`, 14, 52);
+    doc.text(`Total Records: ${results.length}`, 14, 69);
     if (department === "All" || department === "Financial") {
-      doc.text(`Total Revenue: KES ${summaryData.totalRevenue.toLocaleString()}`, 14, 58);
+      doc.text(`Total Revenue: KES ${summaryData.totalRevenue.toLocaleString()}`, 14, 75);
     }
 
     // Table
@@ -263,9 +255,9 @@ const Reports = () => {
     autoTable(doc, {
       head: [headers],
       body: rows,
-      startY: department === "All" || department === "Financial" ? 64 : 58,
+      startY: department === "All" || department === "Financial" ? 81 : 75,
       styles: { fontSize: 8 },
-      headStyles: { fillColor: [41, 128, 185] },
+      headStyles: { fillColor: [128, 0, 32] },
       alternateRowStyles: { fillColor: [245, 245, 245] },
     });
 
