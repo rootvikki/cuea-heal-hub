@@ -130,14 +130,22 @@ const Billing = () => {
     if (!selectedTicket) return;
     setSavingBill(true);
     try {
+      // Amounts changed on the already-confirmed (unpaid) bill are saved first
+      if (editableInvoice && billEdits.length > 0) {
+        const updated = await updateUnpaidBill(editableInvoice, billEdits.map((c) => ({ id: c.id, description: c.description, amount: Number(c.amount) || 0 })));
+        setCharges((prev) => prev.map((c) => (c.invoice_id === editableInvoice.id ? { ...c, _edited: false } : c)));
+        if (unbilled.length === 0) toast.success(`Bill ${updated.invoice_number} updated`, { description: formatKES(updated.net_amount) });
+      }
       // Bill exactly what is on screen now, with the amounts as last shown
-      const inv = await createInvoiceForTicket(selectedTicket.id, unbilled.map((c) => ({ id: c.id, description: c.description, amount: Number(c.amount) || 0 })));
-      if (!inv) toast.info("Nothing new to bill");
-      else toast.success(`Bill ${inv.invoice_number} ready`, { description: formatKES(inv.net_amount) });
+      if (unbilled.length > 0) {
+        const inv = await createInvoiceForTicket(selectedTicket.id, unbilled.map((c) => ({ id: c.id, description: c.description, amount: Number(c.amount) || 0 })));
+        if (!inv) toast.info("Nothing new to bill");
+        else toast.success(`Bill ${inv.invoice_number} ready`, { description: formatKES(inv.net_amount) });
+      }
       await loadVisit(selectedTicket);
       void fetchInvoices();
     } catch (e) {
-      toast.error("Could not create bill", { description: e instanceof Error ? e.message : String(e) });
+      toast.error("Could not save the bill", { description: e instanceof Error ? e.message : String(e) });
     } finally {
       setSavingBill(false);
     }
