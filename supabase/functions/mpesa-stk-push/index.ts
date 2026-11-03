@@ -87,7 +87,7 @@ serve(async (req) => {
       };
       const passkeyCheck = await probe(cfg.businessShortCode);
       const otherNumber = cfg.type === "till" && cfg.partyB !== cfg.businessShortCode ? cfg.partyB : null;
-      const swappedCheck = passkeyCheck !== "match" && otherNumber ? await probe(otherNumber) : null;
+      const swappedCheck = otherNumber ? await probe(otherNumber) : null;
       const warning = passkeyCheck === "mismatch"
         ? swappedCheck === "match"
           ? `The Passkey belongs to ${otherNumber}, so the Till and Store numbers look swapped. Swap them and save.`
