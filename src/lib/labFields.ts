@@ -249,7 +249,7 @@ export const STRUCTURED_FIELDS: Record<string, LabFieldDef[]> = {
   ],
 
   // ─── Serology ───
-  "ASOT": [posNeg("Result", ["Negative (<200 IU/mL)", "Positive (≥200 IU/mL)"])],
+  "ASOT": [posNeg("Result", ["Negative (<200 IU/mL)", "Positive (200 IU/mL or more)"])],
   "Brucella Test": [
     posNeg("Result"),
     { name: "Titre", options: TITRE_BRUCELLA, showIf: { field: "Result", in: ["Positive"] } },
