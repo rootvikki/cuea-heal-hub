@@ -68,6 +68,22 @@ Deno.serve(async (req) => {
       });
     }
 
+    // Gender is stored in one format only: "Male" or "Female"
+    const g = String(gender ?? "").trim().toLowerCase();
+    const normalizedGender = g === "male" || g === "m" ? "Male" : g === "female" || g === "f" ? "Female" : null;
+    if (!normalizedGender) {
+      return new Response(JSON.stringify({ error: "Gender is required (Male or Female)." }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (!dateOfBirth) {
+      return new Response(JSON.stringify({ error: "Date of birth is required." }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Create or resolve auth user
     let userId: string;
     let existingPatientRecord: { id: string; patient_id: string } | null = null;
@@ -127,7 +143,7 @@ Deno.serve(async (req) => {
       phone: phone || null,
       email,
       date_of_birth: dateOfBirth || null,
-      gender: gender || null,
+      gender: normalizedGender,
       address: address || null,
       country: nationality || "Kenya",
     };
@@ -147,7 +163,7 @@ Deno.serve(async (req) => {
       phone: phone || null,
       email,
       date_of_birth: dateOfBirth || null,
-      gender: gender || null,
+      gender: normalizedGender,
       address: address || null,
       country: nationality || "Kenya",
     }).eq("user_id", userId);
