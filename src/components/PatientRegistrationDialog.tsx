@@ -16,7 +16,7 @@ import { UserPlus, Loader2, User, Phone, Shield, Heart, CheckCircle2 } from "luc
 import { calculateAge } from "@/lib/utils";
 import { PhoneInput } from "@/components/PhoneInput";
 import { normalizePhone } from "@/lib/validation";
-import { PAYMENT_MODES } from "@/lib/pricing";
+import { PAYMENT_MODES, allowedPaymentModes } from "@/lib/pricing";
 
 const INSURANCE_PROVIDERS = ["Pacis"];
 
@@ -52,7 +52,7 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
     nationalId: "", nationality: "Kenyan", postalAddress: "", address: "",
     patientType: "" as "" | "cuea_staff" | "cuea_student" | "outsider",
     payrollNumber: "", admissionNumber: "", visitReason: "outpatient" as "outpatient" | "dental",
-    insuranceProvider: "Pacis", insuranceNumber: "", paymentMode: "mpesa_school_fees",
+    insuranceProvider: "Pacis", insuranceNumber: "", paymentMode: "",
     nextOfKinName: "", nextOfKinRelationship: "", nextOfKinPhone: "",
   });
 
@@ -62,7 +62,13 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
   }, [formData.dateOfBirth]);
 
   const update = (field: string, value: string) =>
-    setFormData((prev) => ({ ...prev, [field]: value }));
+    setFormData((prev) => {
+      const next = { ...prev, [field]: value };
+      // Payment mode must be one this patient type may use
+      if (field === "patientType" && next.paymentMode && !allowedPaymentModes(value).includes(next.paymentMode as any)) next.paymentMode = "";
+      return next;
+    });
+  const modeOptions = PAYMENT_MODES.filter((m) => allowedPaymentModes(formData.patientType || "outsider").includes(m.value));
 
   // Section completion counts
   const classificationFilled = useMemo(() => {
@@ -108,8 +114,15 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
       nationalId: formData.nationalId,
       nextOfKinName: formData.nextOfKinName, nextOfKinPhone: formData.nextOfKinPhone,
     });
+    if (!formData.patientType) errors.unshift({ field: "patientType", message: "Select the patient type" });
+    if (!formData.gender) errors.unshift({ field: "gender", message: "Select the patient's gender (Male or Female)" });
+    if (!formData.dateOfBirth) errors.unshift({ field: "dateOfBirth", message: "Enter the patient's date of birth" });
+    if (!formData.paymentMode) errors.push({ field: "paymentMode", message: "Choose the usual payment mode" });
     if (formData.paymentMode === "insurance" && !formData.insuranceProvider) {
       errors.push({ field: "insuranceProvider", message: "Select the insurance provider" });
+    }
+    if (formData.paymentMode === "insurance" && !formData.insuranceNumber.trim()) {
+      errors.push({ field: "insuranceNumber", message: "Enter the insurance member number" });
     }
     if (errors.length > 0) {
       toast({ title: "Validation Error", description: errors[0].message, variant: "destructive" });
@@ -123,13 +136,13 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
         body: {
           fullName: formData.fullName.trim(), phone: normalizePhone(formData.phone), email: formData.email.trim(),
           dateOfBirth: formData.dateOfBirth || null,
-          gender: formData.gender || null, nationalId: formData.nationalId || null,
+          gender: formData.gender, nationalId: formData.nationalId || null,
           nationality: formData.nationality || null, postalAddress: formData.postalAddress || null,
           address: formData.address || null, patientType: formData.patientType || "outsider",
           payrollNumber: formData.payrollNumber || null, admissionNumber: formData.admissionNumber || null,
           visitReason: formData.visitReason || "outpatient",
-          insuranceProvider: formData.insuranceProvider || null,
-          insuranceNumber: formData.insuranceNumber || null,
+          insuranceProvider: formData.paymentMode === "insurance" ? formData.insuranceProvider || null : null,
+          insuranceNumber: formData.paymentMode === "insurance" ? formData.insuranceNumber.trim() || null : null,
           nextOfKinName: formData.nextOfKinName || null,
           nextOfKinRelationship: formData.nextOfKinRelationship || null,
           nextOfKinPhone: formData.nextOfKinPhone ? normalizePhone(formData.nextOfKinPhone) : null,
@@ -161,7 +174,7 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
         fullName: "", phone: "", email: "", dateOfBirth: "", gender: "",
         nationalId: "", nationality: "Kenyan", postalAddress: "", address: "",
         patientType: "", payrollNumber: "", admissionNumber: "", visitReason: "outpatient",
-        insuranceProvider: "Pacis", insuranceNumber: "", paymentMode: "mpesa_school_fees",
+        insuranceProvider: "Pacis", insuranceNumber: "", paymentMode: "",
         nextOfKinName: "", nextOfKinRelationship: "", nextOfKinPhone: "",
       });
       onSuccess?.(registrationData);
@@ -223,8 +236,9 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
             )}
             <div className="mt-5 space-y-2">
               <Label className="text-sm font-semibold">Usual Payment Mode *</Label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {PAYMENT_MODES.map((m) => (
+              {!formData.patientType && <p className="text-xs text-muted-foreground">Select the patient type first.</p>}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {formData.patientType && modeOptions.map((m) => (
                   <button key={m.value} type="button" onClick={() => update("paymentMode", m.value)}
                     className={`p-3 rounded-lg border-2 text-left transition-all ${formData.paymentMode === m.value ? "border-primary bg-primary/5 ring-2 ring-primary/20" : "border-border hover:bg-muted/50"}`}>
                     <p className="font-semibold text-sm">{m.label}</p>
