@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { logAuditEvent } from "@/lib/auditLog";
 import { notifyRoles } from "@/lib/notifications";
 import { allowedPaymentModes, defaultPaymentMode, type PaymentMode } from "@/lib/pricing";
+import { applyConfirmedCharges, type ConfirmedCharge } from "@/lib/billConfirm";
 
 export type PaymentMethod = "mpesa" | "school_fees" | "payroll" | "insurance";
 
