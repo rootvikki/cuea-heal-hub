@@ -32,7 +32,7 @@ const PRIORITY_OPTIONS = [
   { value: "3", label: "Emergency", color: "bg-destructive/15 border-destructive text-destructive" },
 ];
 
-const INSURANCE_PROVIDERS = ["SHA", "Pacis", "Madison", "CIC", "AAR", "Jubilee", "Britam", "Old Mutual", "Other"];
+const INSURANCE_PROVIDERS = ["Pacis"];
 
 /** Where a patient can go straight from reception. */
 const FIRST_STOPS: { key: StationKey | "lab_request" | "pharmacy_request"; label: string; hint: string }[] = [
