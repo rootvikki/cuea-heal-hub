@@ -104,7 +104,7 @@ const Reports = () => {
     const genderMap: Record<string, number> = {};
     const ageMap: Record<string, number> = {};
     filtered.forEach((r) => {
-      const g = r.profile?.gender || "Unknown";
+      const g = r.profile?.gender || "Not recorded";
       genderMap[g] = (genderMap[g] || 0) + 1;
       const ag = AGE_GROUPS.find((a) => r.age !== null && r.age >= a.min && r.age <= a.max);
       if (ag) ageMap[ag.label] = (ageMap[ag.label] || 0) + 1;
@@ -203,7 +203,7 @@ const Reports = () => {
     return [
       new Date(r.encounter_date).toLocaleDateString(),
       r.profile?.full_name || "",
-      r.profile?.gender || "-",
+      r.profile?.gender || "Not recorded",
       r.age ?? "-",
       (r.diagnosis || []).join("; "),
       r.chief_complaint || "-",

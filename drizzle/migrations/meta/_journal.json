@@ -43,6 +43,13 @@
       "when": 1793692200853,
       "tag": "0005_pharmacist_direct_prescriptions",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1793696080935,
+      "tag": "0006_billing_payment_pharmacy_cleanup",
+      "breakpoints": true
     }
   ]
 }

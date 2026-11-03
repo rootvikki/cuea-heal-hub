@@ -11,7 +11,8 @@ import { logAuditEvent } from "@/lib/auditLog";
 import { FORMULATIONS } from "@/lib/rxFormat";
 import { Lock } from "lucide-react";
 
-export const PRICE_EDIT_ROLES = ["finance_officer", "admin", "super_admin"];
+/** Drug prices are a pharmacy matter: pharmacists (and admins) set them. Finance roles read only. */
+export const PRICE_EDIT_ROLES = ["pharmacist", "admin", "super_admin"];
 
 export function InventoryEditDialog({ item, onClose, onSaved }: { item: any | null; onClose: () => void; onSaved: () => void }) {
   const { toast } = useToast();
@@ -71,7 +72,6 @@ export function InventoryEditDialog({ item, onClose, onSaved }: { item: any | nu
             <div className="space-y-2">
               <Label className="text-sm font-semibold flex items-center gap-1">Selling price (KES) {!canEditPrice && <Lock className="h-3 w-3" />}</Label>
               <Input type="number" step="0.01" className="h-12 text-base" disabled={!canEditPrice} value={f.unit_price ?? ""} onChange={e => setF({ ...f, unit_price: e.target.value })} />
-              {!canEditPrice && <p className="text-xs text-muted-foreground">Only finance or admin staff can change prices.</p>}
             </div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">

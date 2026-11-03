@@ -4,13 +4,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Loader2, Smartphone, XCircle, GraduationCap, Shield, RefreshCw, Receipt, Printer } from "lucide-react";
+import { CheckCircle2, Loader2, Smartphone, XCircle, GraduationCap, Shield, Briefcase, RefreshCw, Receipt, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { PhoneInput } from "@/components/PhoneInput";
 import { toMpesaPhone } from "@/lib/validation";
-import { formatKES } from "@/lib/pricing";
-import { functionErrorMessage, recordPayment, type Invoice, type PaymentMethod } from "@/lib/billing";
+import { billingMethodsFor, formatKES, paymentModeLabel, type BillingMethod } from "@/lib/pricing";
+import { functionErrorMessage, recordPayment, type Invoice } from "@/lib/billing";
 import { logAuditEvent } from "@/lib/auditLog";
 import { queryMpesa, waitForMpesa } from "@/lib/mpesaWait";
 import { printInvoiceReceipt } from "@/lib/receipt";
@@ -34,21 +34,29 @@ type MpesaState =
 
 /**
  * Take payment for an invoice. Cash is not offered.
- *  • M-Pesa / School fees visits: M-Pesa STK push (with live status), M-Pesa code entered by hand, or school fees / staff account.
- *  • Insurance visits: bill to insurance.
+ *  Methods follow the visit's payment mode (see billingMethodsFor):
+ *  • M-Pesa: STK push (with live status) or M-Pesa code entered by hand.
+ *  • School fees: admission number. Payroll: payroll / staff number.
+ *  • Insurance: bill to insurance, with M-Pesa as co-pay.
  */
+const METHOD_OPTIONS: Record<BillingMethod, { label: string; icon: typeof Smartphone }> = {
+  mpesa: { label: "M-Pesa prompt", icon: Smartphone },
+  mpesa_manual: { label: "M-Pesa code", icon: Receipt },
+  school_fees: { label: "School fees", icon: GraduationCap },
+  payroll: { label: "Payroll", icon: Briefcase },
+  insurance: { label: "Bill to insurance", icon: Shield },
+};
+
 export function PaymentPanel({ invoice, paymentMode, patientPhone, patient, onPaid }: PaymentPanelProps) {
   const isInsurance = paymentMode === "insurance";
-  const methods: { key: PaymentMethod | "mpesa_manual"; label: string; icon: typeof Smartphone }[] = isInsurance
-    ? [{ key: "insurance", label: "Bill to insurance", icon: Shield }, { key: "mpesa", label: "M-Pesa (co-pay)", icon: Smartphone }]
-    : [
-        { key: "mpesa", label: "M-Pesa prompt", icon: Smartphone },
-        { key: "mpesa_manual", label: "M-Pesa code", icon: Receipt },
-        { key: "school_fees", label: "School fees / Staff", icon: GraduationCap },
-      ];
+  const methods = billingMethodsFor(paymentMode).map((key) => ({
+    key,
+    ...METHOD_OPTIONS[key],
+    label: isInsurance && key === "mpesa" ? "M-Pesa (co-pay)" : METHOD_OPTIONS[key].label,
+  }));
 
   const owed = Number(invoice.balance ?? invoice.net_amount ?? 0);
-  const [method, setMethod] = useState<PaymentMethod | "mpesa_manual">(methods[0].key);
+  const [method, setMethod] = useState<BillingMethod>(methods[0].key);
   const [amount, setAmount] = useState(String(owed));
   const [phone, setPhone] = useState(patientPhone && toMpesaPhone(patientPhone) ? patientPhone : "");
   const [reference, setReference] = useState("");
@@ -60,7 +68,8 @@ export function PaymentPanel({ invoice, paymentMode, patientPhone, patient, onPa
   useEffect(() => { setAmount(String(owed)); }, [owed]);
   useEffect(() => {
     if (method === "insurance") setReference([patient?.insurance_provider, patient?.insurance_number].filter(Boolean).join(" / "));
-    else if (method === "school_fees") setReference(patient?.admission_number || patient?.payroll_number || "");
+    else if (method === "school_fees") setReference(patient?.admission_number || "");
+    else if (method === "payroll") setReference(patient?.payroll_number || "");
     else setReference("");
   }, [method, patient]);
   useEffect(() => () => waitRef.current?.abort(), []);
@@ -131,7 +140,7 @@ export function PaymentPanel({ invoice, paymentMode, patientPhone, patient, onPa
     const amt = Number(amount);
     if (!(amt > 0)) return toast.error("Enter the amount");
     if (method === "mpesa_manual" && !/^[A-Z0-9]{10}$/.test(reference.trim().toUpperCase())) return toast.error("Enter the 10-character M-Pesa code, e.g. SJK3ABC12D");
-    if (!reference.trim()) return toast.error(method === "insurance" ? "Enter the insurance provider / member number" : "Enter the admission / staff number");
+    if (!reference.trim()) return toast.error(method === "insurance" ? "Enter the insurance provider / member number" : method === "payroll" ? "Enter the payroll / staff number" : "Enter the admission number");
     setSaving(true);
     try {
       const ref = method === "mpesa_manual" ? reference.trim().toUpperCase() : reference.trim();
@@ -152,10 +161,10 @@ export function PaymentPanel({ invoice, paymentMode, patientPhone, patient, onPa
           <p className="text-xs text-muted-foreground">Invoice {invoice.invoice_number}</p>
           <p className="text-lg font-bold">{formatKES(owed)} <span className="text-sm font-normal text-muted-foreground">to pay</span></p>
         </div>
-        <Badge variant="outline">{isInsurance ? "Insurance" : "M-Pesa / School fees"}</Badge>
+        <Badge variant="outline">{paymentModeLabel(paymentMode)}</Badge>
       </div>
 
-      <div className={cn("grid gap-2", methods.length === 3 ? "grid-cols-3" : "grid-cols-2")}>
+      <div className={cn("grid gap-2", methods.length === 1 ? "grid-cols-1" : methods.length === 3 ? "grid-cols-3" : "grid-cols-2")}>
         {methods.map((m) => {
           const Icon = m.icon;
           return (
@@ -216,15 +225,15 @@ export function PaymentPanel({ invoice, paymentMode, patientPhone, patient, onPa
         <div className="space-y-3">
           <div className="space-y-1.5">
             <Label>
-              {method === "mpesa_manual" ? "M-Pesa confirmation code" : method === "insurance" ? "Insurance provider / member no." : "Admission / staff number"}
+              {method === "mpesa_manual" ? "M-Pesa confirmation code" : method === "insurance" ? "Insurance provider / member no." : method === "payroll" ? "Payroll / staff number" : "Admission number"}
             </Label>
             <Input value={reference} onChange={(e) => setReference(e.target.value)} className="h-12 text-base uppercase"
-              placeholder={method === "mpesa_manual" ? "e.g. SJK3ABC12D" : method === "insurance" ? "e.g. AAR / INS-123456" : "e.g. ADM/2024/001"} />
+              placeholder={method === "mpesa_manual" ? "e.g. SJK3ABC12D" : method === "insurance" ? "e.g. Pacis / INS-123456" : method === "payroll" ? "e.g. PAY-0001" : "e.g. ADM/2024/001"} />
             {method === "mpesa_manual" && <p className="text-xs text-muted-foreground">Use when the patient paid to the till directly. The code is on their M-Pesa SMS.</p>}
           </div>
           <Button onClick={recordOther} disabled={saving} className="w-full h-12">
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {method === "insurance" ? "Bill to insurance" : method === "school_fees" ? "Charge to school fees / staff account" : "Record M-Pesa payment"}
+            {method === "insurance" ? "Bill to insurance" : method === "school_fees" ? "Charge to school fees" : method === "payroll" ? "Deduct from payroll" : "Record M-Pesa payment"}
           </Button>
         </div>
       )}

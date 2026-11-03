@@ -94,7 +94,7 @@ const Pharmacy = () => {
   const [tab, setTab] = useState("prescriptions");
   const [showOlderRx, setShowOlderRx] = useState(false);
   const [formData, setFormData] = useState({
-    drugName: "", genericName: "", batchNumber: "", quantity: "", unitPrice: "",
+    drugName: "", genericName: "", batchNumber: "", quantity: "", unitPrice: "", insurancePrice: "",
     expiryDate: "", reorderLevel: "50", strengthSize: "", packageType: "",
     minimumStock: "", maximumStock: "",
   });
@@ -386,6 +386,7 @@ const Pharmacy = () => {
       batch_number: formData.batchNumber || null,
       quantity: parseInt(formData.quantity),
       unit_price: parseFloat(formData.unitPrice),
+      insurance_price: formData.insurancePrice === "" ? null : parseFloat(formData.insurancePrice),
       expiry_date: formData.expiryDate || null,
       reorder_level: parseInt(formData.reorderLevel),
       strength_size: formData.strengthSize || null,
@@ -399,7 +400,7 @@ const Pharmacy = () => {
     } else {
       toast.success("Drug added to inventory");
       setDialogOpen(false);
-      setFormData({ drugName: "", genericName: "", batchNumber: "", quantity: "", unitPrice: "", expiryDate: "", reorderLevel: "50", strengthSize: "", packageType: "", minimumStock: "", maximumStock: "" });
+      setFormData({ drugName: "", genericName: "", batchNumber: "", quantity: "", unitPrice: "", insurancePrice: "", expiryDate: "", reorderLevel: "50", strengthSize: "", packageType: "", minimumStock: "", maximumStock: "" });
       fetchInventory();
     }
   };
@@ -692,6 +693,7 @@ const Pharmacy = () => {
                   <div className="grid grid-cols-3 gap-5">
                     <div className="space-y-2"><Label className="text-sm font-semibold">Quantity *</Label><Input type="number" value={formData.quantity} onChange={(e) => setFormData({ ...formData, quantity: e.target.value })} required className="h-12 text-base" /></div>
                     <div className="space-y-2"><Label className="text-sm font-semibold">Unit Price (KES) *</Label><Input type="number" step="0.01" value={formData.unitPrice} onChange={(e) => setFormData({ ...formData, unitPrice: e.target.value })} required className="h-12 text-base" /></div>
+                    <div className="space-y-2"><Label className="text-sm font-semibold">Insurance Price (KES)</Label><Input type="number" step="0.01" placeholder="Same as unit price" value={formData.insurancePrice} onChange={(e) => setFormData({ ...formData, insurancePrice: e.target.value })} className="h-12 text-base" /></div>
                     <div className="space-y-2"><Label className="text-sm font-semibold">Expiry Date</Label><Input type="date" value={formData.expiryDate} onChange={(e) => setFormData({ ...formData, expiryDate: e.target.value })} className="h-12 text-base" /></div>
                   </div>
                   <div className="grid grid-cols-3 gap-5">

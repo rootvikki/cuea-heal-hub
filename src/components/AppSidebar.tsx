@@ -63,7 +63,7 @@ export function AppSidebar() {
 
   const supportItems = [
     { title: "Pharmacy", url: "/pharmacy", icon: Pill, roles: ["admin", "super_admin", "pharmacist", "doctor"] },
-    { title: "Billing", url: "/billing", icon: Receipt, roles: ["admin", "super_admin", "finance_officer", "cashier"] },
+    { title: "Billing", url: "/billing", icon: Receipt, roles: ["admin", "super_admin", "finance_officer", "cashier", "receptionist"] },
     { title: "Insurance", url: "/insurance", icon: Shield, roles: ["admin", "super_admin", "finance_officer", "receptionist", "cashier"] },
   ];
 

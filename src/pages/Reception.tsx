@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import {
-  Search, ClipboardList, Calendar, Radio, ArrowRight, Clock, Loader2, Pencil, Send, FlaskConical, Pill, BarChart3, Users, X,
+  Search, ClipboardList, Calendar, Radio, ArrowRight, Clock, Loader2, Pencil, Send, FlaskConical, Pill, BarChart3, Users, X, Receipt,
 } from "lucide-react";
 import { PatientRegistrationDialog } from "@/components/PatientRegistrationDialog";
 import { EditBiodataDialog } from "@/components/EditBiodataDialog";
@@ -21,7 +21,8 @@ import { isStaleTicket } from "@/components/StationQueue";
 import { InterimPayment } from "@/components/InterimPayment";
 import { VisitsReport } from "@/components/StationReports";
 import { calculateAgeYears, cn } from "@/lib/utils";
-import { PAYMENT_MODES, paymentModeLabel, type PaymentMode } from "@/lib/pricing";
+import { PAYMENT_MODES, allowedPaymentModes, defaultPaymentMode, paymentModeLabel, type PaymentMode } from "@/lib/pricing";
+import { useNavigate } from "react-router-dom";
 import { stageLabel, STATIONS, type StationKey } from "@/lib/stations";
 import { logAuditEvent } from "@/lib/auditLog";
 import { notifyRoles } from "@/lib/notifications";
@@ -56,6 +57,7 @@ interface FrontDeskPatient {
 
 const Reception = () => {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [typeFilter, setTypeFilter] = useState("all");
   const [genderFilter, setGenderFilter] = useState("all");
@@ -63,7 +65,7 @@ const Reception = () => {
   const [isLive, setIsLive] = useState(false);
 
   const [checkInPatient, setCheckInPatient] = useState<FrontDeskPatient | null>(null);
-  const [checkIn, setCheckIn] = useState({ departmentId: "", priority: "1", paymentMode: "mpesa_school_fees" as PaymentMode, firstStop: "triage" as (typeof FIRST_STOPS)[number]["key"], insuranceProvider: "", insuranceNumber: "" });
+  const [checkIn, setCheckIn] = useState({ departmentId: "", priority: "1", paymentMode: "mpesa" as PaymentMode, firstStop: "triage" as (typeof FIRST_STOPS)[number]["key"], insuranceProvider: "", insuranceNumber: "", gender: "", dateOfBirth: "" });
   const [isCheckingIn, setIsCheckingIn] = useState(false);
   const [isCheckingInAppointment, setIsCheckingInAppointment] = useState<string | null>(null);
   const [editPatient, setEditPatient] = useState<FrontDeskPatient | null>(null);
@@ -102,7 +104,7 @@ const Reception = () => {
       const today = new Date().toISOString().split("T")[0];
       const { data, error } = await supabase
         .from("appointments")
-        .select("*, patients!inner(id, patient_id, user_id, visit_reason, preferred_payment_mode, profiles!inner(full_name)), departments!inner(name)")
+        .select("*, patients!inner(id, patient_id, user_id, visit_reason, patient_type, insurance_provider, insurance_number, profiles!inner(full_name)), departments!inner(name)")
         .gte("appointment_date", today)
         .lt("appointment_date", `${today}T23:59:59`)
         .order("appointment_date");
@@ -176,23 +178,43 @@ const Reception = () => {
       return;
     }
     setCheckInPatient(p);
-    const mode = (p.preferred_payment_mode as PaymentMode) || (p.insurance_provider ? "insurance" : "mpesa_school_fees");
+    const mode = defaultPaymentMode(p);
     setCheckIn({
       departmentId: departments.length === 1 ? departments[0].id : (departments.find((d: any) => /out ?patient|general|opd/i.test(d.name))?.id ?? departments[0]?.id ?? ""),
       priority: "1",
       paymentMode: mode,
       firstStop: p.visit_reason === "dental" ? "dental" : "triage",
-      insuranceProvider: p.insurance_provider || "",
+      insuranceProvider: p.insurance_provider || INSURANCE_PROVIDERS[0],
       insuranceNumber: p.insurance_number || "",
+      gender: p.gender || "",
+      dateOfBirth: p.date_of_birth || "",
     });
   };
+  const checkInNeedsGender = !!checkInPatient && !checkInPatient.gender;
+  const checkInNeedsDob = !!checkInPatient && !checkInPatient.date_of_birth;
 
   const handleCheckIn = async (e: React.FormEvent) => {
     e.preventDefault();
     const p = checkInPatient;
     if (!p || isCheckingIn) return;
+    if (!allowedPaymentModes(p.patient_type).includes(checkIn.paymentMode)) {
+      toast.error("Choose a payment mode allowed for this patient");
+      return;
+    }
     if (checkIn.paymentMode === "insurance" && !checkIn.insuranceProvider) {
       toast.error("Select the insurance provider");
+      return;
+    }
+    if (checkIn.paymentMode === "insurance" && !checkIn.insuranceNumber.trim()) {
+      toast.error("Enter the insurance member number");
+      return;
+    }
+    if (!p.gender && !checkIn.gender) {
+      toast.error("Select the patient's gender before checking in");
+      return;
+    }
+    if (!p.date_of_birth && !checkIn.dateOfBirth) {
+      toast.error("Enter the patient's date of birth before checking in");
       return;
     }
     setIsCheckingIn(true);
@@ -209,10 +231,21 @@ const Reception = () => {
         await supabase.from("tickets").update({ status: "checked_out", workflow_stage: "checked_out", checked_out_at: new Date().toISOString(), assigned_to: null, claimed_at: null }).in("id", leftover);
       }
 
+      // Fill in missing gender / date of birth on the patient's profile first
+      if ((!p.gender || !p.date_of_birth) && p.user_id) {
+        const { error: profErr } = await supabase.from("profiles").update({
+          ...(!p.gender ? { gender: checkIn.gender } : {}),
+          ...(!p.date_of_birth ? { date_of_birth: checkIn.dateOfBirth } : {}),
+        }).eq("user_id", p.user_id);
+        if (profErr) throw new Error(`Could not save gender / date of birth: ${profErr.message}`);
+        logAuditEvent({ action: "patient_biodata_completed_at_checkin", module: "reception", details: { patient_id: p.id, gender: !p.gender ? checkIn.gender : undefined, date_of_birth: !p.date_of_birth ? checkIn.dateOfBirth : undefined } });
+        queryClient.invalidateQueries({ queryKey: ["reception-patients"] });
+      }
+
       // Remember payment details on the patient for next time
       await supabase.from("patients").update({
         preferred_payment_mode: checkIn.paymentMode,
-        ...(checkIn.paymentMode === "insurance" ? { insurance_provider: checkIn.insuranceProvider, insurance_number: checkIn.insuranceNumber || null } : {}),
+        ...(checkIn.paymentMode === "insurance" ? { insurance_provider: checkIn.insuranceProvider, insurance_number: checkIn.insuranceNumber.trim() } : {}),
       } as any).eq("id", p.id);
 
       const stop = checkIn.firstStop;
@@ -269,7 +302,7 @@ const Reception = () => {
       const { error } = await supabase.from("tickets").insert({
         ticket_number: ticketNumber, patient_id: patientId, department_id: apt.department_id, priority: 1,
         status: isDental ? "at_dental" : "triage", workflow_stage: isDental ? "at_dental" : "triage", appointment_id: apt.id,
-        payment_mode: apt.patients?.preferred_payment_mode || "mpesa_school_fees",
+        payment_mode: defaultPaymentMode(apt.patients || {}),
       } as any);
       if (error) throw error;
       await supabase.from("appointments").update({ status: "confirmed" }).eq("id", apt.id);
@@ -325,6 +358,7 @@ const Reception = () => {
     todayTickets.forEach((t: any) => { const k = stageLabel(t.workflow_stage || t.status); m[k] = (m[k] || 0) + 1; });
     return m;
   }, [todayTickets]);
+  const billingWaiting = useMemo(() => todayTickets.filter((t: any) => (t.workflow_stage || t.status) === "at_billing").length, [todayTickets]);
   const visibleTickets = stageFilter === "all" ? todayTickets : todayTickets.filter((t: any) => stageLabel(t.workflow_stage || t.status) === stageFilter);
 
   return (
@@ -342,7 +376,13 @@ const Reception = () => {
           </div>
           <p className="text-muted-foreground text-sm mt-1">Find or register a patient, choose payment mode, and send them where they need to go</p>
         </div>
-        <PatientRegistrationDialog onSuccess={handlePatientRegistered} />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button variant={billingWaiting ? "default" : "outline"} className="gap-2" onClick={() => navigate("/billing")}>
+            <Receipt className="h-4 w-4" /> Billing
+            <Badge variant={billingWaiting ? "secondary" : "outline"} className="ml-1">{billingWaiting} waiting</Badge>
+          </Button>
+          <PatientRegistrationDialog onSuccess={handlePatientRegistered} />
+        </div>
       </div>
 
       <Tabs defaultValue="desk" className="space-y-4">
@@ -587,8 +627,8 @@ const Reception = () => {
           <form onSubmit={handleCheckIn} className="space-y-5">
             <div className="space-y-2">
               <Label className="text-sm font-semibold">Payment mode *</Label>
-              <div className="grid grid-cols-2 gap-2">
-                {PAYMENT_MODES.map((m) => (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                {PAYMENT_MODES.filter((m) => allowedPaymentModes(checkInPatient?.patient_type).includes(m.value)).map((m) => (
                   <button key={m.value} type="button" onClick={() => setCheckIn({ ...checkIn, paymentMode: m.value })}
                     className={cn("p-3 rounded-lg border-2 text-left transition-all", checkIn.paymentMode === m.value ? "border-primary bg-primary/5 ring-2 ring-primary/20" : "border-border hover:bg-muted/50")}>
                     <p className="font-semibold text-sm">{m.label}</p>
@@ -602,10 +642,36 @@ const Reception = () => {
                     <SelectTrigger className="h-11"><SelectValue placeholder="Provider *" /></SelectTrigger>
                     <SelectContent>{INSURANCE_PROVIDERS.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}</SelectContent>
                   </Select>
-                  <Input className="h-11" placeholder="Member no." value={checkIn.insuranceNumber} onChange={(e) => setCheckIn({ ...checkIn, insuranceNumber: e.target.value })} />
+                  <Input className="h-11" placeholder="Member no. *" required value={checkIn.insuranceNumber} onChange={(e) => setCheckIn({ ...checkIn, insuranceNumber: e.target.value })} />
                 </div>
               )}
             </div>
+
+            {(checkInNeedsGender || checkInNeedsDob) && (
+              <div className="space-y-3 rounded-lg border border-[hsl(var(--warning))] bg-warning/10 p-3">
+                <p className="text-sm font-semibold">Missing details — please fill in before check-in</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {checkInNeedsGender && (
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">Gender *</Label>
+                      <Select value={checkIn.gender} onValueChange={(v) => setCheckIn({ ...checkIn, gender: v })}>
+                        <SelectTrigger className="h-11 bg-background"><SelectValue placeholder="Select gender" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Male">Male</SelectItem>
+                          <SelectItem value="Female">Female</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  {checkInNeedsDob && (
+                    <div className="space-y-1.5">
+                      <Label className="text-sm">Date of birth *</Label>
+                      <Input type="date" className="h-11 bg-background" max={new Date().toISOString().slice(0, 10)} value={checkIn.dateOfBirth} onChange={(e) => setCheckIn({ ...checkIn, dateOfBirth: e.target.value })} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div className="space-y-2">
               <Label className="text-sm font-semibold">Send to *</Label>

@@ -2830,6 +2830,7 @@ export type Database = {
         | "insurance"
         | "bank_transfer"
         | "school_fees"
+        | "payroll"
       payment_status: "pending" | "partial" | "paid" | "refunded" | "cancelled"
       ticket_status:
         | "checked_in"
@@ -3009,6 +3010,7 @@ export const Constants = {
         "insurance",
         "bank_transfer",
         "school_fees",
+        "payroll",
       ],
       payment_status: ["pending", "partial", "paid", "refunded", "cancelled"],
       ticket_status: [

@@ -9,7 +9,9 @@ import { toast } from "sonner";
 import { logAuditEvent } from "@/lib/auditLog";
 import { PhoneInput } from "@/components/PhoneInput";
 import { isValidPhone, normalizePhone } from "@/lib/validation";
-import { PAYMENT_MODES } from "@/lib/pricing";
+import { PAYMENT_MODES, allowedPaymentModes, defaultPaymentMode } from "@/lib/pricing";
+
+const normGender = (g?: string | null) => { const x = (g || "").trim().toLowerCase(); return x === "male" || x === "m" ? "Male" : x === "female" || x === "f" ? "Female" : ""; };
 
 interface Props {
   open: boolean;
@@ -27,7 +29,7 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
     if (!open) return;
     setF({
       full_name: profile?.full_name || "",
-      gender: (profile?.gender || "").toLowerCase(),
+      gender: normGender(profile?.gender),
       date_of_birth: profile?.date_of_birth || "",
       phone: profile?.phone || "",
       address: profile?.address || "",
@@ -42,7 +44,7 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
       next_of_kin_phone: patient?.next_of_kin_phone || "",
       insurance_provider: patient?.insurance_provider || "",
       insurance_number: patient?.insurance_number || "",
-      preferred_payment_mode: patient?.preferred_payment_mode || "mpesa_school_fees",
+      preferred_payment_mode: allowedPaymentModes(patient?.patient_type).includes(patient?.preferred_payment_mode as any) ? patient.preferred_payment_mode : defaultPaymentMode(patient || {}),
     });
   }, [open, patient, profile]);
 
@@ -51,6 +53,9 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
 
   const save = async () => {
     if (!f.full_name.trim()) return toast.error("Name is required");
+    if (!f.gender) return toast.error("Select the patient's gender");
+    if (!allowedPaymentModes(f.patient_type).includes(f.preferred_payment_mode as any)) return toast.error("Choose a payment mode allowed for this patient type");
+    if (f.preferred_payment_mode === "insurance" && (!f.insurance_provider.trim() || !f.insurance_number.trim())) return toast.error("Insurance needs the provider and member number");
     if (f.phone && !isValidPhone(f.phone)) return toast.error("Phone number is not valid");
     if (f.next_of_kin_phone && !isValidPhone(f.next_of_kin_phone)) return toast.error("Next of kin phone is not valid");
     setSaving(true);
@@ -109,15 +114,15 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
             <Select value={f.gender || ""} onValueChange={(v) => setF((p) => ({ ...p, gender: v }))}>
               <SelectTrigger className="h-12"><SelectValue placeholder="Select" /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="male">Male</SelectItem>
-                <SelectItem value="female">Female</SelectItem>
+                <SelectItem value="Male">Male</SelectItem>
+                <SelectItem value="Female">Female</SelectItem>
               </SelectContent>
             </Select>
           </div>
           {field("date_of_birth", "Date of birth", "date")}
           <div className="space-y-1.5">
             <Label>Patient type</Label>
-            <Select value={f.patient_type} onValueChange={(v) => setF((p) => ({ ...p, patient_type: v }))}>
+            <Select value={f.patient_type} onValueChange={(v) => setF((p) => ({ ...p, patient_type: v, preferred_payment_mode: allowedPaymentModes(v).includes(p.preferred_payment_mode as any) ? p.preferred_payment_mode : allowedPaymentModes(v)[0] }))}>
               <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="cuea_staff">CUEA Staff</SelectItem>
@@ -126,7 +131,7 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
               </SelectContent>
             </Select>
           </div>
-          {field("payroll_number", "Member no. (staff)")}
+          {field("payroll_number", "Payroll no. (staff)")}
           {field("admission_number", "School admission no.")}
           {field("national_id", "National ID")}
           {field("nationality", "Nationality")}
@@ -146,7 +151,7 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
             <Label>Usual payment mode</Label>
             <Select value={f.preferred_payment_mode} onValueChange={(v) => setF((p) => ({ ...p, preferred_payment_mode: v }))}>
               <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
-              <SelectContent>{PAYMENT_MODES.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+              <SelectContent>{PAYMENT_MODES.filter((m) => allowedPaymentModes(f.patient_type).includes(m.value)).map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
             </Select>
           </div>
           {field("insurance_provider", "Insurance provider")}

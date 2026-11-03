@@ -41,7 +41,7 @@ export function DirectOrderDialog({ open, onOpenChange, mode, ticket, source, on
   const [rx, setRx] = useState<RxLine>(emptyRx);
   const [facility, setFacility] = useState("");
   const [prescriber, setPrescriber] = useState("");
-  const [paymentMode, setPaymentMode] = useState<string>("mpesa_school_fees");
+  const [paymentMode, setPaymentMode] = useState<string>("mpesa");
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
@@ -49,7 +49,7 @@ export function DirectOrderDialog({ open, onOpenChange, mode, ticket, source, on
     setSelectedTests([]); setRxLines([]); setRx(emptyRx); setSearch(""); setFacility(""); setPrescriber("");
     if (ticket) {
       supabase.from("tickets").select("payment_mode").eq("id", ticket.id).maybeSingle()
-        .then(({ data }) => setPaymentMode((data as any)?.payment_mode || "mpesa_school_fees"));
+        .then(({ data }) => setPaymentMode((data as any)?.payment_mode || "mpesa"));
     }
     if (mode === "lab") {
       supabase.from("lab_tests_catalog").select("*").order("test_name").then(({ data }) => setTests((data as any[]) || []));

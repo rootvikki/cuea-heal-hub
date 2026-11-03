@@ -43,3 +43,10 @@
 - [ ] Waiting on user: confirm which number is the till and which is the store (a live KES 1 test)
 - [x] Official letterhead on every printout (prescriptions, referrals, lab reports, charge sheet, station & department reports, payments)
 - [x] Pharmacy: Serve on a patient with no prescription no longer disappears — enter prescription or send on
+
+## Billing / payment / pharmacy clean-up (Nov 3 2026)
+- [x] Reception = billing desk: receptionist can open Billing (queue + opened patient only), Billing shortcut on Reception
+- [x] Payment modes: mpesa / school_fees / payroll / insurance by patient type; check-in defaults; Billing methods per mode; DB enum/constraints/migrate rows
+- [x] Pharmacy owns drug prices and stock (UI + RLS)
+- [x] Reception report: all patient detail columns + Missing details filter
+- [x] Gender: required at registration + edge function, Male/Female only, ask at check-in, "Not recorded" in reports
