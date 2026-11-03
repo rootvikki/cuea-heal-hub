@@ -39,8 +39,8 @@ export interface FormDraft {
 export function useFormDraft<T>(
   key: string | null,
   value: T,
-  setValue: (v: T) => void,
-  opts: { enabled?: boolean; isEmpty?: (v: T) => boolean; reset?: T } = {},
+  setValue: (v: NoInfer<T>) => void,
+  opts: { enabled?: boolean; isEmpty?: (v: NoInfer<T>) => boolean; reset?: NoInfer<T> } = {},
 ): FormDraft {
   const enabled = opts.enabled !== false && !!key;
   const [restored, setRestored] = useState(false);
