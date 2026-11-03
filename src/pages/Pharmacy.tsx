@@ -24,6 +24,7 @@ import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
 import { MedicationInteractionCheck } from "@/components/MedicationInteractionCheck";
 import { SendToDialog } from "@/components/SendToDialog";
+import { DirectOrderDialog } from "@/components/DirectOrderDialog";
 import { authUserIdForStaff, notifyUser } from "@/lib/notifications";
 import { currentStaffId, sendPatientTo } from "@/lib/stations";
 import { formatKES, paymentModeLabel, priceFor } from "@/lib/pricing";
@@ -84,6 +85,8 @@ const Pharmacy = () => {
   const [lines, setLines] = useState<Record<string, Line>>({});
   const [busy, setBusy] = useState<"bill" | "dispense" | null>(null);
   const [sendOpen, setSendOpen] = useState(false);
+  const [addRxOpen, setAddRxOpen] = useState(false);
+  const [lookingUpRx, setLookingUpRx] = useState(false);
   const [replenish, setReplenish] = useState<{ medicationName: string; inventoryId?: string; prescriptionId?: string; qty?: number } | null>(null);
   const [replenishKey, setReplenishKey] = useState(0);
   const [editItem, setEditItem] = useState<any>(null);
@@ -101,14 +104,21 @@ const Pharmacy = () => {
     setLoading(false);
   }, []);
 
+  const RX_SELECT = "*, encounters!inner(ticket_id, chief_complaint), patients!inner(id, patient_id, user_id, allergies, profiles!inner(full_name, gender, date_of_birth))";
   const fetchPrescriptions = useCallback(async () => {
     const since = new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString();
-    const { data } = await supabase
-      .from("prescriptions")
-      .select("*, encounters!inner(ticket_id, chief_complaint), patients!inner(id, patient_id, user_id, allergies, profiles!inner(full_name, gender, date_of_birth))")
-      .gte("created_at", since)
-      .order("created_at", { ascending: true });
-    const rows = (data || []).map((p: any) => ({
+    const [{ data: recent }, { data: atPharmacy }] = await Promise.all([
+      supabase.from("prescriptions").select(RX_SELECT).gte("created_at", since).order("created_at", { ascending: true }),
+      // Patients waiting at the pharmacy now — include their prescriptions however old they are
+      supabase.from("tickets").select("id").in("workflow_stage", ["at_pharmacy", "at_billing"]),
+    ]);
+    let data: any[] = recent || [];
+    const waitingIds = (atPharmacy || []).map((t: any) => t.id);
+    if (waitingIds.length) {
+      const { data: older } = await supabase.from("prescriptions").select(RX_SELECT).in("encounters.ticket_id", waitingIds).lt("created_at", since);
+      if (older?.length) data = [...older, ...data];
+    }
+    const rows = data.map((p: any) => ({
       ...p,
       ticket_id: p.encounters?.ticket_id ?? null,
       patient: { id: p.patients?.id, patient_id: p.patients?.patient_id, user_id: p.patients?.user_id, allergies: p.patients?.allergies, profile: p.patients?.profiles },
@@ -151,6 +161,15 @@ const Pharmacy = () => {
   useEffect(() => {
     if (selectedTicket) setOpenKey(selectedTicket.id);
   }, [selectedTicket]);
+
+  // Serving a patient whose prescription is not on screen: refresh once before showing "no prescription"
+  useEffect(() => {
+    if (!selectedTicket || sheets.some((s) => s.key === selectedTicket.id)) return;
+    let cancelled = false;
+    setLookingUpRx(true);
+    fetchPrescriptions().finally(() => { if (!cancelled) setLookingUpRx(false); });
+    return () => { cancelled = true; };
+  }, [selectedTicket?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Receive: opening a sheet marks new prescriptions as received
   useEffect(() => {
