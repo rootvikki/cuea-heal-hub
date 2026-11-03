@@ -129,7 +129,10 @@ serve(async (req) => {
     if (!(roundedAmount >= 1)) return json({ success: false, error: "Amount must be at least KES 1." }, 400);
 
     const { data: invoice } = await supabase.from("invoices").select("id, invoice_number, balance").eq("id", invoiceId).maybeSingle();
-    if (!invoice) return json({ success: false, error: "Invoice not found." }, 404);
+    if (!invoice || !(await mayUseInvoice(invoiceId))) return json({ success: false, error: "Invoice not found." }, 404);
+    if (!isStaff && roundedAmount > Math.ceil(Number(invoice.balance || 0))) {
+      return json({ success: false, error: "The amount is more than what is owed on this bill." }, 400);
+    }
 
     const stkRes = await fetch(`${cfg.baseUrl}/mpesa/stkpush/v1/processrequest`, {
       method: "POST",
