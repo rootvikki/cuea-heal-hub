@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Pager, usePaged } from "@/components/Pager";
 import { format, startOfDay, endOfDay, subDays, startOfMonth } from "date-fns";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -115,22 +116,26 @@ function SimpleSelect({ label, value, onChange, options }: { label: string; valu
 }
 
 function ResultsTable<T extends { _id: string }>({ rows, cols }: { rows: T[]; cols: Col<T>[] }) {
+  const pages = usePaged(rows, { resetKey: rows });
   return (
-    <div className="overflow-auto max-h-[55vh] border rounded-md">
-      <table className="w-full border-collapse text-sm min-w-[720px]">
-        <thead className="sticky top-0 z-10">
-          <tr>{cols.map((c) => <th key={c.key} className="border bg-muted px-2 py-1.5 text-left font-semibold whitespace-nowrap">{c.label}</th>)}</tr>
-        </thead>
-        <tbody>
-          {rows.length === 0 ? (
-            <tr><td colSpan={cols.length} className="border px-2 py-8 text-center text-muted-foreground">No records match these filters</td></tr>
-          ) : rows.map((r) => (
-            <tr key={r._id} className="hover:bg-muted/40">
-              {cols.map((c) => <td key={c.key} className="border px-2 py-1.5 whitespace-nowrap">{c.value(r)}</td>)}
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div>
+      <div className="overflow-x-auto border rounded-md">
+        <table className="w-full border-collapse text-sm min-w-[720px]">
+          <thead>
+            <tr>{cols.map((c) => <th key={c.key} className="border bg-muted px-2 py-1.5 text-left font-semibold whitespace-nowrap">{c.label}</th>)}</tr>
+          </thead>
+          <tbody>
+            {rows.length === 0 ? (
+              <tr><td colSpan={cols.length} className="border px-2 py-8 text-center text-muted-foreground">No records match these filters</td></tr>
+            ) : pages.pageItems.map((r) => (
+              <tr key={r._id} className="hover:bg-muted/40">
+                {cols.map((c) => <td key={c.key} className="border px-2 py-1.5 whitespace-nowrap">{c.value(r)}</td>)}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <Pager pager={pages} label="records" />
     </div>
   );
 }
