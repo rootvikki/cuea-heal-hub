@@ -44,21 +44,31 @@ serve(async (req) => {
     }
 
     const body = await req.json();
-    const { consumerKey, consumerSecret, shortcode, passkey, environment } = body;
+    const { consumerKey, consumerSecret, shortcode, passkey, environment, paymentType, tillNumber, storeNumber } = body;
+    const clean = (v: unknown) => String(v ?? "").trim();
+    const digits = (v: unknown) => clean(v).replace(/\D/g, "");
 
-    // Update settings in system_settings table
+    // Update settings in system_settings table (blank fields keep the saved value)
     const settings: Record<string, string> = {};
-    if (consumerKey !== undefined) settings["mpesa_consumer_key"] = consumerKey;
-    if (consumerSecret !== undefined) settings["mpesa_consumer_secret"] = consumerSecret;
-    if (shortcode !== undefined) settings["mpesa_shortcode"] = shortcode;
-    if (passkey !== undefined) settings["mpesa_passkey"] = passkey;
-    if (environment !== undefined) settings["mpesa_environment"] = environment;
+    if (clean(consumerKey)) settings["mpesa_consumer_key"] = clean(consumerKey);
+    if (clean(consumerSecret)) settings["mpesa_consumer_secret"] = clean(consumerSecret);
+    if (clean(passkey)) settings["mpesa_passkey"] = clean(passkey);
+    if (environment !== undefined) settings["mpesa_environment"] = clean(environment) === "production" ? "production" : "sandbox";
+    if (paymentType !== undefined) settings["mpesa_type"] = paymentType === "paybill" ? "paybill" : "till";
+    if (digits(tillNumber)) settings["mpesa_till_number"] = digits(tillNumber);
+    if (digits(storeNumber)) settings["mpesa_store_number"] = digits(storeNumber);
+    if (digits(shortcode)) settings["mpesa_shortcode"] = digits(shortcode);
 
     for (const [key, value] of Object.entries(settings)) {
-      await serviceClient
+      const { error } = await serviceClient
         .from("system_settings")
         .upsert({ key, value, updated_by: userId, updated_at: new Date().toISOString() }, { onConflict: "key" });
+      if (error) throw new Error(`Could not save ${key}: ${error.message}`);
     }
+    await serviceClient.from("audit_logs").insert({
+      user_id: userId, action: "mpesa_settings_updated", module: "settings",
+      details: { fields: Object.keys(settings).filter((k) => !/key|secret|passkey/.test(k)), secrets_changed: Object.keys(settings).some((k) => /key|secret|passkey/.test(k)) },
+    });
 
     return new Response(
       JSON.stringify({ success: true, message: "M-Pesa configuration updated" }),
