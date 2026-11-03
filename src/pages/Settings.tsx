@@ -299,7 +299,7 @@ const Settings = () => {
                 <CardDescription>The till and keys used to send M-Pesa prompts to patients' phones</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
-                <div className={`rounded-lg border p-4 space-y-2 ${mpesaTest?.ok ? "border-primary/40 bg-primary/5" : "border-destructive/40 bg-destructive/5"}`}>
+                <div className={`rounded-lg border p-4 space-y-2 ${!mpesaTest ? "border-border" : mpesaTest.ok ? "border-primary/40 bg-primary/5" : "border-destructive/40 bg-destructive/5"}`}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="font-medium">Currently in use</p>
                     <Button size="sm" variant="outline" onClick={() => testMpesa(false)} disabled={testingMpesa}>
