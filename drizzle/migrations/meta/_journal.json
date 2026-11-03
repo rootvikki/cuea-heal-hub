@@ -92,6 +92,13 @@
       "when": 1793702828930,
       "tag": "0012_cache_version_setting",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793703186844,
+      "tag": "0013_patients_read_own_invoice_items",
+      "breakpoints": true
     }
   ]
 }

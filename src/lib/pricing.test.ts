@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { allowedPaymentModes, billingMethodsFor, defaultPaymentMode, priceFor, serviceFee } from "./pricing";
+import { allowedPaymentModes, billingMethodsFor, defaultPaymentMode, priceFor, serviceFee, serviceFeeDescription } from "./pricing";
 
 describe("payment options by patient type", () => {
   test("students: school fees, M-Pesa or insurance", () => {
@@ -56,4 +56,17 @@ describe("two-tier pricing", () => {
   test("triage fee unchanged at 200", () => {
     expect(serviceFee("triage", "payroll")).toBe(200);
   });
+});
+
+describe("student fee waiver", () => {
+  test("students pay nothing for triage", () => expect(serviceFee("triage", "school_fees", "cuea_student")).toBe(0));
+  test("students pay nothing for the doctor's consultation", () => expect(serviceFee("consultation", "mpesa", "cuea_student")).toBe(0));
+  test("students on insurance are not charged triage either", () => expect(serviceFee("triage", "insurance", "cuea_student")).toBe(0));
+  test("staff still pay triage 200 and consultation 500", () => {
+    expect(serviceFee("triage", "payroll", "cuea_staff")).toBe(200);
+    expect(serviceFee("consultation", "payroll", "cuea_staff")).toBe(500);
+  });
+  test("outsiders still pay consultation 500", () => expect(serviceFee("consultation", "mpesa", "outsider")).toBe(500));
+  test("students still pay for admission", () => expect(serviceFee("admission", "school_fees", "cuea_student")).toBe(1000));
+  test("the bill line says why it is free", () => expect(serviceFeeDescription("Doctor Consultation", "consultation", "cuea_student")).toBe("Doctor Consultation (no charge — CUEA student)"));
 });

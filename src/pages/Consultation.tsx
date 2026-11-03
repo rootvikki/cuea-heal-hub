@@ -37,7 +37,8 @@ import { PatientSummaryCard } from "@/components/PatientSummaryCard";
 import { LabResultsTable } from "@/components/LabResultsTable";
 import { printVisitLabReport } from "@/lib/labReport";
 import { STATIONS, sendPatientTo, stationByKey, type StationKey } from "@/lib/stations";
-import { priceFor } from "@/lib/pricing";
+import { priceFor, serviceFee, serviceFeeDescription } from "@/lib/pricing";
+import { patientTypeOf } from "@/lib/billing";
 import { useUser } from "@/contexts/UserContext";
 import {
   Stethoscope, User, AlertTriangle, Activity, Pill, TestTube,
@@ -376,7 +377,7 @@ const Consultation = () => {
   );
 
   const costEstimate = useMemo(() => {
-    const consultation = 500;
+    const consultation = serviceFee("consultation", (selectedTicket as any)?.payment_mode, (selectedTicket?.patient as any)?.patient_type);
     const labs = selectedLabTests.reduce((sum, id) => {
       const test = labTests.find(t => t.id === id);
       return sum + (test?.price || 0);
@@ -386,7 +387,7 @@ const Consultation = () => {
       return sum + (item?.price || 0);
     }, 0);
     return { consultation, labs, imaging, total: consultation + labs + imaging };
-  }, [selectedLabTests, selectedImaging, labTests, imagingItems]);
+  }, [selectedLabTests, selectedImaging, labTests, imagingItems, selectedTicket]);
 
   // ─── Next workflow stage (doctor can change it) ───────────────
   const suggestedDestination = useMemo<StationKey>(() => {
@@ -693,13 +694,14 @@ const Consultation = () => {
 
     if (encounterError) throw new Error(`The visit record could not be saved: ${encounterError.message}`);
 
+    const pType = await patientTypeOf(selectedTicket!.patient!.id, (selectedTicket!.patient as any)?.patient_type);
     await supabase.from("service_charges").insert({
       patient_id: selectedTicket!.patient!.id,
       encounter_id: encounterData.id,
       ticket_id: selectedTicket!.id,
       service_type: "consultation",
-      description: "Doctor Consultation",
-      amount: 500,
+      description: serviceFeeDescription("Doctor Consultation", "consultation", pType),
+      amount: serviceFee("consultation", (selectedTicket as any)?.payment_mode, pType),
       billing_stage: "consultation",
     });
 

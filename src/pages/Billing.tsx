@@ -66,7 +66,14 @@ const Billing = () => {
       supabase.from("invoices").select("*").eq("ticket_id", ticket.id).order("created_at"),
       supabase.from("patients").select("patient_id, patient_type, payroll_number, admission_number, national_id, insurance_provider, insurance_number, profiles!inner(full_name, phone)").eq("id", ticket.patient_id).maybeSingle(),
     ]);
-    setCharges((chg.data || []).map((c: any) => ({ ...c, _edited: false })));
+    // Keep amounts the desk has typed but not yet confirmed — a live refresh must not undo them
+    setCharges((prev) => {
+      const edited = new Map(prev.filter((c) => c._edited && !c.invoice_id).map((c) => [c.id, c]));
+      return (chg.data || []).map((c: any) => {
+        const e = edited.get(c.id);
+        return e && !c.invoice_id ? { ...c, description: e.description, amount: e.amount, _edited: true } : { ...c, _edited: false };
+      });
+    });
     setVisitInvoices((inv.data || []) as Invoice[]);
     setPatientInfo(pat.data);
   }, []);
@@ -118,10 +125,8 @@ const Billing = () => {
     if (!selectedTicket) return;
     setSavingBill(true);
     try {
-      for (const c of charges.filter((x) => x._edited && !x.invoice_id)) {
-        await supabase.from("service_charges").update({ description: c.description, amount: Number(c.amount) || 0 }).eq("id", c.id);
-      }
-      const inv = await createInvoiceForTicket(selectedTicket.id);
+      // Bill exactly what is on screen now, with the amounts as last shown
+      const inv = await createInvoiceForTicket(selectedTicket.id, unbilled.map((c) => ({ id: c.id, description: c.description, amount: Number(c.amount) || 0 })));
       if (!inv) toast.info("Nothing new to bill");
       else toast.success(`Bill ${inv.invoice_number} ready`, { description: formatKES(inv.net_amount) });
       await loadVisit(selectedTicket);

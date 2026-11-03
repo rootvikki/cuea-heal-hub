@@ -32,37 +32,76 @@ export async function unbilledCharges(ticketId: string) {
   return data || [];
 }
 
+/** Patient type for fee rules (stations pass it when they already have it loaded). */
+export async function patientTypeOf(patientId: string, known?: string | null): Promise<string | null> {
+  if (known) return known;
+  const { data } = await supabase.from("patients").select("patient_type").eq("id", patientId).maybeSingle();
+  return data?.patient_type ?? null;
+}
+
+export type ConfirmedCharge = { id: string; description: string; amount: number };
+
 /**
- * Puts every un-invoiced charge of the visit on a new invoice.
+ * Puts the visit's un-invoiced charges on its bill.
+ * - `confirmed`: exactly the lines (and amounts) shown on screen when billing pressed Confirm — the bill
+ *   uses those figures, and charges that arrived after the screen was shown wait for the next confirm.
+ * - When the visit already has an unpaid bill with nothing paid yet, the new lines are added to it, so
+ *   one bill carries the whole visit and the amount to pay equals what was confirmed.
  * If nothing is new, returns the visit's latest unpaid invoice (or null).
  */
-export async function createInvoiceForTicket(ticketId: string): Promise<Invoice | null> {
-  const charges = await unbilledCharges(ticketId);
+export async function createInvoiceForTicket(ticketId: string, confirmed?: ConfirmedCharge[]): Promise<Invoice | null> {
+  let charges = await unbilledCharges(ticketId);
+  if (confirmed) {
+    const shown = new Map(confirmed.map((c) => [c.id, c]));
+    charges = charges.filter((c) => shown.has(c.id));
+    for (const c of charges) {
+      const x = shown.get(c.id)!;
+      const amount = Math.max(Number(x.amount) || 0, 0);
+      const description = (x.description || "").trim() || c.description;
+      if (amount !== Number(c.amount) || description !== c.description) {
+        const { error } = await supabase.from("service_charges").update({ description, amount }).eq("id", c.id);
+        if (error) throw new Error(`Could not save the changed amount for "${description}": ${error.message}`);
+        c.amount = amount; c.description = description;
+      }
+    }
+  }
   if (charges.length === 0) {
     const { data: open } = await supabase.from("invoices").select("*").eq("ticket_id", ticketId).neq("status", "paid").order("created_at", { ascending: false }).limit(1).maybeSingle();
     return (open as Invoice) ?? null;
   }
-  const total = charges.reduce((s, c) => s + Number(c.amount || 0), 0);
-  const invoiceNumber = `INV-${Date.now().toString().slice(-8)}`;
-  const { data: invoice, error } = await supabase.from("invoices").insert({
-    invoice_number: invoiceNumber,
-    patient_id: charges[0].patient_id,
-    encounter_id: charges.find((c) => c.encounter_id)?.encounter_id ?? null,
-    ticket_id: ticketId,
-    total_amount: total,
-    net_amount: total,
-    amount_paid: 0,
-    balance: total,
-    status: "pending",
-  } as any).select("*").single();
-  if (error) throw new Error(`Invoice could not be created: ${error.message}`);
+  const add = charges.reduce((s, c) => s + Number(c.amount || 0), 0);
 
-  await supabase.from("invoice_items").insert(charges.map((c) => ({
-    invoice_id: invoice.id, description: c.description, quantity: 1, unit_price: c.amount, total_price: c.amount,
+  // An unpaid bill on this visit with nothing paid yet takes the new lines
+  const { data: untouched } = await supabase.from("invoices").select("*").eq("ticket_id", ticketId)
+    .eq("status", "pending").order("created_at", { ascending: false }).limit(1).maybeSingle();
+  let invoice: any;
+  if (untouched && Number(untouched.amount_paid || 0) === 0) {
+    const total = Number(untouched.total_amount || 0) + add;
+    const net = Number(untouched.net_amount || 0) + add;
+    const { data, error } = await supabase.from("invoices").update({ total_amount: total, net_amount: net, balance: net, updated_at: new Date().toISOString() })
+      .eq("id", untouched.id).select("*").single();
+    if (error) throw new Error(`The bill could not be updated: ${error.message}`);
+    invoice = data;
+  } else {
+    const { data, error } = await supabase.from("invoices").insert({
+      invoice_number: `INV-${Date.now().toString().slice(-8)}`,
+      patient_id: charges[0].patient_id,
+      encounter_id: charges.find((c) => c.encounter_id)?.encounter_id ?? null,
+      ticket_id: ticketId,
+      total_amount: add, net_amount: add, amount_paid: 0, balance: add, status: "pending",
+    } as any).select("*").single();
+    if (error) throw new Error(`Invoice could not be created: ${error.message}`);
+    invoice = data;
+  }
+
+  const { error: itemErr } = await supabase.from("invoice_items").insert(charges.map((c) => ({
+    invoice_id: invoice.id, description: c.description, quantity: 1, unit_price: Number(c.amount), total_price: Number(c.amount),
   })));
-  await supabase.from("service_charges").update({ invoice_id: invoice.id } as any).in("id", charges.map((c) => c.id));
+  if (itemErr) throw new Error(`Bill lines could not be saved: ${itemErr.message}`);
+  const { error: linkErr } = await supabase.from("service_charges").update({ invoice_id: invoice.id } as any).in("id", charges.map((c) => c.id));
+  if (linkErr) throw new Error(`Charges could not be linked to the bill: ${linkErr.message}`);
 
-  logAuditEvent({ action: "invoice_generated", module: "billing", details: { invoice_number: invoiceNumber, ticket_id: ticketId, total } });
+  logAuditEvent({ action: untouched && invoice.id === untouched.id ? "invoice_extended" : "invoice_generated", module: "billing", details: { invoice_number: invoice.invoice_number, ticket_id: ticketId, added: add, net: invoice.net_amount, lines: charges.map((c) => ({ description: c.description, amount: Number(c.amount) })) } });
   return invoice as Invoice;
 }
 
