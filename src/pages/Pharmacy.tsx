@@ -34,6 +34,7 @@ import { ReceiveStockDialog } from "@/components/ReceiveStockDialog";
 import { PharmacyReport } from "@/components/PharmacyReport";
 import { stockStatus } from "@/lib/pharmacyReport";
 import { FORMULATIONS } from "@/lib/rxFormat";
+import { Pager, usePaged } from "@/components/Pager";
 import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
 import { MedicationInteractionCheck } from "@/components/MedicationInteractionCheck";
