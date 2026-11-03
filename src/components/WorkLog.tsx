@@ -35,6 +35,13 @@ async function inChunks<T>(ids: string[], run: (part: string[]) => PromiseLike<{
   for (let i = 0; i < ids.length; i += 100) { const { data } = await run(ids.slice(i, i + 100)); out.push(...(data || [])); }
   return out;
 }
+/** "Tabs Paracetamol 500mg" without repeating a form or strength already in the drug name. */
+const rxName = (r: Raw) => {
+  const name = String(r.medication_name || "").trim(), low = name.toLowerCase();
+  const form = r.formulation && !low.startsWith(String(r.formulation).toLowerCase()) ? r.formulation : "";
+  const strength = r.strength && !low.includes(String(r.strength).toLowerCase()) ? r.strength : "";
+  return [form, name, strength].filter(Boolean).join(" ");
+};
 const uniq = (xs: (string | null | undefined)[]) => [...new Set(xs.filter(Boolean) as string[])];
 
 /** Loads one station's work in the period and turns it into WorkRows (patients, tickets and names looked up in bulk). */
@@ -47,7 +54,7 @@ async function loadWork(station: WorkStation, from: string, to: string): Promise
   switch (station) {
     case "pharmacy":
       raw = (await range(supabase.from("prescriptions").select("id, created_at, status, medication_name, formulation, strength, dosage, frequency, duration, quantity, quantity_dispensed, patient_id, encounter_id, received_by, reviewed_by, dispensed_by, collected_by"))).data || [];
-      map = (r) => ({ id: r.id, at: r.created_at, item: [r.formulation, r.medication_name, r.strength].filter(Boolean).join(" "), detail: `${r.dosage || ""} ${r.frequency || ""} × ${r.duration || ""} · qty ${r.quantity}${r.quantity_dispensed ? ` (given ${r.quantity_dispensed})` : ""}`.trim(), status: r.status || "sent", byIds: uniq([r.received_by, r.reviewed_by, r.dispensed_by, r.collected_by]), patientId: r.patient_id, encounterId: r.encounter_id });
+      map = (r) => ({ id: r.id, at: r.created_at, item: rxName(r), detail: `${r.dosage || ""} ${r.frequency || ""} × ${r.duration || ""} · qty ${r.quantity}${r.quantity_dispensed ? ` (given ${r.quantity_dispensed})` : ""}`.trim(), status: r.status || "sent", byIds: uniq([r.received_by, r.reviewed_by, r.dispensed_by, r.collected_by]), patientId: r.patient_id, encounterId: r.encounter_id });
       break;
     case "laboratory":
       raw = (await range(supabase.from("lab_orders").select("id, created_at, status, result_value, flag, rejection_reason, patient_id, encounter_id, received_by, collected_by, processed_by, result_entered_by, lab_tests_catalog(test_name)"))).data || [];
