@@ -20,6 +20,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { drawInfirmaryLetterhead, openPdfWindow } from "@/lib/letterhead";
 import { printInvoiceReceipt } from "@/lib/receipt";
 import { useUser } from "@/contexts/UserContext";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { BillingReports } from "@/components/BillingReports";
+import { BarChart3 } from "lucide-react";
 
 /** Roles that see every bill and the revenue totals. Reception (the billing desk) sees only its queue. */
 const FULL_BILLING_ROLES = ["finance_officer", "cashier", "accountant", "admin", "super_admin"];
@@ -40,8 +43,9 @@ const Billing = () => {
   const [savingBill, setSavingBill] = useState(false);
   const [payInvoice, setPayInvoice] = useState<any>(null);
   const [sendOpen, setSendOpen] = useState(false);
+  const [tab, setTab] = useState("desk");
 
-  useEffect(() => { setQueueCollapsed(!!selectedTicket); }, [selectedTicket]);
+  useEffect(() => { setQueueCollapsed(!!selectedTicket); if (selectedTicket) setTab("desk"); }, [selectedTicket]);
 
   const fetchInvoices = useCallback(async () => {
     if (!fullView) return;
@@ -199,9 +203,14 @@ const Billing = () => {
           <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2"><Receipt className="h-7 w-7 text-primary" /> Billing</h1>
           <p className="text-muted-foreground text-sm mt-1">Check the bill, take M-Pesa / school fees / payroll / insurance, and the patient moves on automatically</p>
         </div>
-        {fullView && <Button variant="outline" onClick={() => { window.location.href = "/reports?tab=payments"; }}>Payments report</Button>}
       </div>
 
+      <Tabs value={tab} onValueChange={setTab} className="space-y-4">
+      <TabsList>
+        <TabsTrigger value="desk" className="gap-1.5"><Receipt className="h-4 w-4" /> Billing desk</TabsTrigger>
+        <TabsTrigger value="reports" className="gap-1.5"><BarChart3 className="h-4 w-4" /> Reports</TabsTrigger>
+      </TabsList>
+      <TabsContent value="desk" className="space-y-6">
       {selectedTicket ? (
         <Card className="border-primary/30">
           <CardHeader className="pb-3">
@@ -363,6 +372,9 @@ const Billing = () => {
           </table>
         </CardContent>
       </Card>}
+      </TabsContent>
+      <TabsContent value="reports"><BillingReports /></TabsContent>
+      </Tabs>
 
       <Dialog open={!!payInvoice} onOpenChange={(o) => !o && setPayInvoice(null)}>
         <DialogContent className="max-w-md max-h-[92vh] overflow-y-auto">
