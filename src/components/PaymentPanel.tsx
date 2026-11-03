@@ -52,7 +52,8 @@ export function PaymentPanel({ invoice, paymentMode, patientPhone, patient, onPa
   const [reference, setReference] = useState("");
   const [saving, setSaving] = useState(false);
   const [mpesa, setMpesa] = useState<MpesaState>({ step: "idle" });
-  const pollRef = useRef<number | null>(null);
+  const waitRef = useRef<AbortController | null>(null);
+  const [checking, setChecking] = useState(false);
 
   useEffect(() => { setAmount(String(owed)); }, [owed]);
   useEffect(() => {
@@ -60,34 +61,50 @@ export function PaymentPanel({ invoice, paymentMode, patientPhone, patient, onPa
     else if (method === "school_fees") setReference(patient?.admission_number || patient?.payroll_number || "");
     else setReference("");
   }, [method, patient]);
-  useEffect(() => () => { if (pollRef.current) window.clearInterval(pollRef.current); }, []);
+  useEffect(() => () => waitRef.current?.abort(), []);
 
-  const stopPolling = () => { if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = null; } };
-
-  const checkStatus = async (checkoutRequestId: string, askSafaricom: boolean) => {
-    // 1) Our own record (updated by the M-Pesa callback)
-    const { data: tx } = await supabase.from("mpesa_transactions").select("status, mpesa_receipt_number, result_desc").eq("checkout_request_id", checkoutRequestId).maybeSingle();
-    if (tx?.status === "completed") return finishPaid(tx.mpesa_receipt_number);
-    if (tx?.status === "failed") return finishFailed(tx.result_desc || "The payment was not completed.");
-    // 2) Ask Safaricom directly (when the callback is slow or blocked)
-    if (askSafaricom) {
-      const { data, error } = await supabase.functions.invoke("mpesa-stk-push", { body: { action: "query", checkoutRequestId } });
-      if (!error && data?.status === "completed") return finishPaid(data.receipt);
-      if (!error && data?.status === "failed") return finishFailed(data.message || "The payment was not completed.");
-      if (!error && data?.status === "processing") setMpesa((s) => s.step === "waiting" ? { ...s, message: "Paid on phone — waiting for M-Pesa confirmation…" } : s);
-    }
-  };
+  const stopWaiting = () => { waitRef.current?.abort(); waitRef.current = null; };
 
   const finishPaid = async (receipt?: string | null) => {
-    stopPolling();
+    stopWaiting();
     setMpesa({ step: "paid", receipt });
     const { data: inv } = await supabase.from("invoices").select("balance").eq("id", invoice.id).maybeSingle();
     toast.success("M-Pesa payment received", { description: receipt ? `Receipt ${receipt}` : undefined });
     onPaid(Number(inv?.balance ?? 0));
   };
   const finishFailed = (message: string) => {
-    stopPolling();
+    stopWaiting();
     setMpesa({ step: "failed", message });
+  };
+
+  /** Waits (up to 5 minutes) for M-Pesa's answer. */
+  const startWaiting = async (checkoutRequestId: string) => {
+    stopWaiting();
+    const ctrl = new AbortController();
+    waitRef.current = ctrl;
+    const since = Date.now();
+    setMpesa({ step: "waiting", checkoutRequestId, since, message: "Ask the patient to enter their M-Pesa PIN" });
+    const out = await waitForMpesa(checkoutRequestId, {
+      signal: ctrl.signal,
+      onProgress: ({ message, remainingMs }) => setMpesa((s) => s.step === "waiting" ? { ...s, message, remainingMs } : s),
+    });
+    if (out.status === "completed") return finishPaid(out.receipt);
+    if (out.status === "failed") return finishFailed(out.message);
+    if (out.status === "timeout") setMpesa((s) => s.step === "waiting" ? { ...s, remainingMs: 0, message: "No confirmation from M-Pesa yet. If the patient paid, press “Check again” — or enter the M-Pesa code from their SMS." } : s);
+  };
+
+  /** Manual "Check again" — asks M-Pesa right now. */
+  const checkNow = async (checkoutRequestId: string) => {
+    setChecking(true);
+    try {
+      const r = await queryMpesa(checkoutRequestId);
+      if (r.status === "completed") return finishPaid(r.receipt);
+      if (r.status === "failed") return finishFailed(r.message);
+      toast.info(r.status === "processing" ? "M-Pesa is still processing this payment" : "No answer from M-Pesa yet");
+      void startWaiting(checkoutRequestId);
+    } finally {
+      setChecking(false);
+    }
   };
 
   const sendStk = async () => {
@@ -104,19 +121,7 @@ export function PaymentPanel({ invoice, paymentMode, patientPhone, patient, onPa
       return;
     }
     logAuditEvent({ action: "mpesa_stk_push_sent", module: "billing", details: { invoice: invoice.invoice_number, amount: amt } });
-    const checkoutRequestId = data.checkoutRequestId as string;
-    setMpesa({ step: "waiting", checkoutRequestId, since: Date.now(), message: "Ask the patient to enter their M-Pesa PIN" });
-    let ticks = 0;
-    stopPolling();
-    pollRef.current = window.setInterval(() => {
-      ticks += 1;
-      // Check our record every 3s; ask Safaricom every 15s; give up after 2 minutes
-      void checkStatus(checkoutRequestId, ticks % 5 === 0);
-      if (ticks >= 40) {
-        stopPolling();
-        setMpesa((s) => s.step === "waiting" ? { ...s, message: "No confirmation yet. Press “Check again”, or enter the M-Pesa code by hand." } : s);
-      }
-    }, 3000);
+    void startWaiting(data.checkoutRequestId as string);
   };
 
   const recordOther = async () => {
