@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 import { PhoneInput } from "@/components/PhoneInput";
 import { toMpesaPhone } from "@/lib/validation";
 import { billingMethodsFor, formatKES, paymentModeLabel, type BillingMethod } from "@/lib/pricing";
-import { functionErrorMessage, recordPayment, type Invoice, type PaymentMethod } from "@/lib/billing";
+import { functionErrorMessage, recordPayment, type Invoice } from "@/lib/billing";
 import { logAuditEvent } from "@/lib/auditLog";
 import { queryMpesa, waitForMpesa } from "@/lib/mpesaWait";
 import { printInvoiceReceipt } from "@/lib/receipt";

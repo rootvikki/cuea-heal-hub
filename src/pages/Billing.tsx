@@ -17,10 +17,16 @@ import { createInvoiceForTicket, routeAfterPayment, type Invoice } from "@/lib/b
 import { formatKES, paymentModeLabel } from "@/lib/pricing";
 import { drawInfirmaryLetterhead, openPdfWindow } from "@/lib/letterhead";
 import { printInvoiceReceipt } from "@/lib/receipt";
+import { useUser } from "@/contexts/UserContext";
+
+/** Roles that see every bill and the revenue totals. Reception (the billing desk) sees only its queue. */
+const FULL_BILLING_ROLES = ["finance_officer", "cashier", "accountant", "admin", "super_admin"];
 
 const statusColor: Record<string, string> = { pending: "bg-yellow-100 text-yellow-800", partial: "bg-blue-100 text-blue-800", paid: "bg-green-100 text-green-800", cancelled: "bg-muted" };
 
 const Billing = () => {
+  const { hasAnyRole } = useUser();
+  const fullView = hasAnyRole(FULL_BILLING_ROLES);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [invoiceSearch, setInvoiceSearch] = useState("");
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
@@ -36,13 +42,14 @@ const Billing = () => {
   useEffect(() => { setQueueCollapsed(!!selectedTicket); }, [selectedTicket]);
 
   const fetchInvoices = useCallback(async () => {
+    if (!fullView) return;
     const { data } = await supabase
       .from("invoices")
       .select("*, patients!inner(patient_id, user_id, patient_type, payroll_number, admission_number, national_id, insurance_provider, insurance_number, profiles!inner(full_name, phone))")
       .order("created_at", { ascending: false })
       .limit(300);
     setInvoices((data || []).map((inv: any) => ({ ...inv, patient: { ...inv.patients, profile: inv.patients?.profiles } })));
-  }, []);
+  }, [fullView]);
 
   useEffect(() => { void fetchInvoices(); }, [fetchInvoices]);
 
@@ -171,9 +178,9 @@ const Billing = () => {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2"><Receipt className="h-7 w-7 text-primary" /> Billing</h1>
-          <p className="text-muted-foreground text-sm mt-1">Check the bill, take M-Pesa / school fees / insurance, and the patient moves on automatically</p>
+          <p className="text-muted-foreground text-sm mt-1">Check the bill, take M-Pesa / school fees / payroll / insurance, and the patient moves on automatically</p>
         </div>
-        <Button variant="outline" onClick={() => { window.location.href = "/reports?tab=payments"; }}>Payments report</Button>
+        {fullView && <Button variant="outline" onClick={() => { window.location.href = "/reports?tab=payments"; }}>Payments report</Button>}
       </div>
 
       {selectedTicket ? (
@@ -273,6 +280,12 @@ const Billing = () => {
             </div>
           </CardContent>
         </Card>
+      ) : !fullView ? (
+        <Card><CardContent className="p-8 text-center text-muted-foreground space-y-1">
+          <Receipt className="h-8 w-8 mx-auto opacity-60" />
+          <p className="font-medium text-foreground">Pick a patient from the Billing queue</p>
+          <p className="text-sm">Patients appear here once a station sends them to billing.</p>
+        </CardContent></Card>
       ) : (
         <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
           <Card><CardContent className="p-4 flex items-center gap-3"><div className="p-2.5 rounded-full bg-green-100"><DollarSign className="h-5 w-5 text-green-600" /></div><div><p className="text-xs text-muted-foreground">Collected</p><p className="text-lg font-bold">{formatKES(invoices.reduce((s, i) => s + Number(i.amount_paid || 0), 0))}</p></div></CardContent></Card>
@@ -282,7 +295,7 @@ const Billing = () => {
         </div>
       )}
 
-      <Card>
+      {fullView && <Card>
         <CardHeader className="pb-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <CardTitle className="flex items-center gap-2 text-base"><Receipt className="h-5 w-5" /> Bills</CardTitle>
@@ -314,7 +327,7 @@ const Billing = () => {
                     </Button>}
                     {inv.status !== "paid" && <Button size="sm" variant="outline" onClick={async () => {
                       const { data: t } = inv.ticket_id ? await supabase.from("tickets").select("payment_mode").eq("id", inv.ticket_id).maybeSingle() : { data: null };
-                      setPayInvoice({ ...inv, payment_mode: (t as any)?.payment_mode ?? "mpesa_school_fees" });
+                      setPayInvoice({ ...inv, payment_mode: (t as any)?.payment_mode ?? "mpesa" });
                     }}><DollarSign className="h-4 w-4 mr-1" /> Pay</Button>}
                   </td>
                 </tr>
@@ -322,7 +335,7 @@ const Billing = () => {
             </tbody>
           </table>
         </CardContent>
-      </Card>
+      </Card>}
 
       <Dialog open={!!payInvoice} onOpenChange={(o) => !o && setPayInvoice(null)}>
         <DialogContent className="max-w-md max-h-[92vh] overflow-y-auto">
