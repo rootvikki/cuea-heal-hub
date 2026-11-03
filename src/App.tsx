@@ -90,7 +90,7 @@ const App = () => (
           <Route path="/pharmacy" element={<ProtectedLayout allowedRoles={PHARMACY_ROLES}><Pharmacy /></ProtectedLayout>} />
 
           {/* Finance */}
-          <Route path="/billing" element={<ProtectedLayout allowedRoles={FINANCE_ROLES}><Billing /></ProtectedLayout>} />
+          <Route path="/billing" element={<ProtectedLayout allowedRoles={[...FINANCE_ROLES, ...RECEPTION_ROLES]}><Billing /></ProtectedLayout>} />
           <Route path="/insurance" element={<ProtectedLayout allowedRoles={FINANCE_ROLES}><Insurance /></ProtectedLayout>} />
 
           {/* Inpatient */}
