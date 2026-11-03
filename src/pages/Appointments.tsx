@@ -163,7 +163,11 @@ const Appointments = () => {
       return;
     }
 
-    const ticketNumber = await nextTicketNumber();
+    let ticketNumber: string;
+    try { ticketNumber = await nextTicketNumber(); } catch (e) {
+      toast({ title: "Could not check in", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+      return;
+    }
     const { error } = await supabase.from("tickets").insert({
       ticket_number: ticketNumber,
       patient_id: patientRecord.id,
