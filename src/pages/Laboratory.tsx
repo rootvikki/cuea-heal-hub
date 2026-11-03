@@ -56,6 +56,13 @@ const defsFor = (o: any): LabFieldDef[] | null => {
   return defs;
 };
 
+/** Finished results show exactly what was saved (older answers may not match today's answer lists). */
+const savedLines = (o: any): any[] | null => {
+  const rows = (o.lab_result_fields || []) as any[];
+  if (o.status !== "completed" || !rows.length) return null;
+  return [...rows].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+};
+
 interface CriticalAlert { id: string; lab_order_id: string | null; title: string; acknowledged: boolean | null; acknowledged_by: string | null; acknowledged_at: string | null; acknowledged_note: string | null; ackName?: string }
 
 const STATUS_BADGE: Record<LabVisit["status"], { label: string; cls: string }> = {
@@ -536,7 +543,16 @@ const Laboratory = () => {
                         {o.test?.test_name}
                         {o.status === "completed" && <CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))]" />}
                       </p>
-                      {o.status === "rejected" ? rejectedBlock(o) : (
+                      {o.status === "rejected" ? rejectedBlock(o) : savedLines(o) ? (
+                        <div className="divide-y">
+                          {savedLines(o)!.map((f) => (
+                            <div key={f.id} className={cn("px-3 py-2 flex items-baseline justify-between gap-2", flagLabel(f.flag) && "bg-destructive/5")}>
+                              <p className="text-sm">{f.field_name}</p>
+                              <p className="text-sm font-semibold text-right">{f.field_value || "—"} {f.unit || ""} {flagLabel(f.flag) && <span className="text-destructive text-xs">{flagLabel(f.flag)}</span>}</p>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
                         <div className="divide-y">
                           {defs ? visibleFields(defs, d.fields).map((def) => {
                             const ref = refRangeFor(def, gender, age);
@@ -591,6 +607,23 @@ const Laboratory = () => {
                             {testCell(1)}
                             <td colSpan={5} className="border px-2 py-2">{rejectedBlock(o)}</td>
                           </tr>
+                        );
+                      }
+                      const saved = savedLines(o);
+                      if (saved) {
+                        return (
+                          <Fragment key={o.id}>
+                            {saved.map((f, i) => (
+                              <tr key={f.id} className={isCriticalFlag(f.flag) ? "bg-destructive/15" : flagLabel(f.flag) ? "bg-destructive/5" : undefined}>
+                                {i === 0 && testCell(saved.length)}
+                                <td className="border px-2 py-1">{f.field_name}</td>
+                                <td className="border px-2 py-1 font-semibold">{f.field_value || "—"}</td>
+                                <td className="border px-2 py-1 text-muted-foreground">{f.unit || ""}</td>
+                                <td className="border px-2 py-1 text-muted-foreground">{f.reference_range || ""}</td>
+                                <td className="border px-2 py-1 text-center font-bold text-destructive whitespace-nowrap">{flagLabel(f.flag)}</td>
+                              </tr>
+                            ))}
+                          </Fragment>
                         );
                       }
                       if (defs) {
