@@ -71,6 +71,15 @@ const AdminUserManagement = () => {
   const navigate = useNavigate();
   const { user: currentUser } = useUser();
 
+  const readFunctionError = async (error: unknown): Promise<string> => {
+    const ctx = (error as { context?: Response }).context;
+    try {
+      const body = ctx ? await ctx.clone().json() : null;
+      if (body?.error) return String(body.error);
+    } catch { /* not JSON */ }
+    return error instanceof Error ? error.message : String(error);
+  };
+
   /** Opens a new tab signed in as this user (their own session, nothing else changes here). */
   const loginAs = async (target: { user_id: string; full_name?: string | null }) => {
     const tab = window.open("about:blank", "_blank");
