@@ -358,32 +358,6 @@ export function VisitsReport({ variant = "reception" }: { variant?: "reception" 
       </div>
       <Summary items={summary} />
       {loading ? <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div> : <ResultsTable rows={filtered} cols={cols} />}
-      {breakdownRows.length > 0 && (
-        <div className="space-y-2">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="font-semibold text-sm">Results by answer <span className="text-muted-foreground font-normal">— how often each answer was given (completed tests in this list)</span></p>
-            <Button variant="outline" size="sm" onClick={() => downloadCsv(`Lab_Answers_${from}_${to}.csv`, toCsv(breakdownRows.map((r, i) => ({ ...r, _id: String(i) })), [
-              { key: "test", label: "Test › Parameter", value: (r) => r.key },
-              { key: "ans", label: "Answer", value: (r) => r.ans },
-              { key: "n", label: "Count", value: (r) => r.n },
-            ]))}>
-              <Download className="h-4 w-4 mr-1" /> Answer counts (CSV)
-            </Button>
-          </div>
-          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-            {[...breakdown.entries()].map(([key, m]) => (
-              <div key={key} className="rounded-md border p-2">
-                <p className="text-xs font-semibold mb-1">{key}</p>
-                <div className="flex flex-wrap gap-1">
-                  {[...m.entries()].sort((a, b) => b[1] - a[1]).map(([ans, n]) => (
-                    <Badge key={ans} variant="outline" className="font-normal">{ans}: <span className="font-bold ml-1">{n}</span></Badge>
-                  ))}
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
