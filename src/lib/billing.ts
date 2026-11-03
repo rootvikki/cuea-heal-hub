@@ -2,6 +2,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { logAuditEvent } from "@/lib/auditLog";
 import { notifyRoles } from "@/lib/notifications";
 import { allowedPaymentModes, defaultPaymentMode, type PaymentMode } from "@/lib/pricing";
+import { applyConfirmedCharges, type ConfirmedCharge } from "@/lib/billConfirm";
 
 export type PaymentMethod = "mpesa" | "school_fees" | "payroll" | "insurance";
 
@@ -39,12 +40,13 @@ export async function patientTypeOf(patientId: string, known?: string | null): P
   return data?.patient_type ?? null;
 }
 
-export type ConfirmedCharge = { id: string; description: string; amount: number };
+export type { ConfirmedCharge };
 
 /**
  * Puts the visit's un-invoiced charges on its bill.
  * - `confirmed`: exactly the lines (and amounts) shown on screen when billing pressed Confirm — the bill
- *   uses those figures, and charges that arrived after the screen was shown wait for the next confirm.
+ *   uses those figures (desk edits are final), and charges that arrived after the screen was shown wait
+ *   for the next confirm.
  * - When the visit already has an unpaid bill with nothing paid yet, the new lines are added to it, so
  *   one bill carries the whole visit and the amount to pay equals what was confirmed.
  * If nothing is new, returns the visit's latest unpaid invoice (or null).
@@ -52,18 +54,12 @@ export type ConfirmedCharge = { id: string; description: string; amount: number 
 export async function createInvoiceForTicket(ticketId: string, confirmed?: ConfirmedCharge[]): Promise<Invoice | null> {
   let charges = await unbilledCharges(ticketId);
   if (confirmed) {
-    const shown = new Map(confirmed.map((c) => [c.id, c]));
-    charges = charges.filter((c) => shown.has(c.id));
-    for (const c of charges) {
-      const x = shown.get(c.id)!;
-      const amount = Math.max(Number(x.amount) || 0, 0);
-      const description = (x.description || "").trim() || c.description;
-      if (amount !== Number(c.amount) || description !== c.description) {
-        const { error } = await supabase.from("service_charges").update({ description, amount }).eq("id", c.id);
-        if (error) throw new Error(`Could not save the changed amount for "${description}": ${error.message}`);
-        c.amount = amount; c.description = description;
-      }
+    const { lines, changed } = applyConfirmedCharges(charges, confirmed);
+    for (const c of changed) {
+      const { error } = await supabase.from("service_charges").update({ description: c.description, amount: c.amount }).eq("id", c.id);
+      if (error) throw new Error(`Could not save the changed amount for "${c.description}": ${error.message}`);
     }
+    charges = lines;
   }
   if (charges.length === 0) {
     const { data: open } = await supabase.from("invoices").select("*").eq("ticket_id", ticketId).neq("status", "paid").order("created_at", { ascending: false }).limit(1).maybeSingle();
