@@ -90,6 +90,8 @@ const emptyForm = {
   allergies: "", presentingComplaint: "", nursingNotes: "", nextVisit: "",
 };
 
+const EMPTY_DRAFT = { form: emptyForm, procedures: [] as SelectedProcedure[], urgencyPriority: "1" };
+
 const Vitals = () => {
   const { toast } = useToast();
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
@@ -147,6 +149,7 @@ const Vitals = () => {
     if (v.urgencyPriority) setUrgencyPriority(v.urgencyPriority);
   }, []);
   const draft = useFormDraft(selectedTicket?.id ? `triage:${selectedTicket.id}` : null, draftValue, restoreDraft, {
+    reset: EMPTY_DRAFT,
     isEmpty: (v) => v.procedures.length === 0 && Object.entries(v.form).every(([k, x]) => k === "height" || k === "allergies" || !x),
   });
 
