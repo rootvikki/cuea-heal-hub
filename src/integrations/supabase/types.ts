@@ -293,9 +293,11 @@ export type Database = {
           acknowledged: boolean | null
           acknowledged_at: string | null
           acknowledged_by: string | null
+          acknowledged_note: string | null
           alert_type: string
           created_at: string
           id: string
+          lab_order_id: string | null
           message: string
           patient_id: string | null
           reference_id: string | null
@@ -306,9 +308,11 @@ export type Database = {
           acknowledged?: boolean | null
           acknowledged_at?: string | null
           acknowledged_by?: string | null
+          acknowledged_note?: string | null
           alert_type: string
           created_at?: string
           id?: string
+          lab_order_id?: string | null
           message: string
           patient_id?: string | null
           reference_id?: string | null
@@ -319,9 +323,11 @@ export type Database = {
           acknowledged?: boolean | null
           acknowledged_at?: string | null
           acknowledged_by?: string | null
+          acknowledged_note?: string | null
           alert_type?: string
           created_at?: string
           id?: string
+          lab_order_id?: string | null
           message?: string
           patient_id?: string | null
           reference_id?: string | null
@@ -329,6 +335,13 @@ export type Database = {
           title?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "critical_alerts_lab_order_id_fkey"
+            columns: ["lab_order_id"]
+            isOneToOne: false
+            referencedRelation: "lab_orders"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "critical_alerts_patient_id_fkey"
             columns: ["patient_id"]
@@ -950,6 +963,9 @@ export type Database = {
           processing_started_at: string | null
           received_at: string | null
           received_by: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_reason: string | null
           result_entered_at: string | null
           result_entered_by: string | null
           result_notes: string | null
@@ -974,6 +990,9 @@ export type Database = {
           processing_started_at?: string | null
           received_at?: string | null
           received_by?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
           result_entered_at?: string | null
           result_entered_by?: string | null
           result_notes?: string | null
@@ -998,6 +1017,9 @@ export type Database = {
           processing_started_at?: string | null
           received_at?: string | null
           received_by?: string | null
+          rejected_at?: string | null
+          rejected_by?: string | null
+          rejection_reason?: string | null
           result_entered_at?: string | null
           result_entered_by?: string | null
           result_notes?: string | null
@@ -2786,6 +2808,9 @@ export type Database = {
           processing_started_at: string | null
           received_at: string | null
           received_by: string | null
+          rejected_at: string | null
+          rejected_by: string | null
+          rejection_reason: string | null
           result_entered_at: string | null
           result_entered_by: string | null
           result_notes: string | null
