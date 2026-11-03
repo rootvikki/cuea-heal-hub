@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Pager, usePaged } from "@/components/Pager";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -54,6 +55,8 @@ const AuditLogs = () => {
       JSON.stringify(log.details)?.toLowerCase().includes(s)
     );
   });
+
+  const logPages = usePaged(filtered, { resetKey: search });
 
   const exportCSV = () => {
     const headers = ["Timestamp", "Action", "Module", "Staff ID", "Payroll No", "User ID", "Details"];
@@ -134,7 +137,7 @@ const AuditLogs = () => {
                 ) : filtered.length === 0 ? (
                   <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No audit logs found</TableCell></TableRow>
                 ) : (
-                  filtered.map(log => (
+                  logPages.pageItems.map(log => (
                     <TableRow key={log.id}>
                       <TableCell className="text-xs whitespace-nowrap">
                         {new Date(log.created_at).toLocaleString()}
@@ -154,8 +157,8 @@ const AuditLogs = () => {
               </TableBody>
             </Table>
           </div>
-          <div className="p-4 text-sm text-muted-foreground">
-            Showing {filtered.length} of {logs.length} entries
+          <div className="px-4">
+            <Pager pager={logPages} label={filtered.length !== logs.length ? `matching entries (${logs.length} loaded)` : "entries"} />
           </div>
         </CardContent>
       </Card>
