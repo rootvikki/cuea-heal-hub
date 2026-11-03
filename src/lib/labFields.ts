@@ -304,7 +304,7 @@ export const refRangeFor = (def: LabFieldDef, gender?: string | null, ageYears?:
     const hit = def.ranges.find((r) => (!r.sex || r.sex === g) && (r.minAge == null || ageYears >= r.minAge) && (r.maxAge == null || ageYears < r.maxAge));
     if (hit) return hit.ref;
   }
-  if (!def.kind && def.options) return referenceText(def);
+  if (fieldKind(def) !== "number") return referenceText(def);
   return (g === "female" && def.refFemale) ? def.refFemale : (g === "male" && def.refMale) ? def.refMale : def.ref;
 };
 
