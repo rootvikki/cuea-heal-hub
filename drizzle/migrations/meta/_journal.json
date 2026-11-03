@@ -85,6 +85,13 @@
       "when": 1793702601909,
       "tag": "0011_block_self_edit_personal_details",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793702828930,
+      "tag": "0012_cache_version_setting",
+      "breakpoints": true
     }
   ]
 }
