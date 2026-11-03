@@ -387,7 +387,7 @@ const Consultation = () => {
       return sum + (item?.price || 0);
     }, 0);
     return { consultation, labs, imaging, total: consultation + labs + imaging };
-  }, [selectedLabTests, selectedImaging, labTests, imagingItems]);
+  }, [selectedLabTests, selectedImaging, labTests, imagingItems, selectedTicket]);
 
   // ─── Next workflow stage (doctor can change it) ───────────────
   const suggestedDestination = useMemo<StationKey>(() => {
