@@ -101,6 +101,7 @@ export async function buildInvoiceReceipt(invoiceId: string): Promise<jsPDF> {
   y = (doc as any).lastAutoTable.finalY + 6;
 
   const paid = payments.reduce((s, x) => s + Number(x.amount || 0), 0);
+  if (y > doc.internal.pageSize.getHeight() - 60) { doc.addPage(); y = 20; }
   const summary: [string, string][] = [["Amount payable", money(total)], ["Amount paid", money(paid)], ["Balance", money(Math.max(total - paid, 0))]];
   doc.setFontSize(10);
   summary.forEach(([l, v], i) => {
