@@ -277,11 +277,11 @@ const Billing = () => {
                       <tr key={c.id} className="border-b">
                         <td className="px-2 py-1.5 text-muted-foreground hidden sm:table-cell">{i + 1}</td>
                         <td className="px-2 py-1.5">
-                          {c.invoice_id ? c.description : <Input value={c.description} onChange={(e) => editCharge(c.id, { description: e.target.value })} className="h-8 text-sm" />}
+                          {canEditLine(c) ? <Input value={c.description} onChange={(e) => editCharge(c.id, { description: e.target.value })} className="h-8 text-sm" aria-label={`Service ${i + 1}`} /> : c.description}
                         </td>
                         <td className="px-2 py-1.5 capitalize text-xs text-muted-foreground hidden sm:table-cell">{(c.billing_stage || "-").replace(/_/g, " ")}</td>
                         <td className="px-2 py-1.5 text-right">
-                          {c.invoice_id ? Number(c.amount).toLocaleString() : <Input type="number" min={0} value={c.amount} onChange={(e) => editCharge(c.id, { amount: e.target.value })} className="h-8 text-sm text-right" />}
+                          {canEditLine(c) ? <Input type="number" min={0} inputMode="decimal" value={c.amount} onChange={(e) => editCharge(c.id, { amount: e.target.value })} className={`h-8 text-sm text-right ${c._edited ? "border-[hsl(var(--warning,var(--primary)))] ring-1 ring-primary/40" : ""}`} aria-label={`KES for ${c.description}`} /> : Number(c.amount).toLocaleString()}
                         </td>
                         <td className="px-2 py-1.5">
                           {c.invoice_id ? <CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))]" aria-label="On a bill" /> : (
@@ -305,18 +305,24 @@ const Billing = () => {
                   </tfoot>
                 </table>
               </div>
-              {unbilled.length > 0 && (
+              {editableInvoice && unbilled.length === 0 && billEdits.length === 0 && (
+                <p className="text-xs text-muted-foreground">You can still change amounts on bill {editableInvoice.invoice_number} until a payment is taken.</p>
+              )}
+              {(unbilled.length > 0 || billEdits.length > 0) && (
                 <Button onClick={createBill} disabled={savingBill} className="w-full h-11">
-                  <FileText className="h-4 w-4 mr-2" /> {savingBill ? "Preparing…" : `Confirm bill (${unbilled.length} item${unbilled.length > 1 ? "s" : ""})`}
+                  <FileText className="h-4 w-4 mr-2" />
+                  {savingBill ? "Saving…" : unbilled.length > 0 ? `Confirm bill (${unbilled.length + billEdits.length} item${unbilled.length + billEdits.length > 1 ? "s" : ""})` : `Save changed amounts (${billEdits.length})`}
                 </Button>
               )}
             </div>
 
             {/* Payment */}
             <div className="lg:col-span-2 min-w-0">
-              {openInvoice ? (
+              {openInvoice && billEdits.length > 0 ? (
+                <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Save the changed amounts to take payment.</div>
+              ) : openInvoice ? (
                 <PaymentPanel
-                  key={`${openInvoice.id}-${selectedTicket.payment_mode}`}
+                  key={`${openInvoice.id}-${selectedTicket.payment_mode}-${openInvoice.net_amount}`}
                   invoice={openInvoice}
                   paymentMode={selectedTicket.payment_mode}
                   patientPhone={patientInfo?.profiles?.phone}
