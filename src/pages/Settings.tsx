@@ -296,9 +296,26 @@ const Settings = () => {
                   <Smartphone className="h-5 w-5 text-green-600" /> M-Pesa Configuration
                   {mpesaConfigured && <CheckCircle2 className="h-4 w-4 text-green-600" />}
                 </CardTitle>
-                <CardDescription>Configure M-Pesa STK Push credentials for payment processing</CardDescription>
+                <CardDescription>The till and keys used to send M-Pesa prompts to patients' phones</CardDescription>
               </CardHeader>
               <CardContent className="space-y-6">
+                <div className={`rounded-lg border p-4 space-y-2 ${mpesaTest?.ok ? "border-primary/40 bg-primary/5" : "border-destructive/40 bg-destructive/5"}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-medium">Currently in use</p>
+                    <Button size="sm" variant="outline" onClick={() => testMpesa(false)} disabled={testingMpesa}>
+                      {testingMpesa ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null} Test connection
+                    </Button>
+                  </div>
+                  {mpesaTest?.config && (
+                    <div className="grid gap-1 text-sm sm:grid-cols-3">
+                      <p><span className="text-muted-foreground">System:</span> {mpesaTest.config.environment === "production" ? "Live" : "Sandbox (test)"}</p>
+                      <p><span className="text-muted-foreground">{mpesaTest.config.type === "till" ? "Till number:" : "Paybill:"}</span> <strong>{mpesaTest.config.tillOrPaybill || "—"}</strong></p>
+                      {mpesaTest.config.type === "till" && <p><span className="text-muted-foreground">Store / head office:</span> <strong>{mpesaTest.config.storeNumber || "—"}</strong></p>}
+                    </div>
+                  )}
+                  <p className="text-sm">{testingMpesa && !mpesaTest ? "Checking…" : mpesaTest?.message}</p>
+                </div>
+
                 <div className="flex items-center justify-between p-4 rounded-lg bg-muted">
                   <div>
                     <p className="font-medium">Environment</p>
@@ -314,41 +331,49 @@ const Settings = () => {
                   </div>
                 </div>
 
-                <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label>Type of M-Pesa account</Label>
+                  <Select value={mpesaConfig.paymentType} onValueChange={(v) => setMpesaConfig(prev => ({ ...prev, paymentType: v as "till" | "paybill" }))}>
+                    <SelectTrigger className="h-12 md:w-80"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="till">Buy Goods (Till number)</SelectItem>
+                      <SelectItem value="paybill">Paybill</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="grid gap-5 md:grid-cols-2">
+                  {mpesaConfig.paymentType === "till" ? (
+                    <>
+                      <div className="space-y-2">
+                        <Label>Till number</Label>
+                        <Input className="h-12" inputMode="numeric" value={mpesaConfig.tillNumber} onChange={e => setMpesaConfig(prev => ({ ...prev, tillNumber: e.target.value }))} placeholder="The number patients pay to" />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Store / head office number</Label>
+                        <Input className="h-12" inputMode="numeric" value={mpesaConfig.storeNumber} onChange={e => setMpesaConfig(prev => ({ ...prev, storeNumber: e.target.value }))} placeholder="The number the Passkey was issued for" />
+                      </div>
+                      <p className="md:col-span-2 text-xs text-muted-foreground">
+                        If M-Pesa says “the Agent number and Store number do not match”, these two numbers are wrong or swapped. Safaricom's Go-Live email lists both.
+                      </p>
+                    </>
+                  ) : (
+                    <div className="space-y-2">
+                      <Label>Paybill number</Label>
+                      <Input className="h-12" inputMode="numeric" value={mpesaConfig.paybillNumber} onChange={e => setMpesaConfig(prev => ({ ...prev, paybillNumber: e.target.value }))} placeholder="e.g. 174379" />
+                    </div>
+                  )}
                   <div className="space-y-2">
                     <Label>Consumer Key</Label>
-                    <Input
-                      type="password"
-                      value={mpesaConfig.consumerKey}
-                      onChange={e => setMpesaConfig(prev => ({ ...prev, consumerKey: e.target.value }))}
-                      placeholder="Enter Consumer Key"
-                    />
+                    <Input className="h-12" type="password" autoComplete="off" value={mpesaConfig.consumerKey} onChange={e => setMpesaConfig(prev => ({ ...prev, consumerKey: e.target.value }))} placeholder={mpesaSaved.consumerKey ? "Saved — leave blank to keep" : "Enter Consumer Key"} />
                   </div>
                   <div className="space-y-2">
                     <Label>Consumer Secret</Label>
-                    <Input
-                      type="password"
-                      value={mpesaConfig.consumerSecret}
-                      onChange={e => setMpesaConfig(prev => ({ ...prev, consumerSecret: e.target.value }))}
-                      placeholder="Enter Consumer Secret"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Business Shortcode</Label>
-                    <Input
-                      value={mpesaConfig.shortcode}
-                      onChange={e => setMpesaConfig(prev => ({ ...prev, shortcode: e.target.value }))}
-                      placeholder="e.g. 174379"
-                    />
+                    <Input className="h-12" type="password" autoComplete="off" value={mpesaConfig.consumerSecret} onChange={e => setMpesaConfig(prev => ({ ...prev, consumerSecret: e.target.value }))} placeholder={mpesaSaved.consumerSecret ? "Saved — leave blank to keep" : "Enter Consumer Secret"} />
                   </div>
                   <div className="space-y-2">
                     <Label>Passkey</Label>
-                    <Input
-                      type="password"
-                      value={mpesaConfig.passkey}
-                      onChange={e => setMpesaConfig(prev => ({ ...prev, passkey: e.target.value }))}
-                      placeholder="Enter Passkey"
-                    />
+                    <Input className="h-12" type="password" autoComplete="off" value={mpesaConfig.passkey} onChange={e => setMpesaConfig(prev => ({ ...prev, passkey: e.target.value }))} placeholder={mpesaSaved.passkey ? "Saved — leave blank to keep" : "Enter Passkey"} />
                   </div>
                 </div>
 
