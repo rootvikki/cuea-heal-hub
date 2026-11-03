@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { allowedPaymentModes, billingMethodsFor, defaultPaymentMode, priceFor, serviceFee } from "./pricing";
+import { allowedPaymentModes, billingMethodsFor, defaultPaymentMode, priceFor, serviceFee, serviceFeeDescription } from "./pricing";
 
 describe("payment options by patient type", () => {
   test("students: school fees, M-Pesa or insurance", () => {
