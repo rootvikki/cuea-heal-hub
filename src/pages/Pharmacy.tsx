@@ -180,6 +180,8 @@ const Pharmacy = () => {
 
   // Give the work area the full width while a patient is open
   useEffect(() => { setQueueCollapsed(!!openKey); }, [openKey]);
+  // Inventory, stock card, reorder list and reports get the full width — the queue folds away
+  useEffect(() => { if (tab !== "prescriptions") setQueueCollapsed(true); }, [tab]);
 
   useEffect(() => {
     if (selectedTicket) setOpenKey(selectedTicket.id);
