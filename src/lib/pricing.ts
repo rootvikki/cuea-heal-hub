@@ -66,14 +66,25 @@ export function priceFor(
 /** Fixed service fees. Insurance values are placeholders equal to the normal fee until prices are provided. */
 export const SERVICE_FEES: Record<string, { normal: number; insurance: number }> = {
   triage: { normal: 200, insurance: 200 },
+  consultation: { normal: 500, insurance: 500 },
   admission: { normal: 1000, insurance: 1000 },
 };
 
-export const serviceFee = (key: keyof typeof SERVICE_FEES | string, mode?: string | null) => {
+/** CUEA students are not charged for triage or the doctor's consultation. */
+export const STUDENT_FREE_SERVICES = ["triage", "consultation"];
+export const isFeeWaived = (key: string, patientType?: string | null) =>
+  patientType === "cuea_student" && STUDENT_FREE_SERVICES.includes(key);
+
+/** The fee for a service on this visit (0 when it is waived for the patient type). */
+export const serviceFee = (key: keyof typeof SERVICE_FEES | string, mode?: string | null, patientType?: string | null) => {
   const fee = SERVICE_FEES[key];
-  if (!fee) return 0;
+  if (!fee || isFeeWaived(key, patientType)) return 0;
   return mode === "insurance" ? fee.insurance : fee.normal;
 };
+
+/** Bill line text, noting when the fee is waived so the bill and receipt explain the KES 0. */
+export const serviceFeeDescription = (label: string, key: string, patientType?: string | null) =>
+  isFeeWaived(key, patientType) ? `${label} (no charge — CUEA student)` : label;
 
 export const formatKES = (n: number | string | null | undefined) =>
   `KES ${Number(n || 0).toLocaleString("en-KE", { maximumFractionDigits: 2 })}`;
