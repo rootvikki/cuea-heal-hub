@@ -3,7 +3,7 @@ import { useFormDraft } from "@/hooks/useFormDraft";
 import { DraftStatus } from "@/components/DraftStatus";
 
 const EMPTY_DRUG = {
-  drugName: "", genericName: "", batchNumber: "", quantity: "", unitPrice: "", insurancePrice: "",
+  drugName: "", genericName: "", formulation: "", category: "", batchNumber: "", quantity: "", unitPrice: "", insurancePrice: "",
   expiryDate: "", reorderLevel: "50", strengthSize: "", packageType: "",
   minimumStock: "", maximumStock: "",
 };
@@ -30,6 +30,10 @@ import {
 import { findInventoryItem, remainingQty } from "@/lib/pharmacyStock";
 import { ReplenishmentRequestDialog } from "@/components/ReplenishmentRequestDialog";
 import { ReplenishmentRequests } from "@/components/ReplenishmentRequests";
+import { ReceiveStockDialog } from "@/components/ReceiveStockDialog";
+import { PharmacyReport } from "@/components/PharmacyReport";
+import { stockStatus } from "@/lib/pharmacyReport";
+import { FORMULATIONS } from "@/lib/rxFormat";
 import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
 import { MedicationInteractionCheck } from "@/components/MedicationInteractionCheck";
@@ -100,6 +104,7 @@ const Pharmacy = () => {
   const [replenish, setReplenish] = useState<{ medicationName: string; inventoryId?: string; prescriptionId?: string; qty?: number } | null>(null);
   const [replenishKey, setReplenishKey] = useState(0);
   const [editItem, setEditItem] = useState<any>(null);
+  const [receiveItem, setReceiveItem] = useState<any>(null);
   const [tab, setTab] = useState("prescriptions");
   const [showOlderRx, setShowOlderRx] = useState(false);
   const [formData, setFormData] = useState(EMPTY_DRUG);
@@ -396,11 +401,14 @@ const Pharmacy = () => {
 
   const handleAddInventory = async (e: React.FormEvent) => {
     e.preventDefault();
-    const { error } = await supabase.from("pharmacy_inventory").insert({
-      drug_name: formData.drugName,
+    const qty = parseInt(formData.quantity) || 0;
+    const { data: added, error } = await supabase.from("pharmacy_inventory").insert({
+      drug_name: formData.drugName.trim(),
       generic_name: formData.genericName || null,
+      formulation: formData.formulation || null,
+      category: formData.category || null,
       batch_number: formData.batchNumber || null,
-      quantity: parseInt(formData.quantity),
+      quantity: qty,
       unit_price: parseFloat(formData.unitPrice),
       insurance_price: formData.insurancePrice === "" ? null : parseFloat(formData.insurancePrice),
       expiry_date: formData.expiryDate || null,
@@ -409,11 +417,19 @@ const Pharmacy = () => {
       package: formData.packageType || null,
       minimum_stock: formData.minimumStock ? parseInt(formData.minimumStock) : null,
       maximum_stock: formData.maximumStock ? parseInt(formData.maximumStock) : null,
-    });
+    }).select("id, unit_price, expiry_date, batch_number").single();
 
     if (error) {
       toast.error(error.message);
     } else {
+      if (qty > 0 && added) {
+        // Opening line on the new drug's stock card
+        await supabase.from("pharmacy_stock_transactions").insert({
+          inventory_id: added.id, received_from: "Opening stock", qty_received: qty, qty_issued: 0, balance: qty,
+          unit_price: added.unit_price, expiry_date: added.expiry_date, invoice_ref: added.batch_number, recorded_by: await currentStaffId(),
+        });
+      }
+      logAuditEvent({ action: "inventory_item_added", module: "pharmacy", details: { inventory_id: added?.id, drug: formData.drugName, qty } });
       toast.success("Drug added to inventory");
       setDialogOpen(false);
       drugDraft.clear();
@@ -429,7 +445,17 @@ const Pharmacy = () => {
     setTab("stockcard");
   };
 
-  const lowStockItems = inventory.filter((item) => item.quantity <= (item.reorder_level || 50));
+  const lowStockItems = inventory.filter((item) => ["out", "low"].includes(stockStatus(item)));
+  const categories = [...new Set(inventory.map((i) => i.category).filter(Boolean))].sort() as string[];
+  // While adding a drug, show ones already in the list so stock is edited / received instead of duplicated
+  const addName = formData.drugName.trim().toLowerCase();
+  const similarDrugs = addName.length >= 3
+    ? inventory.filter((i) => {
+        const words = addName.split(/\s+/).filter((w) => w.length >= 4 && !["tabs", "caps", "syrup", "drops"].includes(w));
+        const hay = `${i.drug_name} ${i.generic_name || ""}`.toLowerCase();
+        return hay.includes(addName) || words.some((w) => hay.includes(w.slice(0, Math.max(4, w.length - 2))));
+      }).slice(0, 6)
+    : [];
   const filteredInventory = inventory.filter((i) =>
     i.drug_name.toLowerCase().includes(searchTerm.toLowerCase()) || (i.generic_name || "").toLowerCase().includes(searchTerm.toLowerCase()),
   );
@@ -677,10 +703,11 @@ const Pharmacy = () => {
                 <TabsTrigger value="prescriptions">Prescriptions ({visibleSheets.length})</TabsTrigger>
                 <TabsTrigger value="inventory">Inventory ({inventory.length})</TabsTrigger>
                 <TabsTrigger value="stockcard">Stock card</TabsTrigger>
-                <TabsTrigger value="replenishment">Restock requests</TabsTrigger>
+                <TabsTrigger value="replenishment">Reorder list</TabsTrigger>
+                <TabsTrigger value="reports">Reports</TabsTrigger>
               </TabsList>
               <div className="flex gap-2 items-center w-full sm:w-auto">
-                {tab === "prescriptions" ? (
+                {tab === "reports" ? null : tab === "prescriptions" ? (
                   <div className="relative flex-1 sm:w-64">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                     <Input placeholder="Search patient or drug…" value={rxSearch} onChange={(e) => setRxSearch(e.target.value)} className="pl-9 h-11" />
@@ -701,6 +728,31 @@ const Pharmacy = () => {
                   <div className="grid grid-cols-2 gap-5">
                     <div className="space-y-2"><Label className="text-sm font-semibold">Drug Name *</Label><Input value={formData.drugName} onChange={(e) => setFormData({ ...formData, drugName: e.target.value })} required className="h-12 text-base" /></div>
                     <div className="space-y-2"><Label className="text-sm font-semibold">Generic Name</Label><Input value={formData.genericName} onChange={(e) => setFormData({ ...formData, genericName: e.target.value })} className="h-12 text-base" /></div>
+                  </div>
+                  {similarDrugs.length > 0 && (
+                    <div className="rounded-md border border-orange-300 bg-orange-50 p-3 space-y-2">
+                      <p className="text-sm font-semibold text-orange-800">Already in the list? Update the existing drug instead of adding it again:</p>
+                      {similarDrugs.map((i) => (
+                        <div key={i.id} className="flex flex-wrap items-center justify-between gap-2 text-sm">
+                          <span>{i.drug_name}{i.strength_size ? ` · ${i.strength_size}` : ""} <span className="text-muted-foreground">(in stock {i.quantity})</span></span>
+                          <span className="flex gap-1">
+                            <Button type="button" size="sm" variant="outline" onClick={() => { setDialogOpen(false); setEditItem(i); }}><Pencil className="h-3 w-3 mr-1" /> Edit</Button>
+                            <Button type="button" size="sm" variant="outline" onClick={() => { setDialogOpen(false); setReceiveItem(i); }}><PackagePlus className="h-3 w-3 mr-1" /> Receive stock</Button>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-5">
+                    <div className="space-y-2"><Label className="text-sm font-semibold">Formulation</Label>
+                      <Select value={formData.formulation} onValueChange={(v) => setFormData({ ...formData, formulation: v })}>
+                        <SelectTrigger className="h-12"><SelectValue placeholder="Tabs, Caps, Syrup…" /></SelectTrigger>
+                        <SelectContent>{FORMULATIONS.map((x) => <SelectItem key={x} value={x}>{x}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2"><Label className="text-sm font-semibold">Category</Label><Input list="add-drug-categories" value={formData.category} onChange={(e) => setFormData({ ...formData, category: e.target.value })} className="h-12 text-base" placeholder="e.g. Antibiotics" />
+                      <datalist id="add-drug-categories">{categories.map((c) => <option key={c} value={c} />)}</datalist>
+                    </div>
                   </div>
                   <div className="grid grid-cols-3 gap-5">
                     <div className="space-y-2"><Label className="text-sm font-semibold">Strength/Size</Label><Input value={formData.strengthSize} onChange={(e) => setFormData({ ...formData, strengthSize: e.target.value })} placeholder="e.g., 500mg" className="h-12 text-base" /></div>
@@ -761,6 +813,10 @@ const Pharmacy = () => {
               <ReplenishmentRequests refreshKey={replenishKey} onStockChanged={fetchInventory} />
             </TabsContent>
 
+            <TabsContent value="reports">
+              <PharmacyReport inventory={inventory} />
+            </TabsContent>
+
           <TabsContent value="inventory">
             <Card>
               <CardHeader>
@@ -789,7 +845,7 @@ const Pharmacy = () => {
                         <TableCell>{[item.formulation, item.strength_size].filter(Boolean).join(" · ") || "-"}</TableCell>
                         <TableCell>{item.package || "-"}</TableCell>
                         <TableCell>
-                          <Badge variant={item.quantity <= (item.reorder_level || 50) ? "destructive" : "outline"}>
+                          <Badge variant={["out", "low"].includes(stockStatus(item)) ? "destructive" : "outline"}>
                             {item.quantity}
                           </Badge>
                         </TableCell>
@@ -800,9 +856,11 @@ const Pharmacy = () => {
                           <Button size="sm" variant="outline" onClick={() => openStockCard(item)}>
                             <ClipboardList className="h-4 w-4 mr-1" /> Card
                           </Button>
-                          <Button size="sm" variant="ghost" onClick={() => setReplenish({ medicationName: item.drug_name, inventoryId: item.id, qty: Math.max((item.maximum_stock || item.reorder_level || 50) - item.quantity, 1) })}>
-                            <PackagePlus className="h-4 w-4 mr-1" /> Restock
-                          </Button>
+                          {canEditInventory && (
+                            <Button size="sm" variant="ghost" onClick={() => setReceiveItem(item)}>
+                              <PackagePlus className="h-4 w-4 mr-1" /> Receive stock
+                            </Button>
+                          )}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -869,7 +927,8 @@ const Pharmacy = () => {
         </>
       )}
 
-      <InventoryEditDialog item={editItem} onClose={() => setEditItem(null)} onSaved={fetchInventory} />
+      <InventoryEditDialog item={editItem} onClose={() => setEditItem(null)} onSaved={fetchInventory} categories={categories} />
+      <ReceiveStockDialog item={receiveItem} onClose={() => setReceiveItem(null)} onDone={fetchInventory} />
 
       {replenish && (
         <ReplenishmentRequestDialog
