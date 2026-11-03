@@ -99,6 +99,20 @@
       "when": 1793703186844,
       "tag": "0013_patients_read_own_invoice_items",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793705873267,
+      "tag": "0014_ward_notes_and_procedures",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1793706028970,
+      "tag": "0015_admitting_staff_update_beds",
+      "breakpoints": true
     }
   ]
 }

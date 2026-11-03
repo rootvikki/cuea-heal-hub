@@ -1321,6 +1321,7 @@ export type Database = {
       }
       nursing_procedures: {
         Row: {
+          admission_id: string | null
           created_at: string
           encounter_id: string | null
           id: string
@@ -1332,6 +1333,7 @@ export type Database = {
           ticket_id: string | null
         }
         Insert: {
+          admission_id?: string | null
           created_at?: string
           encounter_id?: string | null
           id?: string
@@ -1343,6 +1345,7 @@ export type Database = {
           ticket_id?: string | null
         }
         Update: {
+          admission_id?: string | null
           created_at?: string
           encounter_id?: string | null
           id?: string
@@ -1354,6 +1357,13 @@ export type Database = {
           ticket_id?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "nursing_procedures_admission_id_fkey"
+            columns: ["admission_id"]
+            isOneToOne: false
+            referencedRelation: "admissions"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "nursing_procedures_encounter_id_fkey"
             columns: ["encounter_id"]
