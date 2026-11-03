@@ -13,8 +13,9 @@ import { Receipt, CreditCard, FileText, DollarSign, Plus, Trash2, Send, Printer,
 import { logAuditEvent } from "@/lib/auditLog";
 import { PaymentPanel } from "@/components/PaymentPanel";
 import { SendToDialog } from "@/components/SendToDialog";
-import { createInvoiceForTicket, routeAfterPayment, type Invoice } from "@/lib/billing";
-import { formatKES, paymentModeLabel } from "@/lib/pricing";
+import { createInvoiceForTicket, routeAfterPayment, setVisitPaymentMode, type Invoice } from "@/lib/billing";
+import { PAYMENT_MODES, allowedPaymentModes, formatKES, paymentModeLabel, type PaymentMode } from "@/lib/pricing";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { drawInfirmaryLetterhead, openPdfWindow } from "@/lib/letterhead";
 import { printInvoiceReceipt } from "@/lib/receipt";
 import { useUser } from "@/contexts/UserContext";
@@ -71,6 +72,17 @@ const Billing = () => {
   const openInvoice = visitInvoices.find((i) => i.status !== "paid");
   const visitTotal = charges.reduce((s, c) => s + Number(c.amount || 0), 0);
   const visitPaid = visitInvoices.reduce((s, i) => s + Number(i.amount_paid || 0), 0);
+
+  const changeMode = async (mode: PaymentMode) => {
+    if (!selectedTicket || mode === selectedTicket.payment_mode) return;
+    try {
+      await setVisitPaymentMode([selectedTicket.id], mode, patientInfo?.patient_type);
+      setSelectedTicket({ ...selectedTicket, payment_mode: mode });
+      toast.success(`Payment mode changed to ${paymentModeLabel(mode)}`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : String(e));
+    }
+  };
 
   const editCharge = (id: string, patch: Record<string, unknown>) => setCharges((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch, _edited: true } : c)));
 
@@ -194,7 +206,14 @@ const Billing = () => {
                   {patientInfo && (patientInfo.admission_number || patientInfo.payroll_number) ? ` · ${patientInfo.admission_number || patientInfo.payroll_number}` : ""}
                 </p>
                 <div className="flex flex-wrap gap-1.5 mt-1.5">
-                  <Badge>{paymentModeLabel(selectedTicket.payment_mode)}</Badge>
+                  <Select value={selectedTicket.payment_mode || ""} onValueChange={(v) => void changeMode(v as PaymentMode)} disabled={!!visitInvoices.some((i) => Number(i.amount_paid || 0) > 0)}>
+                    <SelectTrigger className="h-7 w-auto gap-1 rounded-full border-primary bg-primary text-primary-foreground text-xs font-semibold px-3" aria-label="Payment mode">
+                      <SelectValue placeholder="Payment mode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_MODES.filter((m) => allowedPaymentModes(patientInfo?.patient_type).includes(m.value)).map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
                   {selectedTicket.payment_mode === "insurance" && patientInfo?.insurance_provider && <Badge variant="outline">{patientInfo.insurance_provider} {patientInfo.insurance_number}</Badge>}
                 </div>
               </div>
@@ -262,6 +281,7 @@ const Billing = () => {
             <div className="lg:col-span-2 min-w-0">
               {openInvoice ? (
                 <PaymentPanel
+                  key={`${openInvoice.id}-${selectedTicket.payment_mode}`}
                   invoice={openInvoice}
                   paymentMode={selectedTicket.payment_mode}
                   patientPhone={patientInfo?.profiles?.phone}
@@ -345,6 +365,7 @@ const Billing = () => {
           </DialogHeader>
           {payInvoice && (
             <PaymentPanel
+              key={`${payInvoice.id}-${payInvoice.payment_mode}`}
               invoice={payInvoice}
               paymentMode={payInvoice.payment_mode}
               patientPhone={payInvoice.patient?.profile?.phone}

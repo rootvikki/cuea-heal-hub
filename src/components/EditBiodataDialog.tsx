@@ -9,7 +9,8 @@ import { toast } from "sonner";
 import { logAuditEvent } from "@/lib/auditLog";
 import { PhoneInput } from "@/components/PhoneInput";
 import { isValidPhone, normalizePhone } from "@/lib/validation";
-import { PAYMENT_MODES, allowedPaymentModes, defaultPaymentMode } from "@/lib/pricing";
+import { PAYMENT_MODES, allowedPaymentModes, defaultPaymentMode, paymentModeLabel, type PaymentMode } from "@/lib/pricing";
+import { openVisitIds, setVisitPaymentMode } from "@/lib/billing";
 
 const normGender = (g?: string | null) => { const x = (g || "").trim().toLowerCase(); return x === "male" || x === "m" ? "Male" : x === "female" || x === "f" ? "Female" : ""; };
 
@@ -25,8 +26,25 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
   const [f, setF] = useState<Record<string, string>>({});
   const [saving, setSaving] = useState(false);
 
+  // Always edit the full saved record — the caller may only have a few fields,
+  // and saving a partial copy would wipe the rest (nationality, next of kin…).
+  const [fresh, setFresh] = useState<{ patient: any; profile: any } | null>(null);
   useEffect(() => {
-    if (!open) return;
+    if (!open || !patient?.id) { setFresh(null); return; }
+    let cancelled = false;
+    (async () => {
+      const [{ data: pt }, { data: pr }] = await Promise.all([
+        supabase.from("patients").select("*").eq("id", patient.id).maybeSingle(),
+        supabase.from("profiles").select("full_name, gender, date_of_birth, phone, address, email").eq("user_id", patient.user_id).maybeSingle(),
+      ]);
+      if (!cancelled) setFresh({ patient: { ...patient, ...(pt || {}) }, profile: { ...profile, ...(pr || {}) } });
+    })();
+    return () => { cancelled = true; };
+  }, [open, patient, profile]);
+
+  useEffect(() => {
+    if (!open || !fresh) return;
+    const { patient, profile } = fresh;
     setF({
       full_name: profile?.full_name || "",
       gender: normGender(profile?.gender),
@@ -46,7 +64,7 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
       insurance_number: patient?.insurance_number || "",
       preferred_payment_mode: allowedPaymentModes(patient?.patient_type).includes(patient?.preferred_payment_mode as any) ? patient.preferred_payment_mode : defaultPaymentMode(patient || {}),
     });
-  }, [open, patient, profile]);
+  }, [open, fresh]);
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
   const nn = (v: string) => (v.trim() === "" ? null : v.trim());
@@ -88,6 +106,19 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
       .eq("id", patient.id);
     setSaving(false);
     if (pe || te) return toast.error(`Could not save: ${(pe || te)?.message}`);
+    // The payment mode reception picks follows any visit that is still open, through to billing
+    const oldMode = fresh?.patient?.preferred_payment_mode;
+    if (f.preferred_payment_mode !== oldMode) {
+      try {
+        const ids = await openVisitIds(patient.id);
+        if (ids.length) {
+          await setVisitPaymentMode(ids, f.preferred_payment_mode as PaymentMode, f.patient_type);
+          toast.info(`Current visit now billed as ${paymentModeLabel(f.preferred_payment_mode)}`);
+        }
+      } catch (e) {
+        toast.error(e instanceof Error ? e.message : String(e));
+      }
+    }
     await logAuditEvent({ action: "PATIENT_BIODATA_EDITED", module: "reception", details: { patient_id: patient.id, changes: f } });
     toast.success("Patient biodata updated");
     onOpenChange(false);
@@ -159,7 +190,7 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={save} disabled={saving}>{saving ? "Saving..." : "Save changes"}</Button>
+          <Button onClick={save} disabled={saving || !fresh}>{saving ? "Saving..." : "Save changes"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

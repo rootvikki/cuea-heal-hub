@@ -1,3 +1,4 @@
+import { visitPaymentModeFor } from "@/lib/billing";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -170,7 +171,8 @@ const Appointments = () => {
       status: "triage",
       workflow_stage: "triage",
       appointment_id: appointment.id,
-    });
+      payment_mode: await visitPaymentModeFor(patientRecord.id),
+    } as any);
 
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });

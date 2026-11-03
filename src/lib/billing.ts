@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { logAuditEvent } from "@/lib/auditLog";
 import { notifyRoles } from "@/lib/notifications";
+import { allowedPaymentModes, defaultPaymentMode, type PaymentMode } from "@/lib/pricing";
 
 export type PaymentMethod = "mpesa" | "school_fees" | "payroll" | "insurance";
 
@@ -136,4 +137,28 @@ export async function functionErrorMessage(error: any, data?: any): Promise<stri
     if (body?.error) return body.error;
   } catch { /* not JSON */ }
   return error?.message || "Request failed";
+}
+
+/** Payment mode for a new visit when reception did not pick one (queue / appointment check-in). */
+export async function visitPaymentModeFor(patientId: string): Promise<PaymentMode> {
+  const { data } = await supabase.from("patients").select("patient_type, insurance_provider, insurance_number").eq("id", patientId).maybeSingle();
+  return defaultPaymentMode(data || {});
+}
+
+/**
+ * Changes the payment mode of a visit (and of the patient's other open visits).
+ * The mode chosen at reception follows the patient to every station and to billing.
+ */
+export async function setVisitPaymentMode(ticketIds: string[], mode: PaymentMode, patientType?: string | null) {
+  if (!ticketIds.length) return;
+  if (!allowedPaymentModes(patientType).includes(mode)) throw new Error("This payment mode is not allowed for this patient type");
+  const { error } = await supabase.from("tickets").update({ payment_mode: mode, updated_at: new Date().toISOString() } as any).in("id", ticketIds);
+  if (error) throw new Error(`Could not change the payment mode: ${error.message}`);
+  logAuditEvent({ action: "visit_payment_mode_changed", module: "billing", details: { ticket_ids: ticketIds, payment_mode: mode } });
+}
+
+/** Open (not checked-out) visits of a patient. */
+export async function openVisitIds(patientId: string): Promise<string[]> {
+  const { data } = await supabase.from("tickets").select("id").eq("patient_id", patientId).neq("status", "checked_out");
+  return (data || []).map((t) => t.id);
 }

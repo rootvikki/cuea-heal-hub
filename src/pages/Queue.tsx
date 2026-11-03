@@ -1,3 +1,4 @@
+import { visitPaymentModeFor } from "@/lib/billing";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -147,7 +148,8 @@ const Queue = () => {
       priority: parseInt(formData.priority),
       status: initialStatus,
       workflow_stage: initialStatus,
-    });
+      payment_mode: await visitPaymentModeFor(formData.patientId),
+    } as any);
 
     if (error) {
       toast({ title: "Error creating ticket", description: error.message, variant: "destructive" });
