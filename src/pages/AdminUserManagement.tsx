@@ -147,18 +147,22 @@ const AdminUserManagement = () => {
       const { data, error } = await supabase.rpc("get_all_users_with_roles");
       if (error) throw error;
 
-      // Enrich with profile status and last_login
+      // Enrich with profile status; last login comes from the sign-in system itself
+      // (every password, link and code sign-in is recorded there).
       const userIds = (data || []).map((u: any) => u.user_id);
-      const { data: profiles } = await supabase
-        .from("profiles")
-        .select("user_id, status, last_login_at")
-        .in("user_id", userIds);
+      const [{ data: profiles }, { data: signIns }] = await Promise.all([
+        supabase.from("profiles").select("user_id, status, last_login_at").in("user_id", userIds),
+        supabase.rpc("get_users_last_sign_in"),
+      ]);
 
       const profileMap = new Map((profiles || []).map(p => [p.user_id, p]));
+      const signInMap = new Map((signIns || []).map((s: any) => [s.user_id, s.last_sign_in_at as string | null]));
 
       const enriched = (data || []).map((u: any) => {
         const profile = profileMap.get(u.user_id);
-        return { ...u, status: profile?.status || "active", last_login_at: profile?.last_login_at };
+        const times = [signInMap.get(u.user_id), profile?.last_login_at].filter(Boolean) as string[];
+        const last = times.sort().pop();
+        return { ...u, status: profile?.status || "active", last_login_at: last };
       });
 
       setUsers(enriched);

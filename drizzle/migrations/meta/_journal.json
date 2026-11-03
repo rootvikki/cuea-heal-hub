@@ -113,6 +113,13 @@
       "when": 1793706028970,
       "tag": "0015_admitting_staff_update_beds",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1793706185284,
+      "tag": "0016_users_last_sign_in",
+      "breakpoints": true
     }
   ]
 }
