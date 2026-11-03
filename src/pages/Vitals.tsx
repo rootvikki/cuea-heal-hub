@@ -1,6 +1,6 @@
 import { ProceduresToPerform } from "@/components/ConsultationExtras";
 import { DirectOrderDialog } from "@/components/DirectOrderDialog";
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -8,18 +8,22 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
-import { StationQueue } from "@/components/StationQueue";
+import { StationQueue, StationShell } from "@/components/StationQueue";
 import { NursingProcedures, type SelectedProcedure } from "@/components/NursingProcedures";
 import { InterimPayment } from "@/components/InterimPayment";
-import { Activity, Send, Calendar, Thermometer, HeartPulse, Weight, Ruler, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Activity, Send, Calendar, Thermometer, HeartPulse, Weight, AlertTriangle, History, FlaskConical, Pill, Stethoscope } from "lucide-react";
 import { logAuditEvent } from "@/lib/auditLog";
-import { WorkflowTimeline, deriveVisitPath } from "@/components/WorkflowTimeline";
 import { PatientSummaryCard } from "@/components/PatientSummaryCard";
 import { TriageArrivalAlerts } from "@/components/TriageArrivalAlerts";
 import { TriageAIRecommendation, type TriageRecommendation } from "@/components/TriageAIRecommendation";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { SendToDialog } from "@/components/SendToDialog";
+import { ReportsButton } from "@/components/StationReports";
+import { sendPatientTo } from "@/lib/stations";
+import { paymentModeLabel, serviceFee } from "@/lib/pricing";
+import { calculateAgeYears } from "@/lib/utils";
 
 // ─── Vital range helpers ─────────────────────────────────────────
 const getBPClass = (sys: string, dia: string) => {
@@ -63,27 +67,47 @@ const getRRClass = (val: string) => {
   return "border-[hsl(var(--success))] ring-1 ring-[hsl(var(--success))]/30 bg-[hsl(var(--success))]/5";
 };
 
+/** Blood pressure parts: digits only, 2–3 digits each. */
+const BP_LIMITS = { sys: { min: 50, max: 300 }, dia: { min: 30, max: 200 } };
+const bpDigits = (v: string) => v.replace(/\D/g, "").slice(0, 3);
+const bpError = (sys: string, dia: string) => {
+  if (!sys && !dia) return null;
+  if (sys && sys.length < 2) return "Systolic needs 2–3 digits";
+  if (dia && dia.length < 2) return "Diastolic needs 2–3 digits";
+  if (sys && (Number(sys) < BP_LIMITS.sys.min || Number(sys) > BP_LIMITS.sys.max)) return `Systolic must be ${BP_LIMITS.sys.min}–${BP_LIMITS.sys.max}`;
+  if (dia && (Number(dia) < BP_LIMITS.dia.min || Number(dia) > BP_LIMITS.dia.max)) return `Diastolic must be ${BP_LIMITS.dia.min}–${BP_LIMITS.dia.max}`;
+  if (sys && dia && Number(dia) >= Number(sys)) return "Diastolic should be lower than systolic";
+  if (!sys || !dia) return "Enter both numbers";
+  return null;
+};
+
+const AUTO_NEXT_KEY = "cuea-triage-auto-next";
+const emptyForm = {
+  weight: "", height: "", bpSystolic: "", bpDiastolic: "",
+  pulseRate: "", temperature: "", respiratoryRate: "", spo2: "",
+  allergies: "", presentingComplaint: "", nursingNotes: "", nextVisit: "",
+};
+
 const Vitals = () => {
   const { toast } = useToast();
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [directMode, setDirectMode] = useState<"lab" | "pharmacy" | null>(null);
+  const [sendOpen, setSendOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [queueCollapsed, setQueueCollapsed] = useState(false);
   const [urgencyPriority, setUrgencyPriority] = useState("1");
   const [aiRecommendation, setAiRecommendation] = useState<TriageRecommendation | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [savedForTicket, setSavedForTicket] = useState<string | null>(null);
+  const [autoNext, setAutoNext] = useState(() => { try { return localStorage.getItem(AUTO_NEXT_KEY) !== "off"; } catch { return true; } });
+  const diaRef = useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    if (selectedTicket) setQueueCollapsed(true);
-  }, [selectedTicket]);
-
-  const [form, setForm] = useState({
-    weight: "", height: "", bpSystolic: "", bpDiastolic: "",
-    pulseRate: "", temperature: "", respiratoryRate: "", spo2: "",
-    allergies: "", presentingComplaint: "", nursingNotes: "", nextVisit: "",
-  });
+  const [form, setForm] = useState(emptyForm);
+  const [prefilled, setPrefilled] = useState<{ height?: string; allergies?: string; date?: string }>({});
   const [procedures, setProcedures] = useState<SelectedProcedure[]>([]);
   const [previousVitals, setPreviousVitals] = useState<any[]>([]);
+
+  useEffect(() => { setQueueCollapsed(!!selectedTicket); }, [selectedTicket]);
 
   const bmi = useMemo(() => {
     const w = parseFloat(form.weight);
@@ -93,15 +117,24 @@ const Vitals = () => {
     return (w / (hM * hM)).toFixed(2);
   }, [form.weight, form.height]);
 
-  useEffect(() => {
-    if (selectedTicket?.patient_id) fetchPreviousVitals(selectedTicket.patient_id);
-  }, [selectedTicket]);
+  const bpProblem = bpError(form.bpSystolic, form.bpDiastolic);
 
-  const fetchPreviousVitals = async (patientId: string) => {
-    const { data } = await supabase.from("vitals").select("*").eq("patient_id", patientId)
-      .order("recorded_at", { ascending: false }).limit(5);
-    setPreviousVitals(data || []);
-  };
+  // Returning patients: load full history and carry forward height & allergies
+  useEffect(() => {
+    if (!selectedTicket?.patient_id) return;
+    setForm(emptyForm); setProcedures([]); setUrgencyPriority(String(selectedTicket.priority || 1)); setAiRecommendation(null); setPrefilled({});
+    (async () => {
+      const { data } = await supabase.from("vitals").select("*").eq("patient_id", selectedTicket.patient_id)
+        .order("recorded_at", { ascending: false }).limit(10);
+      const rows = data || [];
+      setPreviousVitals(rows);
+      const lastHeight = rows.find((v) => v.height)?.height;
+      const lastAllergies = selectedTicket.patient?.allergies?.length ? selectedTicket.patient.allergies.join(", ") : rows.find((v) => v.allergies_noted)?.allergies_noted;
+      const lastDate = rows.find((v) => v.height)?.recorded_at;
+      setForm((f) => ({ ...f, height: lastHeight ? String(lastHeight) : f.height, allergies: lastAllergies || f.allergies }));
+      setPrefilled({ height: lastHeight ? String(lastHeight) : undefined, allergies: lastAllergies || undefined, date: lastDate || undefined });
+    })();
+  }, [selectedTicket?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const numberOrNull = (value: string) => value ? Number(value) : null;
 
@@ -132,86 +165,119 @@ const Vitals = () => {
     } finally { setAiLoading(false); }
   };
 
+  const hasAnyVitals = Object.entries(form).some(([k, v]) => v && !(k === "height" && v === prefilled.height) && !(k === "allergies" && v === prefilled.allergies));
+
+  /** Saves vitals, procedures and the triage fee once per visit (safe to call again). */
+  const saveVitals = async () => {
+    if (!selectedTicket || savedForTicket === selectedTicket.id) return;
+    if (bpProblem) throw new Error(`Blood pressure: ${bpProblem}`);
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data: staff } = await supabase.from("staff").select("id").eq("user_id", user?.id).maybeSingle();
+
+    const w = parseFloat(form.weight) || null;
+    const hCm = parseFloat(form.height) || null;
+    const hM = hCm ? hCm / 100 : null;
+    const computedBmi = w && hM ? parseFloat((w / (hM * hM)).toFixed(2)) : null;
+
+    const { error: vitErr } = await supabase.from("vitals").insert({
+      patient_id: selectedTicket.patient_id, recorded_by: staff?.id,
+      weight: w, height: hCm, bmi: computedBmi,
+      blood_pressure_systolic: form.bpSystolic ? parseInt(form.bpSystolic) : null,
+      blood_pressure_diastolic: form.bpDiastolic ? parseInt(form.bpDiastolic) : null,
+      pulse_rate: form.pulseRate ? parseInt(form.pulseRate) : null,
+      temperature: form.temperature ? parseFloat(form.temperature) : null,
+      respiratory_rate: form.respiratoryRate ? parseInt(form.respiratoryRate) : null,
+      oxygen_saturation: form.spo2 ? parseFloat(form.spo2) : null,
+      allergies_noted: form.allergies || null, presenting_complaint: form.presentingComplaint || null,
+      urgency_priority: Number(urgencyPriority),
+      ai_urgency_priority: aiRecommendation?.urgencyPriority ?? null,
+      ai_rationale: aiRecommendation?.rationale ?? null,
+      ai_red_flags: aiRecommendation?.redFlags ?? null,
+      ai_recommended_checks: aiRecommendation?.recommendedChecks ?? null,
+      ai_reviewed_at: aiRecommendation ? new Date().toISOString() : null,
+    });
+    if (vitErr) throw vitErr;
+
+    if (form.nursingNotes.trim()) {
+      await supabase.from("nursing_procedures").insert({
+        patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id,
+        nurse_id: user?.id || "", procedure_type: "nursing_notes", notes: form.nursingNotes, price: 0,
+      });
+    }
+
+    const { count: feeCount } = await supabase.from("service_charges").select("id", { count: "exact", head: true }).eq("ticket_id", selectedTicket.id).eq("service_type", "triage");
+    if (!feeCount) {
+      await supabase.from("service_charges").insert({
+        patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id,
+        service_type: "triage", description: "Triage / Vitals Assessment Fee", amount: serviceFee("triage", selectedTicket.payment_mode), billing_stage: "triage",
+      });
+    }
+
+    for (const proc of procedures) {
+      await supabase.from("nursing_procedures").insert({
+        patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id,
+        nurse_id: user?.id || "", procedure_type: proc.type, notes: proc.notes, price: proc.price,
+      });
+      await supabase.from("service_charges").insert({
+        patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id,
+        service_type: "nursing_procedure", description: proc.label, amount: proc.price, billing_stage: "triage",
+      });
+    }
+    await supabase.from("tickets").update({ priority: Number(urgencyPriority) }).eq("id", selectedTicket.id);
+    logAuditEvent({ action: "vitals_recorded", module: "triage", details: { patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id, procedures: procedures.length } });
+    setSavedForTicket(selectedTicket.id);
+  };
+
+  /** Claims and opens the next waiting patient so the nurse never has to hunt for them. */
+  const openNextPatient = async (skipId?: string) => {
+    const { data } = await supabase.from("tickets")
+      .select("*, patients!inner(id, patient_id, user_id, patient_type, allergies, blood_type, chronic_conditions, insurance_provider, insurance_number, national_id, payroll_number, admission_number, profiles!inner(full_name, phone, date_of_birth, gender))")
+      .in("workflow_stage", ["checked_in", "triage"]).is("assigned_to", null)
+      .order("priority", { ascending: false }).order("created_at", { ascending: true }).limit(2);
+    const next = (data || []).find((t: any) => t.id !== skipId);
+    if (!next) { setSelectedTicket(null); return; }
+    const { error } = await supabase.rpc("manage_triage_claim", { _ticket_id: next.id, _action: "claim" });
+    if (error) { setSelectedTicket(null); return; }
+    const p: any = (next as any).patients;
+    setSelectedTicket({ ...next, status: "triage_in_progress", workflow_stage: "triage_in_progress", patient: { ...p, profile: p?.profiles } });
+    toast({ title: "Next patient", description: p?.profiles?.full_name || next.ticket_number });
+  };
+
+  const finishPatient = async (sentTo: string) => {
+    const done = selectedTicket?.id;
+    toast({ title: "Saved", description: `Patient sent to ${sentTo}` });
+    setForm(emptyForm); setProcedures([]); setUrgencyPriority("1"); setAiRecommendation(null);
+    if (autoNext) await openNextPatient(done); else setSelectedTicket(null);
+  };
+
   const handleSaveAndAdvance = async () => {
     if (!selectedTicket) return;
     setSaving(true);
-
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data: staff } = await supabase.from("staff").select("id").eq("user_id", user?.id).single();
-
-      const w = parseFloat(form.weight) || null;
-      const hCm = parseFloat(form.height) || null;
-      const hM = hCm ? hCm / 100 : null;
-      const computedBmi = w && hM ? parseFloat((w / (hM * hM)).toFixed(2)) : null;
-
-      const { error: vitErr } = await supabase.from("vitals").insert({
-        patient_id: selectedTicket.patient_id, recorded_by: staff?.id,
-        weight: w, height: hCm, bmi: computedBmi,
-        blood_pressure_systolic: form.bpSystolic ? parseInt(form.bpSystolic) : null,
-        blood_pressure_diastolic: form.bpDiastolic ? parseInt(form.bpDiastolic) : null,
-        pulse_rate: form.pulseRate ? parseInt(form.pulseRate) : null,
-        temperature: form.temperature ? parseFloat(form.temperature) : null,
-        respiratory_rate: form.respiratoryRate ? parseInt(form.respiratoryRate) : null,
-        oxygen_saturation: form.spo2 ? parseFloat(form.spo2) : null,
-        allergies_noted: form.allergies || null, presenting_complaint: form.presentingComplaint || null,
-        urgency_priority: Number(urgencyPriority),
-        ai_urgency_priority: aiRecommendation?.urgencyPriority ?? null,
-        ai_rationale: aiRecommendation?.rationale ?? null,
-        ai_red_flags: aiRecommendation?.redFlags ?? null,
-        ai_recommended_checks: aiRecommendation?.recommendedChecks ?? null,
-        ai_reviewed_at: aiRecommendation ? new Date().toISOString() : null,
-      });
-      if (vitErr) throw vitErr;
-
-      if (form.nursingNotes.trim()) {
-        await supabase.from("nursing_procedures").insert({
-          patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id,
-          nurse_id: user?.id || "", procedure_type: "nursing_notes",
-          notes: form.nursingNotes, price: 0,
-        });
-      }
-
-      // Auto-add triage fee service charge
-      const TRIAGE_FEE = 200;
-      await supabase.from("service_charges").insert({
-        patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id,
-        service_type: "triage", description: "Triage / Vitals Assessment Fee", amount: TRIAGE_FEE, billing_stage: "triage",
-      });
-
-      for (const proc of procedures) {
-        await supabase.from("nursing_procedures").insert({
-          patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id,
-          nurse_id: user?.id || "", procedure_type: proc.type, notes: proc.notes, price: proc.price,
-        });
-        await supabase.from("service_charges").insert({
-          patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id,
-          service_type: "nursing_procedure", description: proc.label, amount: proc.price, billing_stage: "triage",
-        });
-      }
-
-      await supabase.from("tickets").update({ workflow_stage: "waiting_for_doctor", status: "waiting_for_doctor", priority: Number(urgencyPriority), assigned_to: null, claimed_at: null }).eq("id", selectedTicket.id);
-
-      toast({ title: "Vitals saved", description: "Patient sent to doctor queue" });
-      logAuditEvent({ action: "vitals_recorded", module: "triage", details: { patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id, procedures: procedures.length } });
-      setSelectedTicket(null);
-      setForm({ weight: "", height: "", bpSystolic: "", bpDiastolic: "", pulseRate: "", temperature: "", respiratoryRate: "", spo2: "", allergies: "", presentingComplaint: "", nursingNotes: "", nextVisit: "" });
-      setProcedures([]);
-      setUrgencyPriority("1");
-      setAiRecommendation(null);
+      await saveVitals();
+      await sendPatientTo({ ticketId: selectedTicket.id, patientName: selectedTicket.patient?.profile?.full_name, to: "doctor", from: "Triage", extra: { priority: Number(urgencyPriority) } });
+      await finishPatient("the doctor");
     } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
+      toast({ title: "Could not save", description: err.message, variant: "destructive" });
     } finally {
       setSaving(false);
     }
   };
 
+  const openDirect = async (mode: "lab" | "pharmacy") => {
+    try {
+      if (hasAnyVitals) await saveVitals();
+      setDirectMode(mode);
+    } catch (err: any) {
+      toast({ title: "Could not save vitals", description: err.message, variant: "destructive" });
+    }
+  };
+
   const u = (field: string, value: string) => setForm((prev) => ({ ...prev, [field]: value }));
 
-  // Summary card data
   const summaryItems = useMemo(() => {
     const items: { label: string; value: string; status?: "normal" | "warning" | "critical" }[] = [];
-    if (form.bpSystolic && form.bpDiastolic) {
+    if (form.bpSystolic && form.bpDiastolic && !bpProblem) {
       const s = parseInt(form.bpSystolic), d = parseInt(form.bpDiastolic);
       const st = (s >= 180 || d >= 120) ? "critical" : (s >= 140 || d >= 90) ? "warning" : "normal";
       items.push({ label: "BP", value: `${form.bpSystolic}/${form.bpDiastolic} mmHg`, status: st });
@@ -233,294 +299,278 @@ const Vitals = () => {
       items.push({ label: "RR", value: `${form.respiratoryRate}/min`, status: (r > 25 || r < 10) ? "critical" : (r > 20 || r < 12) ? "warning" : "normal" });
     }
     if (form.weight) items.push({ label: "Weight", value: `${form.weight} kg` });
+    if (form.height) items.push({ label: "Height", value: `${form.height} cm` });
     if (bmi) {
       const b = parseFloat(bmi);
       items.push({ label: "BMI", value: bmi, status: (b < 18.5 || b >= 30) ? "warning" : "normal" });
     }
     return items;
-  }, [form, bmi]);
+  }, [form, bmi, bpProblem]);
+
+  const patientName = selectedTicket?.patient?.profile?.full_name;
+  const age = calculateAgeYears(selectedTicket?.patient?.profile?.date_of_birth);
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <StationQueue
-        stationStages={["checked_in", "triage", "triage_in_progress"]}
-        nextStage="waiting_for_doctor"
-        title="Triage Queue"
-        onSelectPatient={setSelectedTicket}
-        selectedTicketId={selectedTicket?.id}
-        collapsed={queueCollapsed}
-        onToggleCollapse={() => setQueueCollapsed(!queueCollapsed)}
-        triageClaimMode
-      />
-
-      <div className="flex-1 overflow-y-auto p-6 space-y-6">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-          <h1 className="text-3xl font-bold flex items-center gap-2">
-            <Activity className="h-7 w-7 text-primary" /> Nursing / Triage Station
+    <StationShell
+      queue={
+        <StationQueue
+          stationStages={["checked_in", "triage", "triage_in_progress"]}
+          nextStage="waiting_for_doctor"
+          title="Triage Queue"
+          onSelectPatient={setSelectedTicket}
+          selectedTicketId={selectedTicket?.id}
+          collapsed={queueCollapsed}
+          onToggleCollapse={() => setQueueCollapsed(!queueCollapsed)}
+          triageClaimMode
+        />
+      }
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2">
+            <Activity className="h-7 w-7 text-primary" /> Nursing / Triage
           </h1>
-          <p className="text-muted-foreground mt-1">Record vitals, procedures and advance patients</p>
-          </div>
+          <p className="text-muted-foreground text-sm mt-1">Take vitals, then send the patient on — the next patient opens automatically</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <label className="flex items-center gap-2 text-sm rounded-md border px-3 h-10">
+            <Switch checked={autoNext} onCheckedChange={(v) => { setAutoNext(v); try { localStorage.setItem(AUTO_NEXT_KEY, v ? "on" : "off"); } catch { /* ignore */ } }} />
+            Auto-open next
+          </label>
+          <ReportsButton kind="triage" />
           <TriageArrivalAlerts />
         </div>
+      </div>
 
-        {!selectedTicket ? (
-          <Card><CardContent className="py-16 text-center text-muted-foreground">Select a patient from the queue to begin triage</CardContent></Card>
-        ) : (
-          <>
-            {/* Patient Info Bar */}
-            <Card className="border-primary/20">
-              <CardContent className="py-3 flex items-center justify-between">
-                <div className="flex items-center gap-6 text-sm">
-                  <div><span className="text-muted-foreground">Ticket:</span> <strong>{selectedTicket.ticket_number}</strong></div>
-                  <div><span className="text-muted-foreground">Patient:</span> <strong>{selectedTicket.patient?.profile?.full_name || <span className="text-destructive italic">Name missing</span>}</strong></div>
-                  <div><span className="text-muted-foreground">OPD No:</span> <strong>{selectedTicket.patient?.patient_id}</strong></div>
+      <ProceduresToPerform />
+
+      {!selectedTicket ? (
+        <Card><CardContent className="py-16 text-center text-muted-foreground space-y-3">
+          <p>Select a patient from the queue, or</p>
+          <Button onClick={() => openNextPatient()}><Send className="h-4 w-4 mr-2" /> Serve next patient</Button>
+        </CardContent></Card>
+      ) : (
+        <>
+          {/* Patient bar */}
+          <Card className="border-primary/30">
+            <CardContent className="py-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-sm">
+                <div className="text-base font-bold">{patientName || <span className="text-destructive italic">Name missing</span>}</div>
+                <div><span className="text-muted-foreground">Ticket</span> <strong>{selectedTicket.ticket_number}</strong></div>
+                <div><span className="text-muted-foreground">OPD</span> <strong>{selectedTicket.patient?.patient_id}</strong></div>
+                <div><span className="text-muted-foreground">Age</span> <strong>{age ?? "—"}</strong></div>
+                <div className="capitalize"><span className="text-muted-foreground">Sex</span> <strong>{selectedTicket.patient?.profile?.gender || "—"}</strong></div>
+                <Badge variant="outline">{paymentModeLabel(selectedTicket.payment_mode)}</Badge>
+                {previousVitals.length > 0 ? <Badge variant="secondary">Returning · {previousVitals.length} previous</Badge> : <Badge variant="secondary">First visit</Badge>}
+              </div>
+              <InterimPayment ticketId={selectedTicket.id} patientId={selectedTicket.patient_id} />
+            </CardContent>
+          </Card>
+
+          {/* Previous vitals — full history for returning patients */}
+          {previousVitals.length > 0 && (
+            <Card>
+              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><History className="h-4 w-4" /> Previous vitals</CardTitle></CardHeader>
+              <CardContent>
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse text-xs min-w-[820px]">
+                    <thead>
+                      <tr>{["Date", "BP", "Pulse", "Temp °C", "RR", "SpO₂ %", "Weight kg", "Height cm", "BMI", "Urgency", "Complaint"].map((h) => (
+                        <th key={h} className="border bg-muted px-2 py-1.5 text-left font-semibold whitespace-nowrap">{h}</th>
+                      ))}</tr>
+                    </thead>
+                    <tbody>
+                      {previousVitals.map((v) => (
+                        <tr key={v.id}>
+                          <td className="border px-2 py-1.5 whitespace-nowrap">{v.recorded_at ? new Date(v.recorded_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "—"}</td>
+                          <td className="border px-2 py-1.5">{v.blood_pressure_systolic ? `${v.blood_pressure_systolic}/${v.blood_pressure_diastolic ?? "—"}` : "—"}</td>
+                          <td className="border px-2 py-1.5">{v.pulse_rate ?? "—"}</td>
+                          <td className="border px-2 py-1.5">{v.temperature ?? "—"}</td>
+                          <td className="border px-2 py-1.5">{v.respiratory_rate ?? "—"}</td>
+                          <td className="border px-2 py-1.5">{v.oxygen_saturation ?? "—"}</td>
+                          <td className="border px-2 py-1.5">{v.weight ?? "—"}</td>
+                          <td className="border px-2 py-1.5 font-medium">{v.height ?? "—"}</td>
+                          <td className="border px-2 py-1.5">{v.bmi ?? "—"}</td>
+                          <td className="border px-2 py-1.5">{v.urgency_priority === 3 ? "Emergency" : v.urgency_priority === 2 ? "High" : "Normal"}</td>
+                          <td className="border px-2 py-1.5 max-w-[260px] truncate" title={v.presenting_complaint || ""}>{v.presenting_complaint || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-                <InterimPayment ticketId={selectedTicket.id} patientId={selectedTicket.patient_id} />
               </CardContent>
             </Card>
+          )}
 
-            {/* Workflow Timeline */}
-            <WorkflowTimeline
-              currentStage={selectedTicket.workflow_stage || selectedTicket.status}
-              visitPath={deriveVisitPath(selectedTicket.workflow_stage || selectedTicket.status, {})}
-            />
+          <PatientSummaryCard patientId={selectedTicket.patient_id} ticketId={selectedTicket.id} />
 
-            <PatientSummaryCard patientId={selectedTicket.patient_id} ticketId={selectedTicket.id} />
-
-            <TriageAIRecommendation recommendation={aiRecommendation} loading={aiLoading} disabled={!form.presentingComplaint.trim()} onReview={requestAiReview} />
-
-            <Card>
-              <CardHeader><CardTitle className="text-base">Final Clinical Urgency</CardTitle></CardHeader>
-              <CardContent className="space-y-2">
-                <Label>The final priority is selected by the attending clinician *</Label>
-                <Select value={urgencyPriority} onValueChange={setUrgencyPriority}>
-                  <SelectTrigger className="max-w-sm"><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="1">Normal</SelectItem><SelectItem value="2">High</SelectItem><SelectItem value="3">Emergency</SelectItem></SelectContent>
-                </Select>
-              </CardContent>
-            </Card>
-
-            {/* Triage Form */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Thermometer className="h-5 w-5 text-primary" /> Triage Vitals
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-8">
-                {/* Row 1: Anthropometric */}
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                    <Weight className="h-4 w-4" /> Anthropometric
-                  </p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Weight (kg)</Label>
-                      <Input type="number" step="0.1" value={form.weight} onChange={(e) => u("weight", e.target.value)} className="h-12 text-base" placeholder="e.g. 72.5" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Height (cm)</Label>
-                      <Input type="number" step="0.1" value={form.height} onChange={(e) => u("height", e.target.value)} placeholder="e.g. 170" className="h-12 text-base" />
-                      <p className="text-xs text-muted-foreground">Enter in centimetres</p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold">BMI (automatic)</Label>
-                      <Input readOnly value={bmi || ""} className="bg-muted font-bold h-12 text-base" placeholder="Calculated from height and weight" aria-label="Automatically calculated BMI" />
-                      {bmi && (
-                        <Badge className={`text-xs ${
-                          parseFloat(bmi) < 18.5 ? "bg-warning text-warning-foreground" :
-                          parseFloat(bmi) < 25 ? "bg-success text-success-foreground" :
-                          parseFloat(bmi) < 30 ? "bg-warning text-warning-foreground" :
-                          "bg-destructive text-destructive-foreground"
-                        }`}>
-                          {parseFloat(bmi) < 18.5 ? "Underweight" :
-                           parseFloat(bmi) < 25 ? "Normal" :
-                           parseFloat(bmi) < 30 ? "Overweight" : "Obese"}
-                        </Badge>
-                      )}
-                      {!bmi && <p className="text-xs text-muted-foreground">Enter height and weight to calculate BMI</p>}
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Blood Pressure</Label>
-                      <div className="flex gap-1.5 items-center">
-                        <Input type="number" placeholder="120" value={form.bpSystolic} onChange={(e) => u("bpSystolic", e.target.value)} className={`h-12 text-base text-center ${getBPClass(form.bpSystolic, form.bpDiastolic)}`} />
-                        <span className="text-muted-foreground font-bold text-lg">/</span>
-                        <Input type="number" placeholder="80" value={form.bpDiastolic} onChange={(e) => u("bpDiastolic", e.target.value)} className={`h-12 text-base text-center ${getBPClass(form.bpSystolic, form.bpDiastolic)}`} />
-                      </div>
-                      <p className="text-xs text-muted-foreground">Systolic / Diastolic mmHg</p>
-                    </div>
+          {/* Triage form */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="flex items-center gap-2 text-lg"><Thermometer className="h-5 w-5 text-primary" /> Today's vitals</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-7">
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5"><Weight className="h-4 w-4" /> Body measurements & blood pressure</p>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-semibold">Weight (kg)</Label>
+                    <Input type="number" inputMode="decimal" step="0.1" value={form.weight} onChange={(e) => u("weight", e.target.value)} className="h-12 text-base" placeholder="e.g. 72.5" />
                   </div>
-                </div>
-
-                {/* Row 2: Cardiorespiratory */}
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                    <HeartPulse className="h-4 w-4" /> Cardiorespiratory
-                  </p>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Pulse Rate (bpm)</Label>
-                      <Input type="number" value={form.pulseRate} onChange={(e) => u("pulseRate", e.target.value)} className={`h-12 text-base ${getPulseClass(form.pulseRate)}`} placeholder="60-100" />
-                      <p className="text-xs text-muted-foreground">Normal: 60–100 bpm</p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Temperature (°C)</Label>
-                      <Input type="number" step="0.1" value={form.temperature} onChange={(e) => u("temperature", e.target.value)} className={`h-12 text-base ${getTempClass(form.temperature)}`} placeholder="36.0-37.5" />
-                      <p className="text-xs text-muted-foreground">Normal: 36.0–37.5°C</p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Respiratory Rate (/min)</Label>
-                      <Input type="number" value={form.respiratoryRate} onChange={(e) => u("respiratoryRate", e.target.value)} className={`h-12 text-base ${getRRClass(form.respiratoryRate)}`} placeholder="12-20" />
-                      <p className="text-xs text-muted-foreground">Normal: 12–20/min</p>
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold">SPO₂ (%)</Label>
-                      <Input type="number" step="0.1" value={form.spo2} onChange={(e) => u("spo2", e.target.value)} className={`h-12 text-base ${getSpo2Class(form.spo2)}`} placeholder="95-100" />
-                      <p className="text-xs text-muted-foreground">Normal: ≥ 95%</p>
-                    </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-semibold">Height (cm)</Label>
+                    <Input type="number" inputMode="decimal" step="0.1" value={form.height} onChange={(e) => u("height", e.target.value)} placeholder="e.g. 170" className="h-12 text-base" />
+                    <p className="text-xs text-muted-foreground">
+                      {prefilled.height && form.height === prefilled.height
+                        ? `From last visit${prefilled.date ? ` (${new Date(prefilled.date).toLocaleDateString("en-GB")})` : ""} — change if different`
+                        : "Centimetres"}
+                    </p>
                   </div>
-                </div>
-
-                {/* Clinical */}
-                <div>
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                    <Ruler className="h-4 w-4" /> Clinical Assessment
-                  </p>
-                  <div className="space-y-5">
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Allergies</Label>
-                      <Input value={form.allergies} onChange={(e) => u("allergies", e.target.value)} placeholder="Known allergies — type NKDA if none known" className="h-12 text-base" />
-                    </div>
-                    <div className="space-y-2">
-                      <Label className="text-sm font-semibold">Presenting Complaint *</Label>
-                      <Textarea
-                        rows={5}
-                        value={form.presentingComplaint}
-                        onChange={(e) => u("presentingComplaint", e.target.value)}
-                        placeholder="Describe the patient's main complaint and symptoms in detail. Include onset, duration, severity, and any associated symptoms..."
-                        className="text-base leading-relaxed"
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-semibold">BMI (automatic)</Label>
+                    <Input readOnly value={bmi || ""} className="bg-muted font-bold h-12 text-base" placeholder="From height & weight" aria-label="Automatically calculated BMI" />
+                    {bmi && (
+                      <Badge className={`text-xs ${parseFloat(bmi) < 18.5 ? "bg-warning text-warning-foreground" : parseFloat(bmi) < 25 ? "bg-success text-success-foreground" : parseFloat(bmi) < 30 ? "bg-warning text-warning-foreground" : "bg-destructive text-destructive-foreground"}`}>
+                        {parseFloat(bmi) < 18.5 ? "Underweight" : parseFloat(bmi) < 25 ? "Normal" : parseFloat(bmi) < 30 ? "Overweight" : "Obese"}
+                      </Badge>
+                    )}
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-semibold">Blood pressure (mmHg)</Label>
+                    <div className="flex gap-1.5 items-center">
+                      <Input
+                        inputMode="numeric" pattern="[0-9]*" maxLength={3} aria-label="Systolic" placeholder="120"
+                        value={form.bpSystolic}
+                        onChange={(e) => {
+                          const v = bpDigits(e.target.value);
+                          u("bpSystolic", v);
+                          if (v.length === 3) diaRef.current?.focus();
+                        }}
+                        className={`h-12 text-base text-center ${!bpProblem ? getBPClass(form.bpSystolic, form.bpDiastolic) : ""} ${bpProblem && form.bpSystolic ? "border-destructive" : ""}`}
                       />
-                      <p className="text-xs text-muted-foreground">This will be shared with the consulting doctor</p>
+                      <span className="text-muted-foreground font-bold text-lg">/</span>
+                      <Input
+                        ref={diaRef}
+                        inputMode="numeric" pattern="[0-9]*" maxLength={3} aria-label="Diastolic" placeholder="80"
+                        value={form.bpDiastolic}
+                        onChange={(e) => u("bpDiastolic", bpDigits(e.target.value))}
+                        className={`h-12 text-base text-center ${!bpProblem ? getBPClass(form.bpSystolic, form.bpDiastolic) : ""} ${bpProblem && form.bpDiastolic ? "border-destructive" : ""}`}
+                      />
                     </div>
+                    <p className={`text-xs ${bpProblem ? "text-destructive font-medium" : "text-muted-foreground"}`}>{bpProblem || "Systolic / diastolic, 2–3 digits each"}</p>
                   </div>
                 </div>
-              </CardContent>
-            </Card>
+              </div>
 
-            <ProceduresToPerform />
-
-            {/* Nursing Procedures */}
-            <Card>
-              <CardContent className="pt-6">
-                <NursingProcedures procedures={procedures} onChange={setProcedures} />
-              </CardContent>
-            </Card>
-
-            {/* Nursing Notes & TCA */}
-            <Card>
-              <CardContent className="pt-6 space-y-5">
-                <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Nursing Notes</Label>
-                  <Textarea
-                    rows={4}
-                    value={form.nursingNotes}
-                    onChange={(e) => u("nursingNotes", e.target.value)}
-                    placeholder="Additional observations, care plan notes, patient education delivered..."
-                    className="text-base leading-relaxed"
-                  />
+              <div>
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5"><HeartPulse className="h-4 w-4" /> Heart & breathing</p>
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-semibold">Pulse (bpm)</Label>
+                    <Input inputMode="numeric" maxLength={3} value={form.pulseRate} onChange={(e) => u("pulseRate", bpDigits(e.target.value))} className={`h-12 text-base ${getPulseClass(form.pulseRate)}`} placeholder="60–100" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-semibold">Temperature (°C)</Label>
+                    <Input type="number" inputMode="decimal" step="0.1" value={form.temperature} onChange={(e) => u("temperature", e.target.value)} className={`h-12 text-base ${getTempClass(form.temperature)}`} placeholder="36.0–37.5" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-semibold">Resp. rate (/min)</Label>
+                    <Input inputMode="numeric" maxLength={2} value={form.respiratoryRate} onChange={(e) => u("respiratoryRate", e.target.value.replace(/\D/g, "").slice(0, 2))} className={`h-12 text-base ${getRRClass(form.respiratoryRate)}`} placeholder="12–20" />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label className="text-sm font-semibold">SpO₂ (%)</Label>
+                    <Input type="number" inputMode="decimal" step="0.1" max={100} value={form.spo2} onChange={(e) => u("spo2", e.target.value)} className={`h-12 text-base ${getSpo2Class(form.spo2)}`} placeholder="95–100" />
+                  </div>
                 </div>
-                <div className="space-y-2 max-w-xs">
-                  <Label className="flex items-center gap-1.5 text-sm font-semibold"><Calendar className="h-4 w-4" /> Next Visit (TCA)</Label>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold">Allergies</Label>
+                  <Input value={form.allergies} onChange={(e) => u("allergies", e.target.value)} placeholder="Type NKDA if none known" className="h-12 text-base" />
+                  {prefilled.allergies && form.allergies === prefilled.allergies && <p className="text-xs text-muted-foreground">From the patient's record</p>}
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-sm font-semibold">Urgency (final, by clinician) *</Label>
+                  <Select value={urgencyPriority} onValueChange={setUrgencyPriority}>
+                    <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
+                    <SelectContent><SelectItem value="1">Normal</SelectItem><SelectItem value="2">High</SelectItem><SelectItem value="3">Emergency</SelectItem></SelectContent>
+                  </Select>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-sm font-semibold">Presenting complaint *</Label>
+                <Textarea rows={4} value={form.presentingComplaint} onChange={(e) => u("presentingComplaint", e.target.value)}
+                  placeholder="Main complaint and symptoms — onset, duration, severity…" className="text-base leading-relaxed" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <TriageAIRecommendation recommendation={aiRecommendation} loading={aiLoading} disabled={!form.presentingComplaint.trim()} onReview={requestAiReview} />
+
+          <Card>
+            <CardContent className="pt-6 space-y-5">
+              <NursingProcedures procedures={procedures} onChange={setProcedures} />
+              <div className="grid gap-4 lg:grid-cols-3">
+                <div className="space-y-1.5 lg:col-span-2">
+                  <Label className="text-sm font-semibold">Nursing notes</Label>
+                  <Textarea rows={3} value={form.nursingNotes} onChange={(e) => u("nursingNotes", e.target.value)} placeholder="Observations, care given, education…" className="text-base" />
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="flex items-center gap-1.5 text-sm font-semibold"><Calendar className="h-4 w-4" /> Next visit (TCA)</Label>
                   <Input type="date" value={form.nextVisit} onChange={(e) => u("nextVisit", e.target.value)} className="h-12 text-base" />
                 </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {summaryItems.length > 0 && (
+            <Card className="border-primary/20 bg-primary/5">
+              <CardContent className="pt-4">
+                <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-2">
+                  {summaryItems.map((item) => (
+                    <div key={item.label} className={`p-2.5 rounded-lg border text-center ${item.status === "critical" ? "border-destructive bg-destructive/10" : item.status === "warning" ? "border-[hsl(var(--warning))] bg-[hsl(var(--warning))]/10" : "border-border bg-background"}`}>
+                      <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{item.label}</p>
+                      <p className={`text-sm font-bold mt-0.5 ${item.status === "critical" ? "text-destructive" : item.status === "warning" ? "text-[hsl(var(--warning))]" : ""}`}>{item.value}</p>
+                      {item.status === "critical" && <AlertTriangle className="h-3 w-3 text-destructive mx-auto mt-1" />}
+                    </div>
+                  ))}
+                </div>
               </CardContent>
             </Card>
+          )}
 
-            {/* Vitals Summary Card */}
-            {summaryItems.length > 0 && (
-              <Card className="border-primary/20 bg-primary/5">
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-sm font-semibold flex items-center gap-2">
-                    <CheckCircle2 className="h-4 w-4 text-primary" /> Vitals Summary — Review Before Saving
-                  </CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
-                    {summaryItems.map((item) => (
-                      <div
-                        key={item.label}
-                        className={`p-3 rounded-lg border text-center transition-colors ${
-                          item.status === "critical" ? "border-destructive bg-destructive/10" :
-                          item.status === "warning" ? "border-[hsl(var(--warning))] bg-[hsl(var(--warning))]/10" :
-                          "border-border bg-background"
-                        }`}
-                      >
-                        <p className="text-[10px] uppercase tracking-wider text-muted-foreground font-medium">{item.label}</p>
-                        <p className={`text-sm font-bold mt-1 ${
-                          item.status === "critical" ? "text-destructive" :
-                          item.status === "warning" ? "text-[hsl(var(--warning))]" : "text-foreground"
-                        }`}>{item.value}</p>
-                        {item.status === "critical" && (
-                          <AlertTriangle className="h-3 w-3 text-destructive mx-auto mt-1" />
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                  {summaryItems.some(i => i.status === "critical") && (
-                    <div className="mt-3 flex items-center gap-2 text-destructive text-xs font-medium">
-                      <AlertTriangle className="h-3.5 w-3.5" /> Critical values detected — please verify readings
-                    </div>
-                  )}
-                </CardContent>
-              </Card>
-            )}
+          {/* Sticky action bar */}
+          <div className="sticky bottom-0 z-20 -mx-1 border-t bg-background/95 backdrop-blur px-1 py-3 flex flex-wrap items-center justify-end gap-2">
+            <Button variant="outline" className="h-12" onClick={() => openDirect("lab")}><FlaskConical className="h-4 w-4 mr-1.5" /> Lab request</Button>
+            <Button variant="outline" className="h-12" onClick={() => openDirect("pharmacy")}><Pill className="h-4 w-4 mr-1.5" /> Prescription</Button>
+            <Button variant="outline" className="h-12" onClick={() => setSendOpen(true)} disabled={saving || !!bpProblem}><Send className="h-4 w-4 mr-1.5" /> Save & send to…</Button>
+            <Button onClick={handleSaveAndAdvance} disabled={saving || !!bpProblem} className="gap-2 h-12 px-6 text-base">
+              <Stethoscope className="h-5 w-5" /> {saving ? "Saving..." : "Save & send to Doctor"}
+            </Button>
+          </div>
 
-            {/* Previous Vitals */}
-            {previousVitals.length > 0 && (
-              <Card>
-                <CardHeader><CardTitle className="text-sm">Previous Vitals</CardTitle></CardHeader>
-                <CardContent>
-                  <div className="overflow-x-auto">
-                    <div className="space-y-2 min-w-[600px]">
-                      {previousVitals.map((v) => (
-                        <div key={v.id} className="text-xs grid grid-cols-7 gap-2 p-2.5 border rounded-lg">
-                          <span className="font-medium">{new Date(v.recorded_at).toLocaleDateString()}</span>
-                          <span>T: {v.temperature || "-"}°C</span>
-                          <span>BP: {v.blood_pressure_systolic || "-"}/{v.blood_pressure_diastolic || "-"}</span>
-                          <span>P: {v.pulse_rate || "-"}</span>
-                          <span>SpO₂: {v.oxygen_saturation || "-"}%</span>
-                          <span>W: {v.weight || "-"}kg H: {v.height ? `${v.height}cm` : "-"}</span>
-                          <span>BMI: {v.bmi || "-"}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* Save & Advance */}
-            <div className="flex flex-wrap justify-end gap-3 pb-6">
-              <Button size="lg" variant="outline" className="h-12" onClick={() => setDirectMode("lab")}>Send to Lab</Button>
-              <Button size="lg" variant="outline" className="h-12" onClick={() => setDirectMode("pharmacy")}>Send to Pharmacy</Button>
-              <Button size="lg" onClick={handleSaveAndAdvance} disabled={saving} className="gap-2 h-12 px-8 text-base">
-                <Send className="h-5 w-5" />
-                {saving ? "Saving..." : "Save & Send to Doctor"}
-              </Button>
-            </div>
-            <DirectOrderDialog
-              open={!!directMode}
-              onOpenChange={(o) => !o && setDirectMode(null)}
-              mode={directMode ?? "lab"}
-              source="triage"
-              ticket={selectedTicket ? { id: selectedTicket.id, patient_id: selectedTicket.patient_id, department_id: selectedTicket.department_id, patientName: selectedTicket.patient?.profile?.full_name } : null}
-              onDone={() => setSelectedTicket(null)}
-            />
-          </>
-        )}
-      </div>
-    </div>
+          <DirectOrderDialog
+            open={!!directMode}
+            onOpenChange={(o) => !o && setDirectMode(null)}
+            mode={directMode ?? "lab"}
+            source="triage"
+            ticket={{ id: selectedTicket.id, patient_id: selectedTicket.patient_id, department_id: selectedTicket.department_id, patientName }}
+            onDone={() => finishPatient(directMode === "lab" ? "the laboratory" : "the pharmacy")}
+          />
+          <SendToDialog
+            open={sendOpen}
+            onOpenChange={setSendOpen}
+            ticket={{ id: selectedTicket.id, patientName }}
+            from="Triage"
+            exclude={["triage"]}
+            recommended="doctor"
+            beforeSend={async () => { if (hasAnyVitals) await saveVitals(); }}
+            onSent={(to) => finishPatient(to === "checkout" ? "check-out" : to)}
+          />
+        </>
+      )}
+    </StationShell>
   );
 };
 

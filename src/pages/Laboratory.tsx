@@ -1,740 +1,517 @@
-import { useState, useEffect, Fragment } from "react";
+import { useState, useEffect, useMemo, useCallback, Fragment } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useToast } from "@/hooks/use-toast";
-import { useQueueTransition } from "@/hooks/useQueueTransition";
-import { StationQueue } from "@/components/StationQueue";
-import { TestTube, Search, Printer } from "lucide-react";
-import { printLabReport } from "@/lib/labReport";
+import { toast } from "sonner";
+import { StationQueue, StationShell } from "@/components/StationQueue";
+import { TestTube, Search, Printer, CheckCircle2, PackageCheck, Save, Send, ArrowLeft, Clock, BarChart3, Loader2 } from "lucide-react";
+import { printVisitLabReport } from "@/lib/labReport";
+import { STRUCTURED_FIELDS, getFlag, refRangeFor, resultCategory } from "@/lib/labFields";
 import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
-import { WorkflowTimeline } from "@/components/WorkflowTimeline";
-import { PatientSummaryCard } from "@/components/PatientSummaryCard";
-import { LabOrderTimeline, labOrderStatusLabel, nextLabOrderStatus, type LabOrderStatus } from "@/components/LabOrderTimeline";
+import { LabResultsTable } from "@/components/LabResultsTable";
+import { SendToDialog } from "@/components/SendToDialog";
+import { LabReport } from "@/components/StationReports";
 import { useUser } from "@/contexts/UserContext";
 import { authUserIdForStaff, notifyRoles, notifyUser } from "@/lib/notifications";
+import { currentStaffId, type StationKey } from "@/lib/stations";
+import { calculateAgeYears, cn } from "@/lib/utils";
+import { paymentModeLabel } from "@/lib/pricing";
 
-const advanceActionLabel = (status: LabOrderStatus) => {
-  switch (status) {
-    case "received": return "Mark Received";
-    case "collected": return "Mark Sample Collected";
-    case "in_progress": return "Start Processing";
-    default: return "Advance";
-  }
+/** One lab "request" = every test ordered on one visit for one patient. */
+interface LabVisit {
+  key: string;
+  encounterIds: string[];
+  ticketId: string | null;
+  orders: any[];
+  patient: any;
+  createdAt: string;
+  status: "new" | "received" | "done";
+  origin: "doctor" | "dental" | "direct";
+}
+
+const visitStatus = (orders: any[]): LabVisit["status"] =>
+  orders.every((o) => o.status === "completed") ? "done" : orders.some((o) => o.status !== "pending") ? "received" : "new";
+
+const STATUS_BADGE: Record<LabVisit["status"], { label: string; cls: string }> = {
+  new: { label: "New", cls: "bg-yellow-100 text-yellow-800 border-yellow-300" },
+  received: { label: "In progress", cls: "bg-sky-100 text-sky-800 border-sky-300" },
+  done: { label: "Results ready", cls: "bg-green-100 text-green-800 border-green-300" },
 };
 
-// Structured result field definitions per test type
-const STRUCTURED_FIELDS: Record<string, { name: string; unit?: string; ref?: string; refMale?: string; refFemale?: string }[]> = {
-  "Full Hemogram": [
-    { name: "WBC", unit: "10^3/µL", ref: "3.50-9.50" },
-    { name: "NEU#", unit: "10^3/µL", ref: "1.80-6.30" },
-    { name: "NEU%", unit: "%", ref: "40.0-75.0" },
-    { name: "LYM#", unit: "10^3/µL", ref: "1.10-3.20" },
-    { name: "LYM%", unit: "%", ref: "20.0-50.0" },
-    { name: "MON#", unit: "10^3/µL", ref: "0.10-0.60" },
-    { name: "MON%", unit: "%", ref: "3.0-10.0" },
-    { name: "EOS#", unit: "10^3/µL", ref: "0.02-0.52" },
-    { name: "EOS%", unit: "%", ref: "0.4-8.0" },
-    { name: "BAS#", unit: "10^3/µL", ref: "0.00-0.06" },
-    { name: "BAS%", unit: "%", ref: "0.0-1.0" },
-    { name: "RBC", unit: "10^6/µL", ref: "3.80-5.80" },
-    { name: "HGB", unit: "g/dL", ref: "11.5-17.5" },
-    { name: "HCT", unit: "%", ref: "35.0-50.0" },
-    { name: "MCV", unit: "fL", ref: "82.0-100.0" },
-    { name: "MCH", unit: "pg", ref: "27.0-34.0" },
-    { name: "MCHC", unit: "g/dL", ref: "31.6-35.4" },
-    { name: "RDW_CV", unit: "%", ref: "10.0-15.0" },
-    { name: "RDW_SD", unit: "fL", ref: "35.0-56.0" },
-    { name: "PLT", unit: "10^3/µL", ref: "125-350" },
-    { name: "MPV", unit: "fL", ref: "6.5-12.0" },
-    { name: "PDW", unit: "", ref: "9.0-17.0" },
-    { name: "PCT", unit: "%", ref: "0.17-0.35" },
-    { name: "P_LCR", unit: "%", ref: "11.0-45.0" },
-    { name: "P_LCC", unit: "10^3/µL", ref: "30-90" },
-    { name: "*ALY#", unit: "10^3/µL" },
-    { name: "*ALY%", unit: "%" },
-    { name: "*LIC#", unit: "10^3/µL" },
-    { name: "*LIC%", unit: "%" },
-    { name: "*NLR", unit: "" },
-    { name: "*PLR", unit: "" },
-    { name: "*NRBC#", unit: "10^9/L" },
-    { name: "*NRBC%", unit: "%" },
-  ],
-  "Urinalysis": [
-    { name: "Color", unit: "" },
-    { name: "Appearance", unit: "" },
-    { name: "pH", unit: "", ref: "4.5-8.0" },
-    { name: "Specific Gravity", unit: "", ref: "1.005-1.030" },
-    { name: "Leukocytes", unit: "" },
-    { name: "Nitrites", unit: "" },
-    { name: "Blood", unit: "" },
-    { name: "Bilirubin", unit: "" },
-    { name: "Urobilinogen", unit: "" },
-    { name: "Protein", unit: "" },
-    { name: "Glucose", unit: "" },
-    { name: "Ketones", unit: "" },
-    { name: "Pus Cells", unit: "/HPF", ref: "0-5" },
-    { name: "RBCs", unit: "/HPF", ref: "0-2" },
-    { name: "Epithelial Cells", unit: "/HPF" },
-    { name: "Casts", unit: "" },
-    { name: "Crystals", unit: "" },
-    { name: "Bacteria", unit: "" },
-  ],
-  "UECs (Renal Function)": [
-    { name: "Creatinine", unit: "µmol/L", refMale: "62-115", refFemale: "44-97" },
-    { name: "Urea", unit: "mmol/L", ref: "2.5-7.1" },
-    { name: "K+", unit: "mmol/L", ref: "3.5-5.0" },
-    { name: "Na+", unit: "mmol/L", ref: "136-145" },
-    { name: "Cl-", unit: "mmol/L", ref: "98-106" },
-    { name: "PHOS", unit: "mmol/L", ref: "0.8-1.5" },
-    { name: "tCO2", unit: "mmol/L", ref: "22-29" },
-    { name: "Ca", unit: "mmol/L", ref: "2.1-2.6" },
-    { name: "Uric Acid", unit: "µmol/L", refMale: "200-420", refFemale: "140-360" },
-    { name: "Mg", unit: "mmol/L", ref: "0.7-1.0" },
-    { name: "eGFR", unit: "mL/min", ref: ">90" },
-  ],
-  "Liver Function Test": [
-    { name: "Albumin", unit: "g/L", ref: "35-50" },
-    { name: "Globulin", unit: "g/L", ref: "23-35" },
-    { name: "Total Protein", unit: "g/L", ref: "60-83" },
-    { name: "Total Bilirubin", unit: "µmol/L", ref: "2-17" },
-    { name: "Direct Bilirubin", unit: "µmol/L", ref: "0-5" },
-    { name: "GGT", unit: "U/L", refMale: "8-61", refFemale: "5-36" },
-    { name: "ALT", unit: "U/L", ref: "7-56" },
-    { name: "AST", unit: "U/L", ref: "10-40" },
-    { name: "Amylase", unit: "U/L", ref: "28-100" },
-    { name: "Lipase", unit: "U/L", ref: "0-160" },
-    { name: "ALP", unit: "U/L", ref: "44-147" },
-  ],
-  "Lipid Profile": [
-    { name: "Total Cholesterol", unit: "mmol/L", ref: "<5.2" },
-    { name: "Triglycerides", unit: "mmol/L", ref: "<1.7" },
-    { name: "HDL", unit: "mmol/L", ref: ">1.0" },
-    { name: "LDL", unit: "mmol/L", ref: "<2.6" },
-    { name: "VLDL", unit: "mmol/L", ref: "<0.7" },
-    { name: "TC/HDL Ratio", unit: "", ref: "<5.0" },
-  ],
-  "Stool for Ova & Cysts": [
-    { name: "Color", unit: "" },
-    { name: "Consistency", unit: "" },
-    { name: "Appearance", unit: "" },
-    { name: "Mucus", unit: "" },
-    { name: "Blood (Occult)", unit: "" },
-    { name: "Pus Cells", unit: "/HPF" },
-    { name: "RBCs", unit: "/HPF" },
-    { name: "Ova", unit: "" },
-    { name: "Cysts", unit: "" },
-    { name: "Trophozoites", unit: "" },
-    { name: "Yeast Cells", unit: "" },
-    { name: "Fat Globules", unit: "" },
-    { name: "Charcot-Leyden Crystals", unit: "" },
-  ],
-  "HVS Wet Prep": [
-    { name: "Epithelial Cells", unit: "" },
-    { name: "Pus Cells", unit: "/HPF" },
-    { name: "RBCs", unit: "/HPF" },
-    { name: "Trichomonas", unit: "" },
-    { name: "Yeast Cells", unit: "" },
-    { name: "Clue Cells", unit: "" },
-    { name: "Bacteria", unit: "" },
-  ],
-  "HVS Gram Stain": [
-    { name: "Gram +ve Cocci", unit: "" },
-    { name: "Gram -ve Cocci", unit: "" },
-    { name: "Gram +ve Bacilli", unit: "" },
-    { name: "Gram -ve Bacilli", unit: "" },
-    { name: "Yeast Cells", unit: "" },
-    { name: "Pus Cells", unit: "/HPF" },
-    { name: "Epithelial Cells", unit: "" },
-  ],
-  "Urethral Swab Wet Prep": [
-    { name: "Epithelial Cells", unit: "" },
-    { name: "Pus Cells", unit: "/HPF" },
-    { name: "RBCs", unit: "/HPF" },
-    { name: "Trichomonas", unit: "" },
-    { name: "Yeast Cells", unit: "" },
-    { name: "Bacteria", unit: "" },
-  ],
-  "Urethral Swab Gram Stain": [
-    { name: "Gram +ve Cocci", unit: "" },
-    { name: "Gram -ve Cocci", unit: "" },
-    { name: "Gram +ve Bacilli", unit: "" },
-    { name: "Gram -ve Bacilli", unit: "" },
-    { name: "Intracellular Diplococci", unit: "" },
-    { name: "Pus Cells", unit: "/HPF" },
-  ],
-  "Blood Group & Rhesus": [
-    { name: "ABO Group", unit: "" },
-    { name: "Rhesus (D)", unit: "" },
-  ],
-  "ESR": [
-    { name: "ESR (1hr)", unit: "mm/hr", refMale: "0-15", refFemale: "0-20" },
-  ],
-  "FBS (Fasting Blood Sugar)": [
-    { name: "Fasting Blood Sugar", unit: "mmol/L", ref: "3.9-5.6" },
-  ],
-  "RBS (Random Blood Sugar)": [
-    { name: "Random Blood Sugar", unit: "mmol/L", ref: "3.9-7.8" },
-  ],
-  "HB Levels": [
-    { name: "Haemoglobin", unit: "g/dL", refMale: "13.0-17.0", refFemale: "12.0-16.0" },
-  ],
-};
+type Draft = Record<string, { fields: Record<string, string>; value: string; notes: string }>;
 
 const Laboratory = () => {
-  const { toast } = useToast();
   const { hasAnyRole } = useUser();
-  const canManageLab = hasAnyRole(["lab_technician"]);
-  const { getActiveTicket, onLabComplete } = useQueueTransition();
-  const [labOrders, setLabOrders] = useState<any[]>([]);
+  const canManageLab = hasAnyRole(["lab_technician", "admin", "super_admin"]);
+  const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
-  const [selectedOrder, setSelectedOrder] = useState<any>(null);
-  const [resultDialogOpen, setResultDialogOpen] = useState(false);
-  const [resultFields, setResultFields] = useState<Record<string, string>>({});
-  const [resultValue, setResultValue] = useState("");
-  const [resultNotes, setResultNotes] = useState("");
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
+  const [openVisitKey, setOpenVisitKey] = useState<string | null>(null);
   const [queueCollapsed, setQueueCollapsed] = useState(false);
-  const [advancingOrderId, setAdvancingOrderId] = useState<string | null>(null);
+  const [draft, setDraft] = useState<Draft>({});
+  const [busy, setBusy] = useState<"receive" | "save" | null>(null);
+  const [sendOpen, setSendOpen] = useState(false);
+  const [tab, setTab] = useState("requests");
 
-  const announceLabUpdate = async (order: any, title: string, message: string) => {
-    const doctorUserId = await authUserIdForStaff(order.doctor_id);
-    await notifyUser(doctorUserId, { title, message, category: "lab", referenceId: order.id, link: "/consultation" });
-    await notifyRoles(["nurse"], { title, message, category: "lab", referenceId: order.id, link: "/laboratory" });
-  };
-
-  const advanceLabOrder = async (order: any, next: LabOrderStatus) => {
-    setAdvancingOrderId(order.id);
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      const { data: staff } = user
-        ? await supabase.from("staff").select("id").eq("user_id", user.id).maybeSingle()
-        : { data: null };
-
-      const now = new Date().toISOString();
-      const update: Record<string, unknown> = { status: next };
-      if (next === "received") { update.received_at = now; update.received_by = staff?.id ?? null; }
-      if (next === "collected") { update.sample_collected_at = now; update.collected_by = staff?.id ?? null; }
-      if (next === "in_progress") { update.processing_started_at = now; update.processed_by = staff?.id ?? null; }
-
-      const { error } = await supabase.from("lab_orders").update(update).eq("id", order.id);
-      if (error) throw error;
-
-      logAuditEvent({
-        action: "lab_order_status_changed",
-        module: "laboratory",
-        details: { lab_order_id: order.id, status: next, patient_id: order.patient_id },
-      });
-      await announceLabUpdate(
-        order,
-        `Lab order ${labOrderStatusLabel(next).toLowerCase()}`,
-        `${order.test?.test_name || "Lab test"} for ${order.patient?.profile?.full_name || "a patient"} is now ${labOrderStatusLabel(next).toLowerCase()}.`,
-      );
-      toast({ title: labOrderStatusLabel(next), description: `${order.test?.test_name || "Lab order"} marked as ${labOrderStatusLabel(next).toLowerCase()}.` });
-      fetchLabOrders();
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "Could not update this lab order.";
-      toast({ title: "Could not update lab order", description: message, variant: "destructive" });
-    } finally {
-      setAdvancingOrderId(null);
-    }
-  };
-
-
-  useEffect(() => {
-    if (selectedTicket) setQueueCollapsed(true);
-  }, [selectedTicket]);
-
-  useEffect(() => {
-    fetchLabOrders();
-    const channel = supabase
-      .channel("laboratory-lab-orders")
-      .on("postgres_changes", { event: "*", schema: "public", table: "lab_orders" }, () => fetchLabOrders())
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, []);
-
-  const fetchLabOrders = async () => {
-    setLoading(true);
+  const fetchOrders = useCallback(async () => {
+    const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString();
     const { data } = await supabase
       .from("lab_orders")
-      .select("*, patients!inner(patient_id, user_id, profiles!inner(full_name, gender, date_of_birth)), lab_tests_catalog!inner(test_name, test_code, normal_range, result_fields, gender_specific_ranges), lab_result_fields(*)")
+      .select("*, encounters!inner(id, ticket_id, encounter_type, chief_complaint), patients!inner(id, patient_id, user_id, profiles!inner(full_name, gender, date_of_birth)), lab_tests_catalog!inner(test_name, test_code, normal_range, unit, category), lab_result_fields(*)")
+      .gte("created_at", since)
       .order("created_at", { ascending: false })
-      .limit(100);
-
-    if (data) {
-      const orders = (data as any[]).map((order) => ({
-        ...order,
-        patient: {
-          patient_id: order.patients?.patient_id,
-          user_id: order.patients?.user_id,
-          profile: { full_name: order.patients?.profiles?.full_name, gender: order.patients?.profiles?.gender, date_of_birth: order.patients?.profiles?.date_of_birth },
-        },
-        test: order.lab_tests_catalog,
-        result_fields_data: order.lab_result_fields || [],
-      }));
-      setLabOrders(orders);
-    }
+      .limit(500);
+    setOrders((data || []).map((o: any) => ({
+      ...o,
+      test: o.lab_tests_catalog,
+      patient: { id: o.patients?.id, patient_id: o.patients?.patient_id, user_id: o.patients?.user_id, profile: o.patients?.profiles },
+      encounter: o.encounters,
+    })));
     setLoading(false);
-  };
+  }, []);
 
-  const openResultEntry = (order: any) => {
-    setSelectedOrder(order);
-    setResultValue(order.result_value || "");
-    setResultNotes(order.result_notes || "");
+  useEffect(() => {
+    void fetchOrders();
+    const channel = supabase
+      .channel("laboratory-lab-orders")
+      .on("postgres_changes", { event: "*", schema: "public", table: "lab_orders" }, () => void fetchOrders())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [fetchOrders]);
 
-    // Initialize structured fields
-    const testName = order.test?.test_name || "";
-    const structuredDef = STRUCTURED_FIELDS[testName];
-    if (structuredDef) {
-      const existing: Record<string, string> = {};
-      (order.result_fields_data || []).forEach((f: any) => { existing[f.field_name] = f.field_value || ""; });
-      const fields: Record<string, string> = {};
-      structuredDef.forEach(f => { fields[f.name] = existing[f.name] || ""; });
-      setResultFields(fields);
-    } else {
-      setResultFields({});
-    }
-    setResultDialogOpen(true);
-  };
-
-  const getFlag = (value: string, refRange: string | undefined): string | null => {
-    if (!refRange || !value) return null;
-    const numVal = parseFloat(value);
-    if (isNaN(numVal)) return null;
-
-    if (refRange.startsWith("<")) {
-      const limit = parseFloat(refRange.slice(1));
-      return numVal >= limit ? "H" : null;
-    }
-    if (refRange.startsWith(">")) {
-      const limit = parseFloat(refRange.slice(1));
-      return numVal <= limit ? "L" : null;
-    }
-    const match = refRange.match(/([\d.]+)-([\d.]+)/);
-    if (match) {
-      const low = parseFloat(match[1]);
-      const high = parseFloat(match[2]);
-      if (numVal < low) return "L";
-      if (numVal > high) return "H";
-    }
-    return null;
-  };
-
-  const handleSaveResult = async () => {
-    if (!selectedOrder) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
-
-    const { data: staff } = await supabase.from("staff").select("id").eq("user_id", user.id).single();
-
-    const testName = selectedOrder.test?.test_name || "";
-    const structuredDef = STRUCTURED_FIELDS[testName];
-    const gender = selectedOrder.patient?.profile?.gender?.toLowerCase();
-
-    // Save structured fields
-    if (structuredDef && Object.keys(resultFields).length > 0) {
-      // Delete existing fields
-      await supabase.from("lab_result_fields").delete().eq("lab_order_id", selectedOrder.id);
-
-      const fieldsToInsert = structuredDef.map((def, idx) => {
-        const value = resultFields[def.name] || "";
-        const refRange = (gender === "female" && def.refFemale) ? def.refFemale : (gender === "male" && def.refMale) ? def.refMale : def.ref;
-        return {
-          lab_order_id: selectedOrder.id,
-          field_name: def.name,
-          field_value: value,
-          unit: def.unit || null,
-          reference_range: refRange || null,
-          flag: getFlag(value, refRange) || null,
-          sort_order: idx,
-        };
-      });
-
-      await supabase.from("lab_result_fields").insert(fieldsToInsert);
-    }
-
-    // Determine overall flag
-    let overallFlag: string | null = null;
-    if (structuredDef) {
-      for (const def of structuredDef) {
-        const value = resultFields[def.name] || "";
-        const refRange = (gender === "female" && def.refFemale) ? def.refFemale : (gender === "male" && def.refMale) ? def.refMale : def.ref;
-        const f = getFlag(value, refRange);
-        if (f) { overallFlag = "abnormal"; break; }
+  // Group every test of a visit into ONE request
+  const visits = useMemo<LabVisit[]>(() => {
+    const m = new Map<string, LabVisit>();
+    for (const o of orders) {
+      const key = o.encounter?.ticket_id || o.encounter_id;
+      if (!m.has(key)) {
+        m.set(key, { key, encounterIds: [], ticketId: o.encounter?.ticket_id ?? null, orders: [], patient: o.patient, createdAt: o.created_at, status: "new", origin: "doctor" });
       }
+      const v = m.get(key)!;
+      v.orders.push(o);
+      if (!v.encounterIds.includes(o.encounter_id)) v.encounterIds.push(o.encounter_id);
+      if (o.created_at < v.createdAt) v.createdAt = o.created_at;
+      const type = o.encounter?.encounter_type || "";
+      if (type === "dental" || /dental/i.test(o.encounter?.chief_complaint || "")) v.origin = "dental";
+      else if (type.startsWith("direct_") && v.origin !== "dental") v.origin = "direct";
     }
+    return [...m.values()].map((v) => ({ ...v, status: visitStatus(v.orders), orders: v.orders.sort((a, b) => (a.test?.test_name || "").localeCompare(b.test?.test_name || "")) }));
+  }, [orders]);
 
-    // Update the main lab order
-    const { error } = await supabase
-      .from("lab_orders")
-      .update({
-        status: "completed",
-        completed_at: new Date().toISOString(),
-        result_value: resultValue || (structuredDef ? "See structured results" : ""),
-        result_notes: resultNotes,
-        result_entered_by: staff?.id,
-        result_entered_at: new Date().toISOString(),
-        flag: overallFlag,
-      })
-      .eq("id", selectedOrder.id);
+  const openVisit = visits.find((v) => v.key === openVisitKey) || null;
 
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Result saved", description: "Lab result recorded successfully" });
-      logAuditEvent({ action: "lab_result_entered", module: "laboratory", details: { lab_order_id: selectedOrder.id, test: testName, patient_id: selectedOrder.patient_id } });
-      await announceLabUpdate(
-        selectedOrder,
-        overallFlag === "abnormal" ? "Abnormal lab result ready" : "Lab result ready",
-        `${testName || "Lab test"} for ${selectedOrder.patient?.profile?.full_name || "a patient"} is complete${overallFlag === "abnormal" ? " with abnormal values" : ""}.`,
-      );
+  // Selecting from the queue opens that patient's request
+  useEffect(() => {
+    setQueueCollapsed(!!selectedTicket);
+    if (selectedTicket) setOpenVisitKey(selectedTicket.id);
+  }, [selectedTicket]);
 
+  // Fill the entry form from what is already saved
+  useEffect(() => {
+    if (!openVisit) { setDraft({}); return; }
+    const d: Draft = {};
+    for (const o of openVisit.orders) {
+      const saved: Record<string, string> = {};
+      (o.lab_result_fields || []).forEach((f: any) => { saved[f.field_name] = f.field_value || ""; });
+      const defs = STRUCTURED_FIELDS[o.test?.test_name || ""];
+      d[o.id] = {
+        fields: defs ? Object.fromEntries(defs.map((f) => [f.name, saved[f.name] || ""])) : {},
+        value: o.result_value && o.result_value !== "See structured results" ? o.result_value : "",
+        notes: o.result_notes || "",
+      };
+    }
+    setDraft(d);
+  }, [openVisitKey, openVisit?.orders.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
-      // When every lab order for this visit is complete, return the patient to the doctor
-      const { data: pendingLabs } = await supabase
-        .from("lab_orders")
-        .select("id")
-        .eq("encounter_id", selectedOrder.encounter_id)
-        .neq("status", "completed");
+  const s = searchTerm.toLowerCase();
+  const match = (v: LabVisit) => !s || [v.patient?.profile?.full_name, v.patient?.patient_id, ...v.orders.map((o) => o.test?.test_name)].some((x) => x?.toLowerCase().includes(s));
+  const pendingVisits = visits.filter((v) => v.status !== "done" && match(v));
+  const doneVisits = visits.filter((v) => v.status === "done" && match(v));
+  const today = new Date().toISOString().slice(0, 10);
 
-      const remaining = pendingLabs?.length || 0;
-      if (remaining === 0) {
-        const ticket = await getActiveTicket(selectedOrder.patient_id);
-        if (ticket && (ticket.status === "at_lab" || ticket.workflow_stage === "at_lab")) {
-          await onLabComplete({ ticketId: ticket.id, encounterId: selectedOrder.encounter_id }, true);
-        }
-        await announceLabUpdate(
-          selectedOrder,
-          "Lab results ready for review",
-          `Lab results ready for ${selectedOrder.patient?.profile?.full_name || "a patient"} — returned to you for review.`,
-        );
+  const notifyOrderers = async (visit: LabVisit, title: string, message: string) => {
+    const doctorIds = [...new Set(visit.orders.map((o) => o.doctor_id).filter(Boolean))];
+    for (const id of doctorIds) {
+      const uid = await authUserIdForStaff(id);
+      await notifyUser(uid, { title, message, category: "lab", referenceId: visit.orders[0]?.id, link: visit.origin === "dental" ? "/dental" : "/consultation" });
+    }
+  };
+
+  /** One click: sample received & collected & processing for every test in the request. */
+  const receiveAll = async (visit: LabVisit) => {
+    setBusy("receive");
+    try {
+      const staffId = await currentStaffId();
+      const now = new Date().toISOString();
+      const ids = visit.orders.filter((o) => ["pending", "received", "collected"].includes(o.status)).map((o) => o.id);
+      if (ids.length) {
+        const { error } = await supabase.from("lab_orders").update({
+          status: "in_progress", received_at: now, received_by: staffId, sample_collected_at: now, collected_by: staffId, processing_started_at: now, processed_by: staffId,
+        }).in("id", ids);
+        if (error) throw error;
+      }
+      logAuditEvent({ action: "lab_request_received", module: "laboratory", details: { visit: visit.key, tests: ids.length } });
+      toast.success("Sample received", { description: `${visit.orders.length} test(s) now in progress` });
+      await fetchOrders();
+    } catch (e) {
+      toast.error("Could not update", { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const hasEntry = (o: any) => {
+    const d = draft[o.id];
+    if (!d) return false;
+    return !!d.value.trim() || Object.values(d.fields).some((v) => v.trim());
+  };
+
+  /** Saves every test that has results typed in. */
+  const saveResults = async (visit: LabVisit) => {
+    const staffId = await currentStaffId();
+    const now = new Date().toISOString();
+    let abnormal = false;
+    let saved = 0;
+    for (const o of visit.orders) {
+      if (o.status === "completed" || !hasEntry(o)) continue;
+      const d = draft[o.id];
+      const gender = o.patient?.profile?.gender;
+      const defs = STRUCTURED_FIELDS[o.test?.test_name || ""];
+      let flag: string | null = null;
+      if (defs) {
+        await supabase.from("lab_result_fields").delete().eq("lab_order_id", o.id);
+        const rows = defs.map((def, idx) => {
+          const value = d.fields[def.name] || "";
+          const ref = refRangeFor(def, gender);
+          const f = getFlag(value, ref);
+          if (f) flag = "abnormal";
+          return { lab_order_id: o.id, field_name: def.name, field_value: value, unit: def.unit || null, reference_range: ref || null, flag: f, sort_order: idx };
+        });
+        const { error } = await supabase.from("lab_result_fields").insert(rows);
+        if (error) throw error;
       } else {
-        toast({ title: "Results saved", description: `${remaining} test(s) still pending; the patient returns to the doctor when all are done.` });
+        const cat = resultCategory({ status: "completed", result_value: d.value });
+        if (getFlag(d.value, o.test?.normal_range)) flag = "abnormal";
+        else if (cat === "positive") flag = "positive";
+        else if (cat === "negative") flag = "negative";
       }
+      if (flag && flag !== "negative") abnormal = true;
+      const { error } = await supabase.from("lab_orders").update({
+        status: "completed", completed_at: now,
+        received_at: o.received_at || now, sample_collected_at: o.sample_collected_at || now, processing_started_at: o.processing_started_at || now,
+        result_value: defs ? "See structured results" : d.value.trim(),
+        result_notes: d.notes.trim() || null, result_entered_by: staffId, result_entered_at: now, flag,
+      }).eq("id", o.id);
+      if (error) throw error;
+      saved++;
+    }
+    if (saved) logAuditEvent({ action: "lab_results_entered", module: "laboratory", details: { visit: visit.key, tests: saved } });
+    const remaining = visit.orders.filter((o) => o.status !== "completed" && !hasEntry(o)).length;
+    return { saved, remaining, abnormal };
+  };
 
-      setResultDialogOpen(false);
-      fetchLabOrders();
+  const handleSave = async () => {
+    if (!openVisit) return;
+    setBusy("save");
+    try {
+      const r = await saveResults(openVisit);
+      toast.success(r.saved ? `Saved ${r.saved} result(s)` : "Nothing new to save", { description: r.remaining ? `${r.remaining} test(s) still without results` : undefined });
+      await fetchOrders();
+    } catch (e) {
+      toast.error("Could not save results", { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setBusy(null);
     }
   };
 
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = { pending: "bg-yellow-100 text-yellow-800", received: "bg-sky-100 text-sky-800", collected: "bg-blue-100 text-blue-800", in_progress: "bg-purple-100 text-purple-800", completed: "bg-green-100 text-green-800" };
-    return colors[status] || "bg-muted";
+  const recommended: StationKey = openVisit?.origin === "dental" ? "dental" : openVisit?.origin === "direct" ? "billing" : "doctor";
+
+  const beforeSend = async () => {
+    if (!openVisit) return;
+    const r = await saveResults(openVisit);
+    if (r.remaining > 0) throw new Error(`${r.remaining} test(s) have no result yet. Enter them first.`);
+    const name = openVisit.patient?.profile?.full_name || "a patient";
+    await notifyOrderers(openVisit, r.abnormal ? "Abnormal lab results ready" : "Lab results ready", `Results for ${name} are ready${r.abnormal ? " — some values are abnormal" : ""}.`);
+    await notifyRoles(["nurse"], { title: "Lab results ready", message: `Results for ${name} are ready.`, category: "lab", link: "/vitals" });
   };
 
-  const filteredOrders = labOrders.filter(o =>
-    o.patient?.profile?.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    o.patient?.patient_id?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    o.test?.test_name?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const afterSent = () => {
+    setSelectedTicket(null);
+    setOpenVisitKey(null);
+    void fetchOrders();
+  };
 
-  const pendingOrders = filteredOrders.filter(o => o.status !== "completed");
-  const completedOrders = filteredOrders.filter(o => o.status === "completed");
+  const visitTicketForSend = openVisit?.ticketId ? { id: openVisit.ticketId, patientName: openVisit.patient?.profile?.full_name } : null;
+
+  // Keyboard: Enter / ↑ / ↓ move between result boxes
+  const onResultKey = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!["ArrowDown", "ArrowUp", "Enter"].includes(e.key)) return;
+    e.preventDefault();
+    const all = Array.from(document.querySelectorAll<HTMLInputElement>("input[data-lab-field]"));
+    const i = all.indexOf(e.currentTarget);
+    const next = all[e.key === "ArrowUp" ? i - 1 : i + 1];
+    next?.focus(); next?.select();
+  };
+
+  const setField = (orderId: string, patch: Partial<Draft[string]>) => setDraft((p) => ({ ...p, [orderId]: { ...p[orderId], ...patch } }));
+
+  const renderVisitCard = (v: LabVisit) => {
+    const st = STATUS_BADGE[v.status];
+    const done = v.orders.filter((o) => o.status === "completed").length;
+    return (
+      <button key={v.key} type="button" onClick={() => setOpenVisitKey(v.key)}
+        className="w-full text-left p-3 border rounded-lg hover:bg-muted/40 transition-colors space-y-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="font-semibold truncate">{v.patient?.profile?.full_name}</p>
+            <p className="text-xs text-muted-foreground">
+              {v.patient?.patient_id} · {calculateAgeYears(v.patient?.profile?.date_of_birth) ?? "?"} yrs · <span className="capitalize">{v.patient?.profile?.gender || "—"}</span>
+            </p>
+          </div>
+          <div className="flex items-center gap-1.5">
+            {v.origin !== "doctor" && <Badge variant="outline" className="text-[10px]">{v.origin === "dental" ? "From dental" : "Direct request"}</Badge>}
+            <Badge variant="outline" className={cn("text-xs", st.cls)}>{st.label}</Badge>
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-1">
+          {v.orders.map((o) => (
+            <Badge key={o.id} variant={o.status === "completed" ? "default" : "secondary"} className="text-[11px] font-normal">
+              {o.status === "completed" && <CheckCircle2 className="h-3 w-3 mr-1" />}{o.test?.test_name}
+            </Badge>
+          ))}
+        </div>
+        <p className="text-[11px] text-muted-foreground flex items-center gap-1">
+          <Clock className="h-3 w-3" /> {new Date(v.createdAt).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })} · {done}/{v.orders.length} done
+        </p>
+      </button>
+    );
+  };
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <StationQueue
-        stationStages={["at_lab"]}
-        nextStage="at_pharmacy"
-        title="Lab Queue"
-        onSelectPatient={setSelectedTicket}
-        selectedTicketId={selectedTicket?.id}
-        collapsed={queueCollapsed}
-        onToggleCollapse={() => setQueueCollapsed(!queueCollapsed)}
-      />
-
-      <div className="flex-1 overflow-auto p-6 space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2"><TestTube className="h-7 w-7 text-primary" /> Laboratory</h1>
-            <p className="text-muted-foreground mt-1">Manage lab orders and enter structured results</p>
-          </div>
-          <div className="flex gap-2 items-center">
-            {selectedTicket && <InterimPayment ticketId={selectedTicket.id} patientId={selectedTicket.patient_id} />}
-            {selectedTicket && <WorkflowTimeline currentStage={selectedTicket.workflow_stage || selectedTicket.status} />}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search by patient, test..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-10 w-64 h-12 text-base" />
-            </div>
-          </div>
-        </div>
-
-        {selectedTicket && <PatientSummaryCard patientId={selectedTicket.patient_id} ticketId={selectedTicket.id} />}
-
-        <div className="grid gap-4 grid-cols-1 md:grid-cols-3">
-          <Card><CardContent className="p-4 flex items-center gap-4"><div className="p-3 rounded-full bg-yellow-100"><TestTube className="h-6 w-6 text-yellow-600" /></div><div><p className="text-sm text-muted-foreground">Pending</p><p className="text-2xl font-bold">{pendingOrders.length}</p></div></CardContent></Card>
-          <Card><CardContent className="p-4 flex items-center gap-4"><div className="p-3 rounded-full bg-green-100"><TestTube className="h-6 w-6 text-green-600" /></div><div><p className="text-sm text-muted-foreground">Completed Today</p><p className="text-2xl font-bold">{completedOrders.filter(o => o.result_entered_at?.startsWith(new Date().toISOString().split('T')[0])).length}</p></div></CardContent></Card>
-          <Card><CardContent className="p-4 flex items-center gap-4"><div className="p-3 rounded-full bg-red-100"><TestTube className="h-6 w-6 text-red-600" /></div><div><p className="text-sm text-muted-foreground">Abnormal Results</p><p className="text-2xl font-bold text-destructive">{completedOrders.filter(o => o.flag === "abnormal").length}</p></div></CardContent></Card>
-        </div>
-
-        <Tabs defaultValue="pending" className="space-y-4">
-          <TabsList>
-            <TabsTrigger value="pending">Pending ({pendingOrders.length})</TabsTrigger>
-            <TabsTrigger value="completed">Completed ({completedOrders.length})</TabsTrigger>
-          </TabsList>
-
-          <TabsContent value="pending">
-            <Card>
-              <CardContent className="pt-6">
-                {loading ? (
-                  <p className="text-center py-8 text-muted-foreground">Loading...</p>
-                ) : pendingOrders.length === 0 ? (
-                  <p className="text-center py-8 text-muted-foreground">No pending lab orders</p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Patient</TableHead>
-                        <TableHead>Test</TableHead>
-                        <TableHead>Status</TableHead>
-                        <TableHead>Ordered</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {Object.values(pendingOrders.reduce<Record<string, any[]>>((acc, o) => { (acc[o.encounter_id] ||= []).push(o); return acc; }, {})).map((group) => (
-                        <Fragment key={group[0].encounter_id}>
-                        <TableRow className="bg-muted/50 hover:bg-muted/50">
-                          <TableCell colSpan={5}>
-                            <div className="flex flex-wrap items-center justify-between gap-2">
-                              <div>
-                                <span className="font-semibold">{group[0].patient?.profile?.full_name}</span>
-                                <span className="text-sm text-muted-foreground"> · {group[0].patient?.patient_id} · Visit request · {group.length} test(s)</span>
-                              </div>
-                              {canManageLab && (() => {
-                                const next = nextLabOrderStatus(group[0].status);
-                                const same = group.every(o => o.status === group[0].status);
-                                return next && next !== "completed" && same ? (
-                                  <Button size="sm" variant="outline" onClick={async () => { for (const o of group) await advanceLabOrder(o, next); }}>
-                                    {advanceActionLabel(next)} (all {group.length})
-                                  </Button>
-                                ) : null;
-                              })()}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      {group.map((order) => {
-                        const next = nextLabOrderStatus(order.status);
-                        return (
-                        <TableRow key={order.id}>
-                          <TableCell className="pl-8 text-xs text-muted-foreground">↳ same visit</TableCell>
-                          <TableCell>
-                            <p className="font-medium">{order.test?.test_name}</p>
-                            <p className="text-sm text-muted-foreground">{order.test?.test_code}</p>
-                          </TableCell>
-                          <TableCell className="min-w-[380px]">
-                            <Badge className={getStatusColor(order.status)}>{labOrderStatusLabel(order.status)}</Badge>
-                            <LabOrderTimeline order={order} className="mt-2" />
-                          </TableCell>
-                          <TableCell>{new Date(order.created_at).toLocaleString()}</TableCell>
-                          <TableCell>
-                            <div className="flex flex-col gap-2">
-                              {canManageLab ? (
-                                <>
-                                  {next && next !== "completed" && (
-                                    <Button
-                                      size="sm"
-                                      variant="outline"
-                                      disabled={advancingOrderId === order.id}
-                                      onClick={() => advanceLabOrder(order, next)}
-                                    >
-                                      {advanceActionLabel(next)}
-                                    </Button>
-                                  )}
-                                  <Button size="sm" onClick={() => openResultEntry(order)}>Enter Result</Button>
-                                </>
-                              ) : (
-                                <>
-                                  <Button size="sm" variant="outline" onClick={() => openResultEntry(order)}>View Progress</Button>
-                                  <span className="text-[11px] text-muted-foreground">Lab staff update these steps</span>
-                                </>
-                              )}
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                        );
-                      })}
-                        </Fragment>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="completed">
-            <Card>
-              <CardContent className="pt-6">
-                {completedOrders.length === 0 ? (
-                  <p className="text-center py-8 text-muted-foreground">No completed results</p>
-                ) : (
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Patient</TableHead>
-                        <TableHead>Test</TableHead>
-                        <TableHead>Result</TableHead>
-                        <TableHead>Flag</TableHead>
-                        <TableHead>Completed</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {completedOrders.map((order) => (
-                        <TableRow key={order.id}>
-                          <TableCell>
-                            <p className="font-medium">{order.patient?.profile?.full_name}</p>
-                            <p className="text-sm text-muted-foreground">{order.patient?.patient_id}</p>
-                          </TableCell>
-                          <TableCell>{order.test?.test_name}</TableCell>
-                          <TableCell className="max-w-xs truncate">{order.result_value}</TableCell>
-                          <TableCell>
-                            {order.flag === "abnormal" ? (
-                              <Badge variant="destructive">Abnormal</Badge>
-                            ) : (
-                              <Badge variant="outline">Normal</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>{order.result_entered_at ? new Date(order.result_entered_at).toLocaleString() : "-"}</TableCell>
-                          <TableCell>
-                            <Button size="sm" variant="outline" onClick={() => openResultEntry(order)}>View</Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+    <StationShell
+      queue={
+        <StationQueue
+          stationStages={["at_lab"]}
+          nextStage="waiting_for_doctor"
+          title="Lab Queue"
+          onSelectPatient={setSelectedTicket}
+          selectedTicketId={selectedTicket?.id}
+          collapsed={queueCollapsed}
+          onToggleCollapse={() => setQueueCollapsed(!queueCollapsed)}
+        />
+      }
+    >
+      <div>
+        <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2"><TestTube className="h-7 w-7 text-primary" /> Laboratory</h1>
+        <p className="text-muted-foreground text-sm mt-1">Receive → enter results → send. One request per patient.</p>
       </div>
 
-      {/* Structured Result Entry Dialog */}
-      <Dialog open={resultDialogOpen} onOpenChange={setResultDialogOpen}>
-        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>Lab Result: {selectedOrder?.test?.test_name}</DialogTitle>
-            <DialogDescription>
-              Patient: {selectedOrder?.patient?.profile?.full_name} ({selectedOrder?.patient?.patient_id}) •
-              Gender: {selectedOrder?.patient?.profile?.gender || "N/A"}
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-4">
-            {/* Structured fields if available */}
-            {selectedOrder?.test?.test_name && STRUCTURED_FIELDS[selectedOrder.test.test_name] ? (
-              <div className="border rounded-lg overflow-hidden">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Parameter</TableHead>
-                      <TableHead>Result</TableHead>
-                      <TableHead>Unit</TableHead>
-                      <TableHead>Reference Range</TableHead>
-                      <TableHead>Flag</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {STRUCTURED_FIELDS[selectedOrder.test.test_name].map((field) => {
-                      const gender = selectedOrder?.patient?.profile?.gender?.toLowerCase();
-                      const refRange = (gender === "female" && field.refFemale) ? field.refFemale : (gender === "male" && field.refMale) ? field.refMale : field.ref;
-                      const flag = getFlag(resultFields[field.name] || "", refRange);
-                      return (
-                        <TableRow key={field.name}>
-                          <TableCell className="font-medium">{field.name}</TableCell>
-                          <TableCell>
-                            <Input
-                              data-lab-field
-                              className="h-11 w-32 text-sm"
-                              value={resultFields[field.name] || ""}
-                              onChange={(e) => setResultFields({ ...resultFields, [field.name]: e.target.value })}
-                              onKeyDown={(e) => {
-                                if (!["ArrowDown", "ArrowUp", "Enter"].includes(e.key)) return;
-                                e.preventDefault();
-                                const all = Array.from(document.querySelectorAll<HTMLInputElement>("input[data-lab-field]"));
-                                const i = all.indexOf(e.currentTarget);
-                                const next = all[e.key === "ArrowUp" ? i - 1 : i + 1];
-                                next?.focus(); next?.select();
-                              }}
-                              disabled={!canManageLab || selectedOrder.status === "completed"}
-                            />
-                          </TableCell>
-                          <TableCell className="text-sm text-muted-foreground">{field.unit}</TableCell>
-                          <TableCell className="text-sm">{refRange || "-"}</TableCell>
-                          <TableCell>
-                            {flag && (
-                              <Badge variant={flag === "H" ? "destructive" : "secondary"} className="text-xs">
-                                {flag === "H" ? "↑ High" : "↓ Low"}
-                              </Badge>
-                            )}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
+      {openVisit ? (
+        <Card className="border-primary/30">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex items-start gap-2">
+                <Button variant="ghost" size="icon" className="h-9 w-9 shrink-0" onClick={() => { setOpenVisitKey(null); setSelectedTicket(null); }} aria-label="Back to requests"><ArrowLeft className="h-4 w-4" /></Button>
+                <div>
+                  <CardTitle className="text-lg">{openVisit.patient?.profile?.full_name}</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    {openVisit.patient?.patient_id} · {calculateAgeYears(openVisit.patient?.profile?.date_of_birth) ?? "?"} yrs · <span className="capitalize">{openVisit.patient?.profile?.gender || "—"}</span> · {openVisit.orders.length} test(s)
+                  </p>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    <Badge variant="outline" className={STATUS_BADGE[openVisit.status].cls}>{STATUS_BADGE[openVisit.status].label}</Badge>
+                    {selectedTicket?.payment_mode && <Badge variant="outline">{paymentModeLabel(selectedTicket.payment_mode)}</Badge>}
+                  </div>
+                </div>
               </div>
-            ) : (
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold">Result Value *</Label>
-                <Input
-                  value={resultValue}
-                  onChange={(e) => setResultValue(e.target.value)}
-                  placeholder="e.g., Positive, 5.2 mmol/L"
-                  disabled={!canManageLab || selectedOrder?.status === "completed"}
-                  className="h-12 text-base"
-                />
-                {selectedOrder?.test?.normal_range && (
-                  <p className="text-sm text-muted-foreground">Normal Range: {selectedOrder.test.normal_range}</p>
-                )}
+              <div className="flex flex-wrap gap-2">
+                {openVisit.ticketId && <InterimPayment ticketId={openVisit.ticketId} patientId={openVisit.patient?.id} />}
+                <Button variant="outline" size="sm" className="h-8" onClick={() => printVisitLabReport({ ...openVisit.patient?.profile, patient_id: openVisit.patient?.patient_id }, openVisit.orders)}>
+                  <Printer className="h-4 w-4 mr-1" /> Print
+                </Button>
               </div>
-            )}
-
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold">Notes</Label>
-              <Textarea
-                value={resultNotes}
-                onChange={(e) => setResultNotes(e.target.value)}
-                placeholder="Additional observations..."
-                rows={4}
-                disabled={!canManageLab || selectedOrder?.status === "completed"}
-                className="text-base"
-              />
             </div>
-
-            <div className="flex justify-end gap-2">
-              {selectedOrder && (
-                <Button
-                  variant="outline"
-                  onClick={() => printLabReport(selectedOrder, STRUCTURED_FIELDS[selectedOrder.test?.test_name] || null, resultFields, resultValue, resultNotes)}
-                >
-                  <Printer className="h-4 w-4 mr-1" /> Print results
+          </CardHeader>
+          <CardContent className="space-y-5">
+            {/* Step 1 — receive */}
+            <div className={cn("flex flex-wrap items-center justify-between gap-3 rounded-lg border p-3", openVisit.status === "new" ? "border-yellow-300 bg-yellow-50" : "bg-muted/30")}>
+              <div className="flex items-center gap-2 text-sm">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">1</span>
+                {openVisit.status === "new" ? "Receive the patient & collect the sample" : <span className="flex items-center gap-1 text-[hsl(var(--success))] font-medium"><CheckCircle2 className="h-4 w-4" /> Sample received</span>}
+              </div>
+              {openVisit.status === "new" && canManageLab && (
+                <Button onClick={() => receiveAll(openVisit)} disabled={busy === "receive"}>
+                  {busy === "receive" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <PackageCheck className="h-4 w-4 mr-2" />} Receive sample
                 </Button>
               )}
-              {canManageLab && selectedOrder?.status !== "completed" && (
-                <>
-                  <Button variant="outline" onClick={() => setResultDialogOpen(false)}>Cancel</Button>
-                  <Button onClick={handleSaveResult}>Send Results to Doctor</Button>
-                </>
-              )}
             </div>
+
+            {/* Step 2 — results, all tests in one bordered table */}
+            <div className="space-y-3">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">2</span>
+                Enter results <span className="text-muted-foreground text-xs hidden sm:inline">(Enter / ↑ ↓ move between boxes)</span>
+              </div>
+              <div className="overflow-x-auto rounded-md">
+                <table className="w-full border-collapse border border-border text-sm min-w-[640px]">
+                  <thead>
+                    <tr>{["Test", "Parameter", "Result", "Unit", "Reference range", "Flag"].map((h) => <th key={h} className="border bg-muted px-2 py-1.5 text-left font-semibold">{h}</th>)}</tr>
+                  </thead>
+                  <tbody>
+                    {openVisit.orders.map((o) => {
+                      const defs = STRUCTURED_FIELDS[o.test?.test_name || ""];
+                      const d = draft[o.id] || { fields: {}, value: "", notes: "" };
+                      const locked = !canManageLab || o.status === "completed";
+                      const gender = o.patient?.profile?.gender;
+                      const testCell = (span: number) => (
+                        <td rowSpan={span} className="border px-2 py-1.5 align-top font-semibold bg-muted/30 min-w-[150px]">
+                          {o.test?.test_name}
+                          {o.status === "completed" && <CheckCircle2 className="inline h-4 w-4 ml-1 text-[hsl(var(--success))]" />}
+                          <Textarea rows={2} placeholder="Comment (optional)" value={d.notes} disabled={locked}
+                            onChange={(e) => setField(o.id, { notes: e.target.value })}
+                            className="mt-2 text-xs font-normal min-h-[48px]" />
+                        </td>
+                      );
+                      if (defs) {
+                        return (
+                          <Fragment key={o.id}>
+                            {defs.map((def, i) => {
+                              const ref = refRangeFor(def, gender);
+                              const val = d.fields[def.name] || "";
+                              const flag = getFlag(val, ref);
+                              return (
+                                <tr key={def.name} className={flag ? "bg-destructive/5" : undefined}>
+                                  {i === 0 && testCell(defs.length)}
+                                  <td className="border px-2 py-1">{def.name}</td>
+                                  <td className="border px-1 py-0.5">
+                                    <Input data-lab-field value={val} disabled={locked} onKeyDown={onResultKey}
+                                      onChange={(e) => setField(o.id, { fields: { ...d.fields, [def.name]: e.target.value } })}
+                                      className={cn("h-9 w-28 text-sm", flag && "border-destructive font-bold text-destructive")} />
+                                  </td>
+                                  <td className="border px-2 py-1 text-muted-foreground">{def.unit}</td>
+                                  <td className="border px-2 py-1 text-muted-foreground">{ref || ""}</td>
+                                  <td className="border px-2 py-1 text-center font-bold text-destructive">{flag === "H" ? "↑ H" : flag === "L" ? "↓ L" : ""}</td>
+                                </tr>
+                              );
+                            })}
+                          </Fragment>
+                        );
+                      }
+                      const flag = getFlag(d.value, o.test?.normal_range);
+                      return (
+                        <tr key={o.id}>
+                          {testCell(1)}
+                          <td className="border px-2 py-1">Result</td>
+                          <td className="border px-1 py-1">
+                            <Input data-lab-field value={d.value} disabled={locked} onKeyDown={onResultKey}
+                              onChange={(e) => setField(o.id, { value: e.target.value })}
+                              placeholder="Type result" className={cn("h-9 w-full min-w-[9rem] text-sm", flag && "border-destructive font-bold text-destructive")} />
+                            {!locked && (
+                              <div className="flex gap-1 mt-1">
+                                {["Positive", "Negative"].map((q) => (
+                                  <Button key={q} type="button" size="sm" variant={d.value === q ? "default" : "outline"} className="h-7 px-2 text-xs" onClick={() => setField(o.id, { value: q })}>
+                                    {q === "Positive" ? "+ve" : "-ve"}
+                                  </Button>
+                                ))}
+                              </div>
+                            )}
+                          </td>
+                          <td className="border px-2 py-1 text-muted-foreground">{o.test?.unit || ""}</td>
+                          <td className="border px-2 py-1 text-muted-foreground">{o.test?.normal_range || ""}</td>
+                          <td className="border px-2 py-1 text-center font-bold text-destructive">{flag === "H" ? "↑ H" : flag === "L" ? "↓ L" : ""}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* Step 3 — send */}
+            {canManageLab && (
+              <div className="sticky bottom-0 z-10 -mx-1 border-t bg-background/95 backdrop-blur px-1 py-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-sm">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">3</span>
+                  Send the patient on
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="outline" className="h-11" onClick={handleSave} disabled={busy === "save"}>
+                    {busy === "save" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />} Save
+                  </Button>
+                  <Button className="h-11 px-6" onClick={() => setSendOpen(true)} disabled={!visitTicketForSend}>
+                    <Send className="h-4 w-4 mr-2" /> Save & send results
+                  </Button>
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      ) : (
+        <Tabs value={tab} onValueChange={setTab} className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <TabsList>
+              <TabsTrigger value="requests">To do ({pendingVisits.length})</TabsTrigger>
+              <TabsTrigger value="done">Results ready ({doneVisits.length})</TabsTrigger>
+              <TabsTrigger value="reports" className="gap-1"><BarChart3 className="h-4 w-4" /> Reports</TabsTrigger>
+            </TabsList>
+            {tab !== "reports" && (
+              <div className="relative w-full sm:w-72">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input placeholder="Search patient or test…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 h-11" />
+              </div>
+            )}
           </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+
+          <TabsContent value="requests" className="space-y-3">
+            <div className="grid gap-3 grid-cols-3">
+              <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">New</p><p className="text-2xl font-bold">{visits.filter((v) => v.status === "new").length}</p></CardContent></Card>
+              <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">In progress</p><p className="text-2xl font-bold">{visits.filter((v) => v.status === "received").length}</p></CardContent></Card>
+              <Card><CardContent className="p-3"><p className="text-xs text-muted-foreground">Done today</p><p className="text-2xl font-bold">{visits.filter((v) => v.status === "done" && v.orders.some((o) => o.completed_at?.startsWith(today))).length}</p></CardContent></Card>
+            </div>
+            {loading ? <p className="text-center py-8 text-muted-foreground">Loading…</p>
+              : pendingVisits.length === 0 ? <Card><CardContent className="py-12 text-center text-muted-foreground">No lab requests waiting</CardContent></Card>
+              : <div className="grid gap-2 xl:grid-cols-2">{pendingVisits.map(renderVisitCard)}</div>}
+          </TabsContent>
+
+          <TabsContent value="done" className="space-y-4">
+            {doneVisits.length === 0 ? <Card><CardContent className="py-12 text-center text-muted-foreground">No completed results</CardContent></Card> : doneVisits.slice(0, 40).map((v) => (
+              <Card key={v.key}>
+                <CardHeader className="pb-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <CardTitle className="text-base">{v.patient?.profile?.full_name}</CardTitle>
+                      <p className="text-xs text-muted-foreground">{v.patient?.patient_id} · {new Date(v.createdAt).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</p>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => printVisitLabReport({ ...v.patient?.profile, patient_id: v.patient?.patient_id }, v.orders)}><Printer className="h-4 w-4 mr-1" /> Print</Button>
+                  </div>
+                </CardHeader>
+                <CardContent><LabResultsTable orders={v.orders} compact /></CardContent>
+              </Card>
+            ))}
+          </TabsContent>
+
+          <TabsContent value="reports">
+            <Card><CardContent className="pt-6"><LabReport /></CardContent></Card>
+          </TabsContent>
+        </Tabs>
+      )}
+
+      <SendToDialog
+        open={sendOpen}
+        onOpenChange={setSendOpen}
+        ticket={visitTicketForSend}
+        from="Laboratory"
+        exclude={["lab"]}
+        recommended={recommended}
+        beforeSend={beforeSend}
+        onSent={afterSent}
+      />
+    </StationShell>
   );
 };
 

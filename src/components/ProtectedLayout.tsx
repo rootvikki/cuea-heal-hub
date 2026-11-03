@@ -76,7 +76,7 @@ const ProtectedLayout = ({ children, allowedRoles }: ProtectedLayoutProps) => {
               <NotificationBell />
             </div>
           </header>
-          <main className="flex-1 p-6 lg:p-8">
+          <main className="flex-1 min-w-0 p-3 sm:p-6 lg:p-8">
             <PageBreadcrumb />
             {children}
           </main>

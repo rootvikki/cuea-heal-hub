@@ -1,594 +1,366 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/hooks/use-toast";
-import { useQueueTransition } from "@/hooks/useQueueTransition";
-import { StationQueue } from "@/components/StationQueue";
-import { Receipt, CreditCard, Smartphone, FileText, DollarSign, Plus, Trash2, Pencil } from "lucide-react";
+import { toast } from "sonner";
+import { StationQueue, StationShell } from "@/components/StationQueue";
+import { Receipt, CreditCard, FileText, DollarSign, Plus, Trash2, Send, Printer, CheckCircle2, Search } from "lucide-react";
 import { logAuditEvent } from "@/lib/auditLog";
-import { WorkflowTimeline } from "@/components/WorkflowTimeline";
-import { PatientSummaryCard } from "@/components/PatientSummaryCard";
+import { PaymentPanel } from "@/components/PaymentPanel";
+import { SendToDialog } from "@/components/SendToDialog";
+import { createInvoiceForTicket, routeAfterPayment, type Invoice } from "@/lib/billing";
+import { formatKES, paymentModeLabel } from "@/lib/pricing";
+
+const statusColor: Record<string, string> = { pending: "bg-yellow-100 text-yellow-800", partial: "bg-blue-100 text-blue-800", paid: "bg-green-100 text-green-800", cancelled: "bg-muted" };
 
 const Billing = () => {
-  const { toast } = useToast();
-  const { getActiveTicket, onPaymentComplete } = useQueueTransition();
   const [invoices, setInvoices] = useState<any[]>([]);
-  const [serviceCharges, setServiceCharges] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [paymentDialogOpen, setPaymentDialogOpen] = useState(false);
-  const [chargeSheetOpen, setChargeSheetOpen] = useState(false);
-  const [selectedInvoice, setSelectedInvoice] = useState<any>(null);
-  const [selectedPatientCharges, setSelectedPatientCharges] = useState<any[]>([]);
-  const [editableCharges, setEditableCharges] = useState<any[]>([]);
-  const [selectedPatientInfo, setSelectedPatientInfo] = useState<any>(null);
-  const [paymentPhone, setPaymentPhone] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState("mpesa");
-  const [processingPayment, setProcessingPayment] = useState(false);
+  const [invoiceSearch, setInvoiceSearch] = useState("");
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
   const [queueCollapsed, setQueueCollapsed] = useState(false);
-  const [newItemDesc, setNewItemDesc] = useState("");
-  const [newItemAmount, setNewItemAmount] = useState("");
+  const [charges, setCharges] = useState<any[]>([]);
+  const [visitInvoices, setVisitInvoices] = useState<Invoice[]>([]);
+  const [patientInfo, setPatientInfo] = useState<any>(null);
+  const [newItem, setNewItem] = useState({ desc: "", amount: "" });
+  const [savingBill, setSavingBill] = useState(false);
+  const [payInvoice, setPayInvoice] = useState<any>(null);
+  const [sendOpen, setSendOpen] = useState(false);
 
-  useEffect(() => {
-    if (selectedTicket) setQueueCollapsed(true);
-  }, [selectedTicket]);
+  useEffect(() => { setQueueCollapsed(!!selectedTicket); }, [selectedTicket]);
 
-  useEffect(() => {
-    fetchInvoices();
-  }, []);
-
-  const fetchInvoices = async () => {
-    setLoading(true);
+  const fetchInvoices = useCallback(async () => {
     const { data } = await supabase
       .from("invoices")
-      .select("*, patients!inner(patient_id, user_id, patient_type, payroll_number, admission_number, national_id, profiles!inner(full_name, phone)), invoice_items(*)")
-      .order("created_at", { ascending: false });
+      .select("*, patients!inner(patient_id, user_id, patient_type, payroll_number, admission_number, national_id, insurance_provider, insurance_number, profiles!inner(full_name, phone))")
+      .order("created_at", { ascending: false })
+      .limit(300);
+    setInvoices((data || []).map((inv: any) => ({ ...inv, patient: { ...inv.patients, profile: inv.patients?.profiles } })));
+  }, []);
 
-    if (data) {
-      const mapped = (data as any[]).map((invoice) => ({
-        ...invoice,
-        patient: {
-          ...invoice.patients,
-          profile: invoice.patients?.profiles,
-        },
-        items: invoice.invoice_items,
-      }));
-      setInvoices(mapped);
-    }
-    setLoading(false);
-  };
+  useEffect(() => { void fetchInvoices(); }, [fetchInvoices]);
 
-  // Generate invoice from accumulated service charges for a patient's ticket
-  const generateInvoiceFromCharges = async (ticketId: string) => {
-    // Get all charges for this ticket
-    const { data: charges } = await supabase.from("service_charges").select("*").eq("ticket_id", ticketId);
-    if (!charges || charges.length === 0) {
-      toast({ title: "No charges", description: "No service charges found for this visit", variant: "destructive" });
-      return;
-    }
-
-    const patientId = charges[0].patient_id;
-    const encounterId = charges[0].encounter_id;
-    const totalAmount = charges.reduce((sum, c) => sum + (c.amount || 0), 0);
-    const invoiceNumber = `INV-${Date.now().toString().slice(-8)}`;
-
-    // Create invoice
-    const { data: invoice, error: invoiceError } = await supabase
-      .from("invoices")
-      .insert({
-        invoice_number: invoiceNumber,
-        patient_id: patientId,
-        encounter_id: encounterId,
-        total_amount: totalAmount,
-        net_amount: totalAmount,
-        balance: totalAmount,
-        status: "pending",
-      })
-      .select()
-      .single();
-
-    if (invoiceError) {
-      toast({ title: "Error", description: invoiceError.message, variant: "destructive" });
-      return;
-    }
-
-    // Create invoice items from service charges
-    const items = charges.map(c => ({
-      invoice_id: invoice.id,
-      description: c.description,
-      quantity: 1,
-      unit_price: c.amount,
-      total_price: c.amount,
-    }));
-
-    await supabase.from("invoice_items").insert(items);
-
-    toast({ title: "Invoice generated", description: `${invoiceNumber} — KES ${totalAmount.toFixed(2)}` });
-    logAuditEvent({ action: "invoice_generated", module: "billing", details: { invoice_number: invoiceNumber, patient_id: patientId, total: totalAmount } });
-    fetchInvoices();
-  };
-
-  const viewChargeSheet = async (ticket: any) => {
-    const { data: charges } = await supabase.from("service_charges").select("*").eq("ticket_id", ticket.id).order("created_at");
-    
-    const { data: patient } = await supabase.from("patients").select("patient_id, user_id, patient_type, payroll_number, admission_number, national_id").eq("id", ticket.patient_id).single();
-    const { data: profile } = await supabase.from("profiles").select("full_name, phone").eq("user_id", patient?.user_id).single();
-
-    setSelectedPatientCharges(charges || []);
-    setEditableCharges((charges || []).map((c: any) => ({ ...c, _edited: false, _isNew: false })));
-    setSelectedPatientInfo({ ...patient, profile, ticket });
-    setNewItemDesc("");
-    setNewItemAmount("");
-    setChargeSheetOpen(true);
-  };
-
-  // Editable charge helpers
-  const updateChargeAmount = (index: number, newAmount: string) => {
-    setEditableCharges(prev => prev.map((c, i) => i === index ? { ...c, amount: parseFloat(newAmount) || 0, _edited: true } : c));
-  };
-
-  const updateChargeDescription = (index: number, desc: string) => {
-    setEditableCharges(prev => prev.map((c, i) => i === index ? { ...c, description: desc, _edited: true } : c));
-  };
-
-  const removeCharge = (index: number) => {
-    setEditableCharges(prev => prev.filter((_, i) => i !== index));
-  };
-
-  const addNewCharge = () => {
-    if (!newItemDesc.trim() || !newItemAmount.trim()) return;
-    const newCharge = {
-      id: `new-${Date.now()}`,
-      description: newItemDesc.trim(),
-      amount: parseFloat(newItemAmount) || 0,
-      billing_stage: "manual",
-      patient_id: selectedPatientInfo?.ticket?.patient_id,
-      ticket_id: selectedPatientInfo?.ticket?.id,
-      service_type: "custom",
-      _isNew: true,
-      _edited: false,
-    };
-    setEditableCharges(prev => [...prev, newCharge]);
-    setNewItemDesc("");
-    setNewItemAmount("");
-  };
-
-  const handleGenerateAndPay = async () => {
-    if (!selectedPatientInfo?.ticket?.id) return;
-
-    // Save new/edited charges to DB first
-    for (const charge of editableCharges) {
-      if (charge._isNew) {
-        await supabase.from("service_charges").insert({
-          description: charge.description,
-          amount: charge.amount,
-          billing_stage: "manual",
-          patient_id: charge.patient_id,
-          ticket_id: charge.ticket_id,
-          encounter_id: charge.encounter_id || null,
-          service_type: "custom",
-        });
-      } else if (charge._edited) {
-        await supabase.from("service_charges").update({
-          description: charge.description,
-          amount: charge.amount,
-        }).eq("id", charge.id);
-      }
-    }
-
-    // Delete removed charges
-    const currentIds = editableCharges.filter(c => !c._isNew).map(c => c.id);
-    const removedIds = selectedPatientCharges.filter(c => !currentIds.includes(c.id)).map(c => c.id);
-    for (const id of removedIds) {
-      await supabase.from("service_charges").delete().eq("id", id);
-    }
-
-    await generateInvoiceFromCharges(selectedPatientInfo.ticket.id);
-    setChargeSheetOpen(false);
-    fetchInvoices();
-  };
-
-  const generateChargeSheetPDF = () => {
-    if (!selectedPatientInfo || editableCharges.length === 0) return;
-    const doc = new jsPDF();
-    const total = editableCharges.reduce((s, c) => s + (c.amount || 0), 0);
-    const regId = selectedPatientInfo.admission_number || selectedPatientInfo.payroll_number || selectedPatientInfo.national_id || selectedPatientInfo.patient_id;
-
-    // CUEA Header
-    doc.setFontSize(14);
-    doc.setFont("helvetica", "bold");
-    doc.text("THE CATHOLIC UNIVERSITY OF EASTERN AFRICA", 105, 20, { align: "center" });
-    doc.setFontSize(11);
-    doc.text("UNIVERSITY INFIRMARY", 105, 28, { align: "center" });
-    doc.setFontSize(10);
-    doc.setFont("helvetica", "normal");
-    doc.text("P.O. BOX 62157-00200, NAIROBI | TEL: 020-8891601", 105, 34, { align: "center" });
-    doc.setLineWidth(0.5);
-    doc.line(20, 38, 190, 38);
-
-    doc.setFontSize(12);
-    doc.setFont("helvetica", "bold");
-    doc.text("INFIRMARY CHARGE SHEET", 105, 48, { align: "center" });
-    doc.setFontSize(10);
-    doc.text("TO: CREDIT CONTROLLER", 20, 58);
-
-    doc.setFont("helvetica", "normal");
-    doc.text(`Patient Name: ${selectedPatientInfo.profile?.full_name || ""}`, 20, 68);
-    doc.text(`REG/ID No.: ${regId}`, 20, 76);
-    doc.text(`Patient Type: ${(selectedPatientInfo.patient_type || "outsider").replace("_", " ").toUpperCase()}`, 120, 68);
-    doc.text(`Date: ${new Date().toLocaleDateString()}`, 120, 76);
-
-    const tableData = editableCharges.map((c, i) => [
-      (i + 1).toString(),
-      c.description,
-      (c.billing_stage || "-").replace("_", " "),
-      `KES ${c.amount.toLocaleString()}`,
+  const loadVisit = useCallback(async (ticket: any) => {
+    if (!ticket) return;
+    const [chg, inv, pat] = await Promise.all([
+      supabase.from("service_charges").select("*").eq("ticket_id", ticket.id).order("created_at"),
+      supabase.from("invoices").select("*").eq("ticket_id", ticket.id).order("created_at"),
+      supabase.from("patients").select("patient_id, patient_type, payroll_number, admission_number, national_id, insurance_provider, insurance_number, profiles!inner(full_name, phone)").eq("id", ticket.patient_id).maybeSingle(),
     ]);
+    setCharges((chg.data || []).map((c: any) => ({ ...c, _edited: false })));
+    setVisitInvoices((inv.data || []) as Invoice[]);
+    setPatientInfo(pat.data);
+  }, []);
 
+  useEffect(() => { if (selectedTicket) void loadVisit(selectedTicket); }, [selectedTicket, loadVisit]);
+
+  const unbilled = charges.filter((c) => !c.invoice_id);
+  const openInvoice = visitInvoices.find((i) => i.status !== "paid");
+  const visitTotal = charges.reduce((s, c) => s + Number(c.amount || 0), 0);
+  const visitPaid = visitInvoices.reduce((s, i) => s + Number(i.amount_paid || 0), 0);
+
+  const editCharge = (id: string, patch: Record<string, unknown>) => setCharges((prev) => prev.map((c) => (c.id === id ? { ...c, ...patch, _edited: true } : c)));
+
+  const removeCharge = async (id: string) => {
+    const { error } = await supabase.from("service_charges").delete().eq("id", id);
+    if (error) return toast.error(error.message);
+    setCharges((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  const addCharge = async () => {
+    if (!selectedTicket || !newItem.desc.trim() || !Number(newItem.amount)) return;
+    const { data, error } = await supabase.from("service_charges").insert({
+      description: newItem.desc.trim(), amount: Number(newItem.amount), billing_stage: "manual",
+      patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id, service_type: "custom",
+    }).select("*").single();
+    if (error) return toast.error(error.message);
+    setCharges((prev) => [...prev, { ...data, _edited: false }]);
+    setNewItem({ desc: "", amount: "" });
+  };
+
+  const createBill = async () => {
+    if (!selectedTicket) return;
+    setSavingBill(true);
+    try {
+      for (const c of charges.filter((x) => x._edited && !x.invoice_id)) {
+        await supabase.from("service_charges").update({ description: c.description, amount: Number(c.amount) || 0 }).eq("id", c.id);
+      }
+      const inv = await createInvoiceForTicket(selectedTicket.id);
+      if (!inv) toast.info("Nothing new to bill");
+      else toast.success(`Bill ${inv.invoice_number} ready`, { description: formatKES(inv.net_amount) });
+      await loadVisit(selectedTicket);
+      void fetchInvoices();
+    } catch (e) {
+      toast.error("Could not create bill", { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setSavingBill(false);
+    }
+  };
+
+  const afterPaid = async (balance: number) => {
+    void fetchInvoices();
+    if (!selectedTicket) return;
+    await loadVisit(selectedTicket);
+    if (balance > 0) return;
+    const { data: stillOpen } = await supabase.from("invoices").select("id").eq("ticket_id", selectedTicket.id).neq("status", "paid");
+    const { data: newCharges } = await supabase.from("service_charges").select("id").eq("ticket_id", selectedTicket.id).is("invoice_id", null);
+    if ((stillOpen?.length || 0) > 0 || (newCharges?.length || 0) > 0) return;
+    const next = await routeAfterPayment(selectedTicket.id, selectedTicket.patient?.profile?.full_name);
+    toast.success(next === "at_pharmacy" ? "Paid — patient sent back to Pharmacy to collect" : "Paid — patient checked out");
+    logAuditEvent({ action: "visit_paid", module: "billing", details: { ticket_id: selectedTicket.id, next } });
+    setSelectedTicket(null);
+  };
+
+  const printChargeSheet = () => {
+    if (!selectedTicket || !patientInfo) return;
+    const doc = new jsPDF();
+    const regId = patientInfo.admission_number || patientInfo.payroll_number || patientInfo.national_id || patientInfo.patient_id;
+    doc.setFontSize(14); doc.setFont("helvetica", "bold");
+    doc.text("THE CATHOLIC UNIVERSITY OF EASTERN AFRICA", 105, 20, { align: "center" });
+    doc.setFontSize(11); doc.text("UNIVERSITY INFIRMARY", 105, 28, { align: "center" });
+    doc.setFontSize(10); doc.setFont("helvetica", "normal");
+    doc.text("P.O. BOX 62157-00200, NAIROBI | TEL: 020-8891601", 105, 34, { align: "center" });
+    doc.line(20, 38, 190, 38);
+    doc.setFontSize(12); doc.setFont("helvetica", "bold");
+    doc.text("INFIRMARY CHARGE SHEET", 105, 48, { align: "center" });
+    doc.setFontSize(10); doc.text("TO: CREDIT CONTROLLER", 20, 58);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Patient Name: ${patientInfo.profiles?.full_name || ""}`, 20, 68);
+    doc.text(`REG/ID No.: ${regId}`, 20, 76);
+    doc.text(`Payment mode: ${paymentModeLabel(selectedTicket.payment_mode)}${selectedTicket.payment_mode === "insurance" && patientInfo.insurance_provider ? ` (${patientInfo.insurance_provider} ${patientInfo.insurance_number || ""})` : ""}`, 20, 84);
+    doc.text(`Patient Type: ${(patientInfo.patient_type || "outsider").replace("cuea_", "").toUpperCase()}`, 120, 68);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 120, 76);
     autoTable(doc, {
-      startY: 84,
-      head: [["#", "Service Description", "Stage", "Amount (KES)"]],
-      body: tableData,
-      foot: [["", "", "TOTAL BILL", `KES ${total.toLocaleString()}`]],
+      startY: 92,
+      head: [["#", "Service Description", "Department", "Amount (KES)"]],
+      body: charges.map((c, i) => [String(i + 1), c.description, (c.billing_stage || "-").replace(/_/g, " "), Number(c.amount).toLocaleString()]),
+      foot: [["", "", "TOTAL BILL", visitTotal.toLocaleString()], ["", "", "PAID", visitPaid.toLocaleString()], ["", "", "BALANCE", Math.max(visitTotal - visitPaid, 0).toLocaleString()]],
       theme: "grid",
-      headStyles: { fillColor: [41, 128, 185], fontStyle: "bold" },
+      headStyles: { fillColor: [128, 0, 32], fontStyle: "bold" },
       footStyles: { fillColor: [240, 240, 240], fontStyle: "bold", textColor: [0, 0, 0] },
       styles: { fontSize: 9 },
     });
-
-    const finalY = (doc as any).lastAutoTable.finalY + 20;
-    doc.setFont("helvetica", "normal");
-    doc.text("SR. IN CHARGE: _________________________", 20, finalY);
-    doc.text("Date: _________________________", 120, finalY);
-    doc.setFontSize(8);
-    doc.text("CUEA/DVC/ADM/INF/04/fm01", 20, finalY + 20);
-
-    doc.save(`Charge_Sheet_${regId}_${new Date().toISOString().split("T")[0]}.pdf`);
-    toast({ title: "PDF Downloaded", description: "Charge sheet PDF generated" });
+    const y = (doc as any).lastAutoTable.finalY + 20;
+    doc.text("SR. IN CHARGE: _________________________", 20, y);
+    doc.text("Date: _________________________", 120, y);
+    doc.setFontSize(8); doc.text("CUEA/DVC/ADM/INF/04/fm01", 20, y + 20);
+    doc.autoPrint();
+    window.open(doc.output("bloburl"), "_blank");
   };
 
-  const handlePayment = async () => {
-    if (!selectedInvoice) return;
-    setProcessingPayment(true);
-
-    try {
-      if (paymentMethod === "mpesa") {
-        // For M-Pesa: only trigger STK push. The callback handles payment recording.
-        const { data, error } = await supabase.functions.invoke("mpesa-stk-push", {
-          body: {
-            phoneNumber: paymentPhone,
-            amount: selectedInvoice.balance,
-            invoiceId: selectedInvoice.id,
-            accountReference: selectedInvoice.invoice_number,
-          },
-        });
-        if (error) throw error;
-        toast({ title: "STK Push sent", description: "Check phone to complete M-Pesa payment" });
-        logAuditEvent({ action: "mpesa_stk_push_sent", module: "billing", details: { invoice: selectedInvoice.invoice_number, phone: paymentPhone, amount: selectedInvoice.balance } });
-        setPaymentDialogOpen(false);
-        setPaymentPhone("");
-        return;
-      }
-
-      // For non-M-Pesa: record payment directly
-      const { error: payError } = await supabase.from("payments").insert({
-        invoice_id: selectedInvoice.id,
-        patient_id: selectedInvoice.patient_id,
-        amount: selectedInvoice.balance,
-        payment_method: paymentMethod as any,
-        transaction_ref: `${paymentMethod.toUpperCase()}-${Date.now().toString().slice(-8)}`,
-        status: "completed",
-        received_by: (await supabase.auth.getUser()).data.user?.id ?? null,
-      });
-
-      if (!payError) {
-        await supabase.from("invoices").update({
-          amount_paid: selectedInvoice.net_amount,
-          balance: 0,
-          status: "paid",
-        }).eq("id", selectedInvoice.id);
-
-        toast({ title: "Payment recorded", description: `Invoice ${selectedInvoice.invoice_number} paid` });
-        logAuditEvent({ action: "payment_recorded", module: "billing", details: { invoice: selectedInvoice.invoice_number, method: paymentMethod, amount: selectedInvoice.balance } });
-
-        // Auto-checkout patient
-        const ticket = await getActiveTicket(selectedInvoice.patient_id);
-        if (ticket && (ticket.status === "at_billing" || ticket.workflow_stage === "at_billing")) {
-          await onPaymentComplete({ ticketId: ticket.id });
-        }
-
-        fetchInvoices();
-      }
-
-      setPaymentDialogOpen(false);
-      setPaymentPhone("");
-    } catch (error) {
-      toast({ title: "Payment error", description: "Failed to process payment", variant: "destructive" });
-    } finally {
-      setProcessingPayment(false);
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    const colors: Record<string, string> = { pending: "bg-yellow-100 text-yellow-800", partial: "bg-blue-100 text-blue-800", paid: "bg-green-100 text-green-800", cancelled: "bg-muted" };
-    return colors[status] || "bg-muted";
-  };
-
-  const getPaymentMethodLabel = (patientType: string | null) => {
-    switch (patientType) {
-      case "cuea_staff": return "Payroll / Insurance";
-      case "cuea_student": return "Student Account";
-      default: return "M-Pesa / Cash";
-    }
-  };
+  const filteredInvoices = invoices.filter((i) => {
+    const s = invoiceSearch.toLowerCase();
+    return !s || [i.invoice_number, i.patient?.profile?.full_name, i.patient?.patient_id].some((x: string) => x?.toLowerCase().includes(s));
+  });
+  const todayStr = new Date().toISOString().split("T")[0];
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <StationQueue
-        stationStages={["at_billing"]}
-        nextStage="checked_out"
-        title="Billing Queue"
-        onSelectPatient={(ticket) => {
-          setSelectedTicket(ticket);
-          viewChargeSheet(ticket);
-        }}
-        selectedTicketId={selectedTicket?.id}
-        collapsed={queueCollapsed}
-        onToggleCollapse={() => setQueueCollapsed(!queueCollapsed)}
-      />
-
-      <div className="flex-1 overflow-auto p-6 space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-4">
-          <div>
-            <h1 className="text-3xl font-bold flex items-center gap-2"><Receipt className="h-7 w-7 text-primary" /> Billing & Payments</h1>
-            <p className="text-muted-foreground mt-1">Service charge accumulation & payment processing</p>
-          </div>
-          <div className="flex items-center gap-2">
-            {selectedTicket && <WorkflowTimeline currentStage={selectedTicket.workflow_stage || selectedTicket.status} />}
-            <Button variant="outline" onClick={() => { window.location.href = "/reports?tab=payments"; }}>Payments Report</Button>
-          </div>
+    <StationShell
+      queue={
+        <StationQueue
+          stationStages={["at_billing"]}
+          nextStage="checked_out"
+          title="Billing Queue"
+          onSelectPatient={setSelectedTicket}
+          selectedTicketId={selectedTicket?.id}
+          collapsed={queueCollapsed}
+          onToggleCollapse={() => setQueueCollapsed(!queueCollapsed)}
+        />
+      }
+    >
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h1 className="text-2xl sm:text-3xl font-bold flex items-center gap-2"><Receipt className="h-7 w-7 text-primary" /> Billing</h1>
+          <p className="text-muted-foreground text-sm mt-1">Check the bill, take M-Pesa / school fees / insurance, and the patient moves on automatically</p>
         </div>
-
-        {selectedTicket && <PatientSummaryCard patientId={selectedTicket.patient_id} ticketId={selectedTicket.id} />}
-
-        <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
-          <Card><CardContent className="p-4 flex items-center gap-4"><div className="p-3 rounded-full bg-green-100"><DollarSign className="h-6 w-6 text-green-600" /></div><div><p className="text-sm text-muted-foreground">Total Revenue</p><p className="text-2xl font-bold">KES {invoices.reduce((s, i) => s + parseFloat(i.amount_paid || 0), 0).toLocaleString()}</p></div></CardContent></Card>
-          <Card><CardContent className="p-4 flex items-center gap-4"><div className="p-3 rounded-full bg-yellow-100"><FileText className="h-6 w-6 text-yellow-600" /></div><div><p className="text-sm text-muted-foreground">Pending</p><p className="text-2xl font-bold">{invoices.filter(i => i.status === "pending").length}</p></div></CardContent></Card>
-          <Card><CardContent className="p-4 flex items-center gap-4"><div className="p-3 rounded-full bg-red-100"><CreditCard className="h-6 w-6 text-red-600" /></div><div><p className="text-sm text-muted-foreground">Outstanding</p><p className="text-2xl font-bold">KES {invoices.reduce((s, i) => s + parseFloat(i.balance || 0), 0).toLocaleString()}</p></div></CardContent></Card>
-          <Card><CardContent className="p-4 flex items-center gap-4"><div className="p-3 rounded-full bg-blue-100"><Receipt className="h-6 w-6 text-blue-600" /></div><div><p className="text-sm text-muted-foreground">Paid Today</p><p className="text-2xl font-bold">{invoices.filter(i => i.status === "paid" && i.updated_at?.startsWith(new Date().toISOString().split('T')[0])).length}</p></div></CardContent></Card>
-        </div>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2"><Receipt className="h-5 w-5" /> Invoices</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Invoice #</TableHead>
-                  <TableHead>Patient</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Balance</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {invoices.length === 0 ? (
-                  <TableRow><TableCell colSpan={7} className="text-center py-8">No invoices yet</TableCell></TableRow>
-                ) : (
-                  invoices.map((invoice) => (
-                    <TableRow key={invoice.id}>
-                      <TableCell className="font-medium">{invoice.invoice_number}</TableCell>
-                      <TableCell>
-                        <p>{invoice.patient?.profile?.full_name}</p>
-                        <p className="text-sm text-muted-foreground">{invoice.patient?.patient_id}</p>
-                      </TableCell>
-                      <TableCell>
-                        <Badge variant="outline" className="text-xs capitalize">
-                          {(invoice.patient?.patient_type || "outsider").replace("_", " ")}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>KES {parseFloat(invoice.net_amount).toLocaleString()}</TableCell>
-                      <TableCell>KES {parseFloat(invoice.balance).toLocaleString()}</TableCell>
-                      <TableCell><Badge className={getStatusColor(invoice.status)}>{invoice.status}</Badge></TableCell>
-                      <TableCell>
-                        {invoice.status !== "paid" && (
-                          <Button size="sm" variant="outline" onClick={() => { setSelectedInvoice(invoice); setPaymentDialogOpen(true); }}>
-                            <DollarSign className="h-4 w-4 mr-1" /> Pay
-                          </Button>
-                        )}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+        <Button variant="outline" onClick={() => { window.location.href = "/reports?tab=payments"; }}>Payments report</Button>
       </div>
 
-      {/* Charge Sheet Dialog */}
-      <Dialog open={chargeSheetOpen} onOpenChange={setChargeSheetOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="flex items-center gap-2"><FileText className="h-5 w-5" /> CUEA Infirmary Charge Sheet</DialogTitle>
-            <DialogDescription>TO CREDIT CONTROLLER</DialogDescription>
-          </DialogHeader>
-          {selectedPatientInfo && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4 p-4 bg-muted rounded-lg">
-                <div>
-                  <p className="text-sm text-muted-foreground">Patient Name</p>
-                  <p className="font-medium">{selectedPatientInfo.profile?.full_name}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Reg/ID No.</p>
-                  <p className="font-medium">{selectedPatientInfo.admission_number || selectedPatientInfo.payroll_number || selectedPatientInfo.national_id || selectedPatientInfo.patient_id}</p>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Patient Type</p>
-                  <Badge variant="outline" className="capitalize">{(selectedPatientInfo.patient_type || "outsider").replace("_", " ")}</Badge>
-                </div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Payment Mode</p>
-                  <p className="font-medium">{getPaymentMethodLabel(selectedPatientInfo.patient_type)}</p>
+      {selectedTicket ? (
+        <Card className="border-primary/30">
+          <CardHeader className="pb-3">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <CardTitle className="text-lg">{selectedTicket.patient?.profile?.full_name}</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  {selectedTicket.ticket_number} · {selectedTicket.patient?.patient_id}
+                  {patientInfo && (patientInfo.admission_number || patientInfo.payroll_number) ? ` · ${patientInfo.admission_number || patientInfo.payroll_number}` : ""}
+                </p>
+                <div className="flex flex-wrap gap-1.5 mt-1.5">
+                  <Badge>{paymentModeLabel(selectedTicket.payment_mode)}</Badge>
+                  {selectedTicket.payment_mode === "insurance" && patientInfo?.insurance_provider && <Badge variant="outline">{patientInfo.insurance_provider} {patientInfo.insurance_number}</Badge>}
                 </div>
               </div>
-
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-10">#</TableHead>
-                    <TableHead>Service Description</TableHead>
-                    <TableHead className="w-24">Stage</TableHead>
-                    <TableHead className="w-36">Amount (KES)</TableHead>
-                    <TableHead className="w-12"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {editableCharges.map((charge, idx) => (
-                    <TableRow key={charge.id}>
-                      <TableCell className="text-muted-foreground">{idx + 1}</TableCell>
-                      <TableCell>
-                        <Input
-                          value={charge.description}
-                          onChange={(e) => updateChargeDescription(idx, e.target.value)}
-                          className="h-8 text-sm"
-                        />
-                      </TableCell>
-                      <TableCell className="capitalize text-xs text-muted-foreground">{charge.billing_stage?.replace("_", " ") || "-"}</TableCell>
-                      <TableCell>
-                        <Input
-                          type="number"
-                          min="0"
-                          step="1"
-                          value={charge.amount}
-                          onChange={(e) => updateChargeAmount(idx, e.target.value)}
-                          className="h-8 text-sm font-medium"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive hover:text-destructive" onClick={() => removeCharge(idx)}>
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                  {/* Add new item row */}
-                  <TableRow className="bg-muted/30">
-                    <TableCell className="text-muted-foreground">
-                      <Plus className="h-4 w-4" />
-                    </TableCell>
-                    <TableCell>
-                      <Input
-                        placeholder="New item description..."
-                        value={newItemDesc}
-                        onChange={(e) => setNewItemDesc(e.target.value)}
-                        className="h-8 text-sm"
-                      />
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">manual</TableCell>
-                    <TableCell>
-                      <Input
-                        type="number"
-                        min="0"
-                        step="1"
-                        placeholder="0"
-                        value={newItemAmount}
-                        onChange={(e) => setNewItemAmount(e.target.value)}
-                        className="h-8 text-sm"
-                      />
-                    </TableCell>
-                    <TableCell>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7 text-primary hover:text-primary"
-                        onClick={addNewCharge}
-                        disabled={!newItemDesc.trim() || !newItemAmount.trim()}
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                  <TableRow className="font-bold border-t-2">
-                    <TableCell colSpan={3} className="text-right">TOTAL BILL</TableCell>
-                    <TableCell colSpan={2}>KES {editableCharges.reduce((s, c) => s + (c.amount || 0), 0).toLocaleString()}</TableCell>
-                  </TableRow>
-                </TableBody>
-              </Table>
-
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setChargeSheetOpen(false)}>Close</Button>
-                <Button variant="secondary" onClick={generateChargeSheetPDF} className="gap-2">
-                  <FileText className="h-4 w-4" /> Print Charge Sheet
-                </Button>
-                <Button onClick={handleGenerateAndPay}>Generate Invoice</Button>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" size="sm" onClick={printChargeSheet}><Printer className="h-4 w-4 mr-1" /> Charge sheet</Button>
+                <Button variant="outline" size="sm" onClick={() => setSendOpen(true)}><Send className="h-4 w-4 mr-1" /> Send to…</Button>
               </div>
             </div>
+          </CardHeader>
+          <CardContent className="grid gap-6 lg:grid-cols-5">
+            {/* Charges */}
+            <div className="lg:col-span-3 space-y-3">
+              <div className="overflow-x-auto border rounded-lg">
+                <table className="w-full text-sm border-collapse min-w-[460px]">
+                  <thead className="bg-muted/60">
+                    <tr className="text-left">
+                      <th className="px-2 py-2 border-b w-8">#</th>
+                      <th className="px-2 py-2 border-b">Service</th>
+                      <th className="px-2 py-2 border-b w-28">Dept.</th>
+                      <th className="px-2 py-2 border-b w-32 text-right">KES</th>
+                      <th className="px-2 py-2 border-b w-10"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {charges.map((c, i) => (
+                      <tr key={c.id} className="border-b">
+                        <td className="px-2 py-1.5 text-muted-foreground">{i + 1}</td>
+                        <td className="px-2 py-1.5">
+                          {c.invoice_id ? c.description : <Input value={c.description} onChange={(e) => editCharge(c.id, { description: e.target.value })} className="h-8 text-sm" />}
+                        </td>
+                        <td className="px-2 py-1.5 capitalize text-xs text-muted-foreground">{(c.billing_stage || "-").replace(/_/g, " ")}</td>
+                        <td className="px-2 py-1.5 text-right">
+                          {c.invoice_id ? Number(c.amount).toLocaleString() : <Input type="number" min={0} value={c.amount} onChange={(e) => editCharge(c.id, { amount: e.target.value })} className="h-8 text-sm text-right" />}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          {c.invoice_id ? <CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))]" aria-label="On a bill" /> : (
+                            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => removeCharge(c.id)} aria-label="Remove"><Trash2 className="h-3.5 w-3.5" /></Button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="bg-muted/30">
+                      <td className="px-2 py-1.5"><Plus className="h-4 w-4 text-muted-foreground" /></td>
+                      <td className="px-2 py-1.5"><Input placeholder="Add item…" value={newItem.desc} onChange={(e) => setNewItem({ ...newItem, desc: e.target.value })} className="h-8 text-sm" /></td>
+                      <td className="px-2 py-1.5 text-xs text-muted-foreground">manual</td>
+                      <td className="px-2 py-1.5"><Input type="number" min={0} placeholder="0" value={newItem.amount} onChange={(e) => setNewItem({ ...newItem, amount: e.target.value })} className="h-8 text-sm text-right" /></td>
+                      <td className="px-2 py-1.5"><Button variant="ghost" size="icon" className="h-7 w-7 text-primary" onClick={addCharge} disabled={!newItem.desc.trim() || !Number(newItem.amount)} aria-label="Add"><Plus className="h-3.5 w-3.5" /></Button></td>
+                    </tr>
+                  </tbody>
+                  <tfoot>
+                    <tr className="font-bold"><td colSpan={3} className="px-2 py-2 text-right">Total</td><td className="px-2 py-2 text-right">{visitTotal.toLocaleString()}</td><td /></tr>
+                    <tr><td colSpan={3} className="px-2 py-1 text-right text-muted-foreground">Paid</td><td className="px-2 py-1 text-right">{visitPaid.toLocaleString()}</td><td /></tr>
+                    <tr className="font-bold text-primary"><td colSpan={3} className="px-2 py-2 text-right">Balance</td><td className="px-2 py-2 text-right">{Math.max(visitTotal - visitPaid, 0).toLocaleString()}</td><td /></tr>
+                  </tfoot>
+                </table>
+              </div>
+              {unbilled.length > 0 && (
+                <Button onClick={createBill} disabled={savingBill} className="w-full h-11">
+                  <FileText className="h-4 w-4 mr-2" /> {savingBill ? "Preparing…" : `Confirm bill (${unbilled.length} item${unbilled.length > 1 ? "s" : ""})`}
+                </Button>
+              )}
+            </div>
+
+            {/* Payment */}
+            <div className="lg:col-span-2">
+              {openInvoice ? (
+                <PaymentPanel
+                  invoice={openInvoice}
+                  paymentMode={selectedTicket.payment_mode}
+                  patientPhone={patientInfo?.profiles?.phone}
+                  patient={patientInfo}
+                  onPaid={afterPaid}
+                />
+              ) : unbilled.length > 0 ? (
+                <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Confirm the bill to take payment.</div>
+              ) : (
+                <div className="rounded-lg border p-6 text-center space-y-3">
+                  <CheckCircle2 className="h-8 w-8 mx-auto text-[hsl(var(--success))]" />
+                  <p className="font-medium">Nothing to pay</p>
+                  <Button onClick={() => afterPaid(0)}>Finish visit</Button>
+                </div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid gap-3 grid-cols-2 lg:grid-cols-4">
+          <Card><CardContent className="p-4 flex items-center gap-3"><div className="p-2.5 rounded-full bg-green-100"><DollarSign className="h-5 w-5 text-green-600" /></div><div><p className="text-xs text-muted-foreground">Collected</p><p className="text-lg font-bold">{formatKES(invoices.reduce((s, i) => s + Number(i.amount_paid || 0), 0))}</p></div></CardContent></Card>
+          <Card><CardContent className="p-4 flex items-center gap-3"><div className="p-2.5 rounded-full bg-yellow-100"><FileText className="h-5 w-5 text-yellow-600" /></div><div><p className="text-xs text-muted-foreground">Unpaid bills</p><p className="text-lg font-bold">{invoices.filter((i) => i.status !== "paid").length}</p></div></CardContent></Card>
+          <Card><CardContent className="p-4 flex items-center gap-3"><div className="p-2.5 rounded-full bg-red-100"><CreditCard className="h-5 w-5 text-red-600" /></div><div><p className="text-xs text-muted-foreground">Outstanding</p><p className="text-lg font-bold">{formatKES(invoices.reduce((s, i) => s + Number(i.balance || 0), 0))}</p></div></CardContent></Card>
+          <Card><CardContent className="p-4 flex items-center gap-3"><div className="p-2.5 rounded-full bg-blue-100"><Receipt className="h-5 w-5 text-blue-600" /></div><div><p className="text-xs text-muted-foreground">Paid today</p><p className="text-lg font-bold">{invoices.filter((i) => i.status === "paid" && i.updated_at?.startsWith(todayStr)).length}</p></div></CardContent></Card>
+        </div>
+      )}
+
+      <Card>
+        <CardHeader className="pb-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <CardTitle className="flex items-center gap-2 text-base"><Receipt className="h-5 w-5" /> Bills</CardTitle>
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input className="pl-8 h-10" placeholder="Search bill or patient…" value={invoiceSearch} onChange={(e) => setInvoiceSearch(e.target.value)} />
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="overflow-x-auto">
+          <table className="w-full text-sm border-collapse min-w-[620px]">
+            <thead className="bg-muted/60">
+              <tr className="text-left">{["Bill #", "Patient", "Date", "Amount", "Balance", "Status", ""].map((h) => <th key={h} className="px-2 py-2 border-b">{h}</th>)}</tr>
+            </thead>
+            <tbody>
+              {filteredInvoices.length === 0 ? (
+                <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">No bills</td></tr>
+              ) : filteredInvoices.map((inv) => (
+                <tr key={inv.id} className="border-b hover:bg-muted/30">
+                  <td className="px-2 py-2 font-medium">{inv.invoice_number}</td>
+                  <td className="px-2 py-2"><p>{inv.patient?.profile?.full_name}</p><p className="text-xs text-muted-foreground">{inv.patient?.patient_id}</p></td>
+                  <td className="px-2 py-2 whitespace-nowrap">{inv.created_at ? new Date(inv.created_at).toLocaleDateString() : ""}</td>
+                  <td className="px-2 py-2">{formatKES(inv.net_amount)}</td>
+                  <td className="px-2 py-2">{formatKES(inv.balance)}</td>
+                  <td className="px-2 py-2"><Badge className={statusColor[inv.status] || "bg-muted"}>{inv.status}</Badge></td>
+                  <td className="px-2 py-2 text-right">
+                    {inv.status !== "paid" && <Button size="sm" variant="outline" onClick={async () => {
+                      const { data: t } = inv.ticket_id ? await supabase.from("tickets").select("payment_mode").eq("id", inv.ticket_id).maybeSingle() : { data: null };
+                      setPayInvoice({ ...inv, payment_mode: (t as any)?.payment_mode ?? "mpesa_school_fees" });
+                    }}><DollarSign className="h-4 w-4 mr-1" /> Pay</Button>}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </CardContent>
+      </Card>
+
+      <Dialog open={!!payInvoice} onOpenChange={(o) => !o && setPayInvoice(null)}>
+        <DialogContent className="max-w-md max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Take payment</DialogTitle>
+            <DialogDescription>{payInvoice?.patient?.profile?.full_name}</DialogDescription>
+          </DialogHeader>
+          {payInvoice && (
+            <PaymentPanel
+              invoice={payInvoice}
+              paymentMode={payInvoice.payment_mode}
+              patientPhone={payInvoice.patient?.profile?.phone}
+              patient={payInvoice.patient}
+              onPaid={async (balance) => {
+                void fetchInvoices();
+                if (balance <= 0) {
+                  if (payInvoice.ticket_id) {
+                    const { data: t } = await supabase.from("tickets").select("workflow_stage").eq("id", payInvoice.ticket_id).maybeSingle();
+                    if (t?.workflow_stage === "at_billing") await routeAfterPayment(payInvoice.ticket_id, payInvoice.patient?.profile?.full_name);
+                  }
+                  setPayInvoice(null);
+                }
+              }}
+            />
           )}
         </DialogContent>
       </Dialog>
 
-      {/* Payment Dialog */}
-      <Dialog open={paymentDialogOpen} onOpenChange={setPaymentDialogOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Process Payment</DialogTitle>
-            <DialogDescription>
-              {selectedInvoice && <>Invoice: {selectedInvoice.invoice_number} | Balance: KES {parseFloat(selectedInvoice.balance).toLocaleString()}</>}
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2">
-              <Label className="text-sm font-semibold">Payment Method</Label>
-              <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                <SelectTrigger className="h-12 text-base"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="mpesa">M-Pesa</SelectItem>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="insurance">Insurance</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            {paymentMethod === "mpesa" && (
-              <div className="space-y-2">
-                <Label className="text-sm font-semibold">Phone Number</Label>
-                <Input type="tel" placeholder="254712345678" value={paymentPhone} onChange={(e) => setPaymentPhone(e.target.value)} className="h-12 text-base" />
-              </div>
-            )}
-
-            <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setPaymentDialogOpen(false)}>Cancel</Button>
-              {paymentMethod === "mpesa" ? (
-                <Button onClick={handlePayment} disabled={processingPayment || !paymentPhone} className="bg-green-600 hover:bg-green-700 text-white">
-                  <Smartphone className="h-4 w-4 mr-1" /> {processingPayment ? "Sending..." : "Send STK Push"}
-                </Button>
-              ) : (
-                <Button onClick={handlePayment} disabled={processingPayment}>
-                  {processingPayment ? "Processing..." : "Complete Payment"}
-                </Button>
-              )}
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
-    </div>
+      <SendToDialog
+        open={sendOpen}
+        onOpenChange={setSendOpen}
+        ticket={selectedTicket ? { id: selectedTicket.id, patientName: selectedTicket.patient?.profile?.full_name } : null}
+        from="Billing"
+        exclude={["billing"]}
+        onSent={() => setSelectedTicket(null)}
+      />
+    </StationShell>
   );
 };
 

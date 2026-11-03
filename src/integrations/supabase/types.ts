@@ -580,6 +580,7 @@ export type Database = {
       }
       imaging_catalog: {
         Row: {
+          insurance_price: number | null
           active: boolean | null
           body_part: string | null
           created_at: string
@@ -592,6 +593,7 @@ export type Database = {
           turnaround_hours: number | null
         }
         Insert: {
+          insurance_price?: number | null
           active?: boolean | null
           body_part?: string | null
           created_at?: string
@@ -604,6 +606,7 @@ export type Database = {
           turnaround_hours?: number | null
         }
         Update: {
+          insurance_price?: number | null
           active?: boolean | null
           body_part?: string | null
           created_at?: string
@@ -859,6 +862,7 @@ export type Database = {
       }
       invoices: {
         Row: {
+          ticket_id: string | null
           amount_paid: number | null
           balance: number | null
           created_at: string | null
@@ -874,6 +878,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          ticket_id?: string | null
           amount_paid?: number | null
           balance?: number | null
           created_at?: string | null
@@ -889,6 +894,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          ticket_id?: string | null
           amount_paid?: number | null
           balance?: number | null
           created_at?: string | null
@@ -1105,6 +1111,7 @@ export type Database = {
       }
       lab_tests_catalog: {
         Row: {
+          insurance_price: number | null
           category: string | null
           created_at: string | null
           description: string | null
@@ -1118,6 +1125,7 @@ export type Database = {
           unit: string | null
         }
         Insert: {
+          insurance_price?: number | null
           category?: string | null
           created_at?: string | null
           description?: string | null
@@ -1131,6 +1139,7 @@ export type Database = {
           unit?: string | null
         }
         Update: {
+          insurance_price?: number | null
           category?: string | null
           created_at?: string | null
           description?: string | null
@@ -1376,6 +1385,7 @@ export type Database = {
       }
       patients: {
         Row: {
+          preferred_payment_mode: string
           admission_number: string | null
           allergies: string[] | null
           blood_type: string | null
@@ -1400,6 +1410,7 @@ export type Database = {
           visit_reason: Database["public"]["Enums"]["visit_reason"] | null
         }
         Insert: {
+          preferred_payment_mode?: string
           admission_number?: string | null
           allergies?: string[] | null
           blood_type?: string | null
@@ -1424,6 +1435,7 @@ export type Database = {
           visit_reason?: Database["public"]["Enums"]["visit_reason"] | null
         }
         Update: {
+          preferred_payment_mode?: string
           admission_number?: string | null
           allergies?: string[] | null
           blood_type?: string | null
@@ -1513,6 +1525,7 @@ export type Database = {
       }
       pharmacy_inventory: {
         Row: {
+          insurance_price: number | null
           average_monthly_consumption: number | null
           batch_number: string | null
           category: string | null
@@ -1532,6 +1545,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          insurance_price?: number | null
           average_monthly_consumption?: number | null
           batch_number?: string | null
           category?: string | null
@@ -1551,6 +1565,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          insurance_price?: number | null
           average_monthly_consumption?: number | null
           batch_number?: string | null
           category?: string | null
@@ -1766,6 +1781,12 @@ export type Database = {
       }
       prescriptions: {
         Row: {
+          pharmacy_decision: string | null
+          planned_qty: number | null
+          alternative_inventory_id: string | null
+          unit_price: number | null
+          pharmacy_notes: string | null
+          billed_at: string | null
           collected_at: string | null
           collected_by: string | null
           created_at: string | null
@@ -1795,6 +1816,12 @@ export type Database = {
           substitution_reason: string | null
         }
         Insert: {
+          pharmacy_decision?: string | null
+          planned_qty?: number | null
+          alternative_inventory_id?: string | null
+          unit_price?: number | null
+          pharmacy_notes?: string | null
+          billed_at?: string | null
           collected_at?: string | null
           collected_by?: string | null
           created_at?: string | null
@@ -1824,6 +1851,12 @@ export type Database = {
           substitution_reason?: string | null
         }
         Update: {
+          pharmacy_decision?: string | null
+          planned_qty?: number | null
+          alternative_inventory_id?: string | null
+          unit_price?: number | null
+          pharmacy_notes?: string | null
+          billed_at?: string | null
           collected_at?: string | null
           collected_by?: string | null
           created_at?: string | null
@@ -2090,6 +2123,7 @@ export type Database = {
       }
       service_charges: {
         Row: {
+          invoice_id: string | null
           amount: number
           billing_stage: string | null
           created_at: string
@@ -2101,6 +2135,7 @@ export type Database = {
           ticket_id: string | null
         }
         Insert: {
+          invoice_id?: string | null
           amount?: number
           billing_stage?: string | null
           created_at?: string
@@ -2112,6 +2147,7 @@ export type Database = {
           ticket_id?: string | null
         }
         Update: {
+          invoice_id?: string | null
           amount?: number
           billing_stage?: string | null
           created_at?: string
@@ -2389,6 +2425,7 @@ export type Database = {
       }
       tickets: {
         Row: {
+          payment_mode: string
           appointment_id: string | null
           assigned_to: string | null
           checked_in_at: string | null
@@ -2405,6 +2442,7 @@ export type Database = {
           workflow_stage: string | null
         }
         Insert: {
+          payment_mode?: string
           appointment_id?: string | null
           assigned_to?: string | null
           checked_in_at?: string | null
@@ -2421,6 +2459,7 @@ export type Database = {
           workflow_stage?: string | null
         }
         Update: {
+          payment_mode?: string
           appointment_id?: string | null
           assigned_to?: string | null
           checked_in_at?: string | null
@@ -2762,7 +2801,7 @@ export type Database = {
         | "cancelled"
         | "no_show"
       patient_type: "cuea_staff" | "cuea_student" | "outsider"
-      payment_method: "mpesa" | "card" | "cash" | "insurance" | "bank_transfer"
+      payment_method: "mpesa" | "card" | "cash" | "insurance" | "bank_transfer" | "school_fees"
       payment_status: "pending" | "partial" | "paid" | "refunded" | "cancelled"
       ticket_status:
         | "checked_in"
@@ -2935,7 +2974,7 @@ export const Constants = {
         "no_show",
       ],
       patient_type: ["cuea_staff", "cuea_student", "outsider"],
-      payment_method: ["mpesa", "card", "cash", "insurance", "bank_transfer"],
+      payment_method: ["mpesa", "card", "cash", "insurance", "bank_transfer", "school_fees"],
       payment_status: ["pending", "partial", "paid", "refunded", "cancelled"],
       ticket_status: [
         "checked_in",

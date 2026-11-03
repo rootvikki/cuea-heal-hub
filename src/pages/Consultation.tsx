@@ -33,6 +33,11 @@ import { LabOrderTimeline, labOrderStatusLabel } from "@/components/LabOrderTime
 import { LabResultSignOff } from "@/components/LabResultSignOff";
 import { PrescriptionTimeline, prescriptionStatusLabel } from "@/components/PrescriptionTimeline";
 import { PatientSummaryCard } from "@/components/PatientSummaryCard";
+import { LabResultsTable } from "@/components/LabResultsTable";
+import { printVisitLabReport } from "@/lib/labReport";
+import { STATIONS, sendPatientTo, stationByKey, type StationKey } from "@/lib/stations";
+import { priceFor } from "@/lib/pricing";
+import { useUser } from "@/contexts/UserContext";
 import {
   Stethoscope, User, AlertTriangle, Activity, Pill, TestTube,
   Camera, FileText, Plus, X, Phone, Heart, Radio, ClipboardList,
@@ -262,6 +267,7 @@ const getPulseStatus = (p: number | null): "normal" | "warning" | "critical" => 
 // ─── Main Component ──────────────────────────────────────────────
 const Consultation = () => {
   const { toast } = useToast();
+  const { profile: myProfile } = useUser();
   const queryClient = useQueryClient();
   const [queue, setQueue] = useState<Ticket[]>([]);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
@@ -293,7 +299,8 @@ const Consultation = () => {
 
 
   useEffect(() => {
-    if (selectedTicket) setQueueCollapsed(true);
+    setQueueCollapsed(!!selectedTicket);
+    setDestination(null);
   }, [selectedTicket]);
 
   const [encounter, setEncounter] = useState({
@@ -380,13 +387,18 @@ const Consultation = () => {
     return { consultation, labs, imaging, total: consultation + labs + imaging };
   }, [selectedLabTests, selectedImaging, labTests, imagingItems]);
 
-  // ─── Next workflow stage ──────────────────────────────────────
-  const nextStage = useMemo(() => {
-    if (selectedLabTests.length > 0) return "Laboratory";
-    if (selectedImaging.length > 0) return "Imaging";
-    if (prescriptions.length > 0) return "Pharmacy";
-    return "Billing";
-  }, [selectedLabTests, selectedImaging, prescriptions]);
+  // ─── Next workflow stage (doctor can change it) ───────────────
+  const suggestedDestination = useMemo<StationKey>(() => {
+    const unsentLabs = selectedLabTests.some(id => !sentLabTestIds.includes(id));
+    const labsPending = sentLabOrders.some(o => o.status !== "completed");
+    if (unsentLabs || labsPending) return "lab";
+    if (selectedImaging.some(id => !sentImagingIds.includes(id))) return "imaging";
+    if (prescriptions.length > 0) return "pharmacy";
+    return "billing";
+  }, [selectedLabTests, sentLabTestIds, sentLabOrders, selectedImaging, sentImagingIds, prescriptions]);
+  const [destination, setDestination] = useState<StationKey | null>(null);
+  const finalDestination = destination ?? suggestedDestination;
+  const nextStage = stationByKey(finalDestination).label;
 
   // ─── Auto-save draft to localStorage ──────────────────────────
   useEffect(() => {
@@ -711,19 +723,18 @@ const Consultation = () => {
     );
     if (labError) throw new Error(`Lab tests could not be sent to the laboratory: ${labError.message}`);
 
-    for (const testId of pending) {
-      const test = labTests.find(t => t.id === testId);
-      if (test) {
-        await supabase.from("service_charges").insert({
-          patient_id: selectedTicket.patient!.id,
-          encounter_id: encounterId,
-          ticket_id: selectedTicket.id,
-          service_type: "laboratory",
-          description: `Lab: ${test.test_name}`,
-          amount: test.price,
-          billing_stage: "laboratory",
-        });
-      }
+    // One charge line per lab request (not one per test)
+    const chosen = pending.map(id => labTests.find(t => t.id === id)).filter(Boolean) as LabTest[];
+    if (chosen.length) {
+      await supabase.from("service_charges").insert({
+        patient_id: selectedTicket.patient!.id,
+        encounter_id: encounterId,
+        ticket_id: selectedTicket.id,
+        service_type: "laboratory",
+        description: `Lab request: ${chosen.map(t => t.test_name).join(", ")}`,
+        amount: chosen.reduce((sum, t) => sum + priceFor(t as any, (selectedTicket as any).payment_mode), 0),
+        billing_stage: "laboratory",
+      });
     }
 
     if (opts?.moveTicket !== false) {
@@ -904,17 +915,17 @@ const Consultation = () => {
       await sendLabOrders({ encounterId, moveTicket: false, silent: true });
       await sendImagingOrders({ encounterId, moveTicket: false, silent: true });
 
-      type WorkflowStage = "at_billing" | "at_imaging" | "at_lab" | "at_pharmacy" | "checked_in" | "checked_out" | "in_consult" | "order_placed_imaging" | "order_placed_lab" | "triage" | "waiting_for_doctor";
-      let nextWfStage: WorkflowStage = "at_billing";
-      if (selectedLabTests.length > 0) nextWfStage = "at_lab";
-      else if (selectedImaging.length > 0) nextWfStage = "at_imaging";
-      else if (prescriptions.length > 0) nextWfStage = "at_pharmacy";
-
-      const { error: ticketError } = await supabase.from("tickets").update({ workflow_stage: nextWfStage, status: nextWfStage }).eq("id", selectedTicket.id);
-      if (ticketError) throw new Error(`Patient could not be moved to the next station: ${ticketError.message}`);
+      await sendPatientTo({
+        ticketId: selectedTicket.id,
+        patientName: selectedTicket.patient?.profile?.full_name,
+        to: finalDestination,
+        from: "Doctor",
+      });
+      const nextWfStage = stationByKey(finalDestination).stage;
       localStorage.removeItem(`draft-encounter-${selectedTicket.id}`);
 
-      toast({ title: "✅ Consultation Saved", description: `Patient moved to ${nextWfStage.replace(/_/g, " ")}.` });
+      toast({ title: "✅ Consultation saved", description: finalDestination === "checkout" ? "Patient checked out." : `Patient sent to ${stationByKey(finalDestination).label}.` });
+      setDestination(null);
       logAuditEvent({ action: "consultation_saved", module: "consultation", details: { encounter_id: encounterId, patient_id: selectedTicket.patient!.id, next_stage: nextWfStage, diagnosis: encounter.diagnosis } });
       setSelectedTicket(null);
       setShowConfirmSave(false);
@@ -1022,10 +1033,10 @@ const Consultation = () => {
   // ─── Render ───────────────────────────────────────────────────
   return (
     <TooltipProvider>
-      <div className="flex h-screen overflow-hidden bg-background">
+      <div className="flex flex-col md:flex-row md:h-[calc(100dvh-8.5rem)] lg:h-[calc(100dvh-9.5rem)] md:overflow-hidden bg-background md:rounded-xl md:border">
         {/* ── Left Panel: Patient Queue ── */}
         {queueCollapsed ? (
-          <div className="w-12 border-r bg-card flex flex-col items-center py-3 gap-3 shrink-0 transition-all duration-200">
+          <div className="w-12 border-r bg-card hidden md:flex flex-col items-center py-3 gap-3 shrink-0 transition-all duration-200">
             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setQueueCollapsed(false)}>
               <ChevronRight className="h-4 w-4" />
             </Button>
@@ -1040,7 +1051,7 @@ const Consultation = () => {
             {isLive && <Radio className="h-3 w-3 text-[hsl(var(--success))] animate-pulse" />}
           </div>
         ) : (
-        <div className="w-72 lg:w-80 border-r bg-card flex flex-col shrink-0 transition-all duration-200">
+        <div className={`w-full md:w-72 lg:w-80 md:border-r border-b md:border-b-0 bg-card flex-col shrink-0 transition-all duration-200 max-h-[50vh] md:max-h-none ${selectedTicket ? "hidden md:flex" : "flex"}`}>
           <div className="p-4 border-b" style={{ background: "var(--gradient-subtle)" }}>
             <div className="flex items-center justify-between mb-1">
               <div className="flex items-center gap-2">
@@ -1220,14 +1231,6 @@ const Consultation = () => {
                       </Button>
                     </div>
                   </div>
-                  <WorkflowTimeline
-                    currentStage={selectedTicket.workflow_stage || selectedTicket.status}
-                    visitPath={deriveVisitPath(selectedTicket.workflow_stage || selectedTicket.status, {
-                      hasLabOrders: selectedLabTests.length > 0,
-                      hasImagingOrders: selectedImaging.length > 0,
-                      hasPrescriptions: prescriptions.length > 0,
-                    })}
-                  />
 
                   <PatientSummaryCard patientId={selectedTicket.patient.id} ticketId={selectedTicket.id} />
 
@@ -1636,41 +1639,31 @@ const Consultation = () => {
                               </p>
                             </div>
 
-                            {/* Status of orders already sent */}
+                            {/* Results of this visit — one combined, bordered table */}
                             {sentLabOrders.length > 0 && (
                               <div className="space-y-2">
-                                <p className="text-xs font-semibold flex items-center gap-1.5">
-                                  <Clock className="h-3.5 w-3.5 text-muted-foreground" /> Lab order progress
-                                </p>
-                                {sentLabOrders.map((order) => (
-                                  <div key={order.id} className="rounded-lg border p-3 space-y-2">
-                                    <div className="flex items-center justify-between gap-2">
-                                      <p className="text-xs font-medium">{order.test?.test_name || "Lab test"}</p>
-                                      <Badge variant="secondary" className="text-[10px]">{labOrderStatusLabel(order.status)}</Badge>
-                                    </div>
-                                    <LabOrderTimeline order={order} />
-                                    {order.status === "completed" && (() => {
-                                      const o = order as any;
-                                      const fields = [...(o.lab_result_fields || [])].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-                                      return (
-                                        <div className="rounded-md bg-muted/50 p-2 space-y-1 text-xs">
-                                          <p className="font-semibold">Results{o.flag === "abnormal" && <span className="ml-2 text-destructive">Abnormal</span>}</p>
-                                          {fields.length > 0 ? fields.map((f: any) => (
-                                            <div key={f.id} className="flex justify-between gap-2">
-                                              <span>{f.field_name}</span>
-                                              <span className={f.flag ? "font-semibold text-destructive" : ""}>
-                                                {f.field_value || "–"} {f.unit || ""} {f.flag ? `(${f.flag})` : ""}
-                                                {f.reference_range && <span className="text-muted-foreground font-normal"> · ref {f.reference_range}</span>}
-                                              </span>
-                                            </div>
-                                          )) : <p>{o.result_value || "–"}</p>}
-                                          {o.result_notes && <p className="text-muted-foreground">Notes: {o.result_notes}</p>}
-                                        </div>
-                                      );
-                                    })()}
-                                    {order.status === "completed" && (
-                                      <LabResultSignOff order={order as any} canSignOff onSigned={fetchPatientLabOrders} />
-                                    )}
+                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                  <p className="text-xs font-semibold flex items-center gap-1.5">
+                                    <Clock className="h-3.5 w-3.5 text-muted-foreground" /> Lab results — this visit
+                                    <Badge variant="secondary" className="text-[10px]">{sentLabOrders.filter(o => o.status === "completed").length}/{sentLabOrders.length} ready</Badge>
+                                  </p>
+                                  {sentLabOrders.some(o => o.status === "completed") && (
+                                    <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => printVisitLabReport({ ...selectedTicket.patient?.profile, patient_id: selectedTicket.patient?.patient_id }, sentLabOrders as any[])}>
+                                      Print results
+                                    </Button>
+                                  )}
+                                </div>
+                                <LabResultsTable orders={sentLabOrders as any[]} />
+                                {sentLabOrders.filter(o => o.status !== "completed").map(order => (
+                                  <div key={order.id} className="rounded-md border p-2">
+                                    <p className="text-[11px] font-medium mb-1">{order.test?.test_name} — {labOrderStatusLabel(order.status)}</p>
+                                    <LabOrderTimeline order={order} compact />
+                                  </div>
+                                ))}
+                                {sentLabOrders.filter(o => o.status === "completed").map(order => (
+                                  <div key={order.id} className="rounded-md border p-2 space-y-1">
+                                    <p className="text-[11px] font-semibold">{order.test?.test_name}</p>
+                                    <LabResultSignOff order={order as any} canSignOff onSigned={fetchPatientLabOrders} />
                                   </div>
                                 ))}
                               </div>
@@ -1744,7 +1737,7 @@ const Consultation = () => {
                       </TabsContent>
 
                       <TabsContent value="labresults" className="mt-0">
-                        <LabResultsTab patientId={selectedTicket.patient!.id} />
+                        <LabResultsTab patientId={selectedTicket.patient!.id} patient={{ ...selectedTicket.patient?.profile, patient_id: selectedTicket.patient?.patient_id }} />
                       </TabsContent>
 
                       {/* ── Journey Tab ── */}
@@ -1942,11 +1935,20 @@ const Consultation = () => {
                       <span className="text-muted-foreground">Est. Total</span>
                       <span className="font-bold text-primary">KES {costEstimate.total.toLocaleString()}</span>
                     </div>
-                    <div className="flex items-center justify-between text-xs pt-1">
-                      <span className="text-muted-foreground">Next Station</span>
-                      <Badge variant="outline" className="gap-1 text-[10px]">
-                        <ArrowRight className="h-2.5 w-2.5" /> {nextStage}
-                      </Badge>
+                    <div className="space-y-1.5 pt-1">
+                      <span className="text-xs text-muted-foreground">Send patient to</span>
+                      <div className="grid grid-cols-3 gap-1.5">
+                        {STATIONS.filter(st => st.key !== "doctor" && st.key !== "triage").map(st => {
+                          const Icon = st.icon;
+                          const active = finalDestination === st.key;
+                          return (
+                            <button key={st.key} type="button" onClick={() => setDestination(st.key)}
+                              className={`flex items-center justify-center gap-1 rounded-md border px-2 py-1.5 text-[11px] font-medium ${active ? "border-primary bg-primary/10 text-primary ring-1 ring-primary/30" : "hover:bg-muted"}`}>
+                              <Icon className="h-3 w-3" /> {st.label}{st.key === suggestedDestination && !active ? " •" : ""}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -2136,7 +2138,7 @@ const Consultation = () => {
             patientName={selectedTicket.patient.profile?.full_name || ""}
             patientAge={calcAge(selectedTicket.patient.profile?.date_of_birth || null)}
             patientGender={selectedTicket.patient.profile?.gender || ""}
-            doctorName=""
+            doctorName={myProfile?.full_name ? `Dr. ${myProfile.full_name.replace(/^dr\.?\s*/i, "")}` : ""}
           />
         )}
       </div>

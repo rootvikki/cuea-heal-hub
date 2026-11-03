@@ -141,13 +141,16 @@ export const PatientSummaryCard = ({ patientId, ticketId }: PatientSummaryCardPr
           </AccordionTrigger>
           <AccordionContent className="pb-2">
             {vitals ? (
-              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 text-xs">
+              <div className="grid grid-cols-3 sm:grid-cols-5 lg:grid-cols-9 gap-2 text-xs">
                 <VitalPill label="BP" value={vitals.blood_pressure_systolic && vitals.blood_pressure_diastolic ? `${vitals.blood_pressure_systolic}/${vitals.blood_pressure_diastolic}` : "—"} icon={<Heart className="h-3 w-3" />} />
                 <VitalPill label="Pulse" value={vitals.pulse_rate ?? "—"} icon={<Activity className="h-3 w-3" />} />
                 <VitalPill label="Temp" value={vitals.temperature ? `${vitals.temperature}°C` : "—"} icon={<Thermometer className="h-3 w-3" />} />
                 <VitalPill label="SpO₂" value={vitals.oxygen_saturation ? `${vitals.oxygen_saturation}%` : "—"} icon={<Wind className="h-3 w-3" />} />
+                <VitalPill label="RR" value={vitals.respiratory_rate ? `${vitals.respiratory_rate}/min` : "—"} />
                 <VitalPill label="Weight" value={vitals.weight ? `${vitals.weight}kg` : "—"} />
+                <VitalPill label="Height" value={vitals.height ? `${vitals.height}cm` : "—"} />
                 <VitalPill label="BMI" value={vitals.bmi ?? "—"} />
+                <VitalPill label="Taken" value={vitals.recorded_at ? new Date(vitals.recorded_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }) : "—"} />
               </div>
             ) : (
               <p className="text-xs text-muted-foreground">No vitals recorded yet</p>

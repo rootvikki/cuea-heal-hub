@@ -13,7 +13,7 @@ import autoTable from "jspdf-autotable";
 import * as XLSX from "xlsx";
 
 const PATIENT_TYPES: Record<string, string> = { cuea_staff: "CUEA Staff", cuea_student: "CUEA Student", outsider: "Outsider" };
-const METHODS: Record<string, string> = { mpesa: "M-Pesa", cash: "Cash", card: "Card", insurance: "Insurance", bank_transfer: "Bank Transfer" };
+const METHODS: Record<string, string> = { mpesa: "M-Pesa", school_fees: "School fees / Staff", insurance: "Insurance", bank_transfer: "Bank Transfer", card: "Card", cash: "Cash (old records)" };
 const PERIODS = ["today", "yesterday", "this_week", "this_month", "last_month", "this_year", "custom"] as const;
 const PERIOD_LABELS: Record<string, string> = { today: "Today", yesterday: "Yesterday", this_week: "This week", this_month: "This month", last_month: "Last month", this_year: "This year", custom: "Custom dates" };
 

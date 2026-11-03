@@ -243,7 +243,7 @@ const Settings = () => {
             <Card><CardHeader><CardTitle className="text-sm">Pending Invoices</CardTitle></CardHeader><CardContent><div className="text-3xl font-bold">{stats.pendingPayments}</div><p className="text-xs text-muted-foreground mt-1">Awaiting payment</p></CardContent></Card>
             <Card><CardHeader><CardTitle className="text-sm">Payment Methods</CardTitle></CardHeader><CardContent>
               <div className="space-y-2 text-sm">
-                {["M-Pesa", "Card", "Cash"].map(m => (
+                {["M-Pesa", "School fees / Staff account", "Insurance"].map(m => (
                   <div key={m} className="flex justify-between"><span>{m}</span><span className="font-medium">Available</span></div>
                 ))}
               </div>

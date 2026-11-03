@@ -30,7 +30,10 @@ export function InventoryEditDialog({ item, onClose, onSaved }: { item: any | nu
       quantity: parseInt(f.quantity) || 0, reorder_level: parseInt(f.reorder_level) || 0,
       expiry_date: f.expiry_date || null, batch_number: f.batch_number || null,
     };
-    if (canEditPrice) update.unit_price = parseFloat(f.unit_price) || 0;
+    if (canEditPrice) {
+      update.unit_price = parseFloat(f.unit_price) || 0;
+      update.insurance_price = f.insurance_price === "" || f.insurance_price == null ? null : parseFloat(f.insurance_price);
+    }
     const { error } = await supabase.from("pharmacy_inventory").update(update).eq("id", item.id);
     setSaving(false);
     if (error) { toast({ title: "Could not save", description: error.message, variant: "destructive" }); return; }
@@ -47,14 +50,14 @@ export function InventoryEditDialog({ item, onClose, onSaved }: { item: any | nu
 
   return (
     <Dialog open={!!item} onOpenChange={o => !o && onClose()}>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-w-2xl max-h-[92vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit inventory item</DialogTitle>
           <DialogDescription>All changes are recorded in the activity log.</DialogDescription>
         </DialogHeader>
         <div className="space-y-5">
-          <div className="grid grid-cols-2 gap-5">{field("drug_name", "Drug name")}{field("generic_name", "Generic name")}</div>
-          <div className="grid grid-cols-3 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">{field("drug_name", "Drug name")}{field("generic_name", "Generic name")}</div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
             <div className="space-y-2"><Label className="text-sm font-semibold">Formulation</Label>
               <Select value={f.formulation || ""} onValueChange={v => setF({ ...f, formulation: v })}>
                 <SelectTrigger className="h-12"><SelectValue placeholder="Select" /></SelectTrigger>
@@ -62,13 +65,20 @@ export function InventoryEditDialog({ item, onClose, onSaved }: { item: any | nu
               </Select></div>
             {field("strength_size", "Strength")}{field("package", "Package")}
           </div>
-          <div className="grid grid-cols-3 gap-5">{field("quantity", "Stock level", "number")}{field("reorder_level", "Reorder level", "number")}{field("expiry_date", "Expiry", "date")}</div>
-          <div className="grid grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">{field("quantity", "Stock level", "number")}{field("reorder_level", "Reorder level", "number")}{field("expiry_date", "Expiry", "date")}</div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
             {field("batch_number", "Batch #")}
             <div className="space-y-2">
               <Label className="text-sm font-semibold flex items-center gap-1">Selling price (KES) {!canEditPrice && <Lock className="h-3 w-3" />}</Label>
               <Input type="number" step="0.01" className="h-12 text-base" disabled={!canEditPrice} value={f.unit_price ?? ""} onChange={e => setF({ ...f, unit_price: e.target.value })} />
               {!canEditPrice && <p className="text-xs text-muted-foreground">Only finance or admin staff can change prices.</p>}
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+            <div className="space-y-2">
+              <Label className="text-sm font-semibold flex items-center gap-1">Insurance price (KES) {!canEditPrice && <Lock className="h-3 w-3" />}</Label>
+              <Input type="number" step="0.01" className="h-12 text-base" disabled={!canEditPrice} value={f.insurance_price ?? ""} placeholder="Same as selling price" onChange={e => setF({ ...f, insurance_price: e.target.value })} />
+              <p className="text-xs text-muted-foreground">Leave empty to charge insurance patients the normal price.</p>
             </div>
           </div>
           <div className="flex justify-end gap-2">

@@ -14,6 +14,11 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { UserPlus, Loader2, User, Phone, Shield, Heart, CheckCircle2 } from "lucide-react";
 import { calculateAge } from "@/lib/utils";
+import { PhoneInput } from "@/components/PhoneInput";
+import { normalizePhone } from "@/lib/validation";
+import { PAYMENT_MODES } from "@/lib/pricing";
+
+const INSURANCE_PROVIDERS = ["SHA", "Pacis", "Madison", "CIC", "AAR", "Jubilee", "Britam", "Old Mutual", "Other"];
 
 const SectionHeader = ({ icon: Icon, title, filled, total }: { icon: React.ElementType; title: string; filled: number; total: number }) => (
   <div className="flex items-center justify-between mb-4">
@@ -47,7 +52,7 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
     nationalId: "", nationality: "Kenyan", postalAddress: "", address: "",
     patientType: "" as "" | "cuea_staff" | "cuea_student" | "outsider",
     payrollNumber: "", admissionNumber: "", visitReason: "outpatient" as "outpatient" | "dental",
-    insuranceProvider: "", insuranceNumber: "",
+    insuranceProvider: "", insuranceNumber: "", paymentMode: "mpesa_school_fees",
     nextOfKinName: "", nextOfKinRelationship: "", nextOfKinPhone: "",
   });
 
@@ -103,6 +108,9 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
       nationalId: formData.nationalId,
       nextOfKinName: formData.nextOfKinName, nextOfKinPhone: formData.nextOfKinPhone,
     });
+    if (formData.paymentMode === "insurance" && !formData.insuranceProvider) {
+      errors.push({ field: "insuranceProvider", message: "Select the insurance provider" });
+    }
     if (errors.length > 0) {
       toast({ title: "Validation Error", description: errors[0].message, variant: "destructive" });
       return;
@@ -113,7 +121,7 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
       if (!session) throw new Error("You must be logged in to register patients");
       const response = await supabase.functions.invoke("register-patient", {
         body: {
-          fullName: formData.fullName, phone: formData.phone, email: formData.email,
+          fullName: formData.fullName.trim(), phone: normalizePhone(formData.phone), email: formData.email.trim(),
           dateOfBirth: formData.dateOfBirth || null,
           gender: formData.gender || null, nationalId: formData.nationalId || null,
           nationality: formData.nationality || null, postalAddress: formData.postalAddress || null,
@@ -124,7 +132,7 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
           insuranceNumber: formData.insuranceNumber || null,
           nextOfKinName: formData.nextOfKinName || null,
           nextOfKinRelationship: formData.nextOfKinRelationship || null,
-          nextOfKinPhone: formData.nextOfKinPhone || null,
+          nextOfKinPhone: formData.nextOfKinPhone ? normalizePhone(formData.nextOfKinPhone) : null,
         },
       });
       const result = response.data;
@@ -138,6 +146,9 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
         title: result?.existing ? "Patient already exists" : "Patient registered",
         description: result?.message || `OPD No: ${result.patientId}`,
       });
+      if (result?.patientRecordId) {
+        await supabase.from("patients").update({ preferred_payment_mode: formData.paymentMode } as any).eq("id", result.patientRecordId);
+      }
       setOpen(false);
       const registrationData: RegistrationResult = {
         patientRecordId: result.patientRecordId,
@@ -150,7 +161,7 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
         fullName: "", phone: "", email: "", dateOfBirth: "", gender: "",
         nationalId: "", nationality: "Kenyan", postalAddress: "", address: "",
         patientType: "", payrollNumber: "", admissionNumber: "", visitReason: "outpatient",
-        insuranceProvider: "", insuranceNumber: "",
+        insuranceProvider: "", insuranceNumber: "", paymentMode: "mpesa_school_fees",
         nextOfKinName: "", nextOfKinRelationship: "", nextOfKinPhone: "",
       });
       onSuccess?.(registrationData);
@@ -166,7 +177,7 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
       <DialogTrigger asChild>
         <Button className="gap-2"><UserPlus className="h-4 w-4" /> Register New Patient</Button>
       </DialogTrigger>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="text-xl">Register New Patient</DialogTitle>
           <DialogDescription>Complete all sections below. Fields marked * are required.</DialogDescription>
@@ -199,28 +210,45 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
               </div>
             </div>
             {formData.patientType === "cuea_staff" && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
-                <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Payroll Number *</Label>
-                  <Input value={formData.payrollNumber} onChange={(e) => update("payrollNumber", e.target.value)} required className="h-12 text-base" placeholder="e.g. PAY-0001" />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Insurance Provider</Label>
-                  <Select value={formData.insuranceProvider} onValueChange={(v) => update("insuranceProvider", v)}>
-                    <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Select" /></SelectTrigger>
-                    <SelectContent>
-                      {["Pacis", "Madison", "CIC", "NHIF", "AAR", "Jubilee", "Other"].map(p => (
-                        <SelectItem key={p} value={p}>{p}</SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
+              <div className="mt-5 space-y-2">
+                <Label className="text-sm font-semibold">Payroll / Member Number *</Label>
+                <Input value={formData.payrollNumber} onChange={(e) => update("payrollNumber", e.target.value)} required className="h-12 text-base" placeholder="e.g. PAY-0001" />
               </div>
             )}
             {formData.patientType === "cuea_student" && (
               <div className="mt-5 space-y-2">
                 <Label className="text-sm font-semibold">Student Registration / Admission Number *</Label>
                 <Input value={formData.admissionNumber} onChange={(e) => update("admissionNumber", e.target.value)} required className="h-12 text-base" placeholder="e.g. ADM/2024/001" />
+              </div>
+            )}
+            <div className="mt-5 space-y-2">
+              <Label className="text-sm font-semibold">Usual Payment Mode *</Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {PAYMENT_MODES.map((m) => (
+                  <button key={m.value} type="button" onClick={() => update("paymentMode", m.value)}
+                    className={`p-3 rounded-lg border-2 text-left transition-all ${formData.paymentMode === m.value ? "border-primary bg-primary/5 ring-2 ring-primary/20" : "border-border hover:bg-muted/50"}`}>
+                    <p className="font-semibold text-sm">{m.label}</p>
+                    <p className="text-xs text-muted-foreground">{m.description}</p>
+                  </button>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">Can be changed at each check-in.</p>
+            </div>
+            {formData.paymentMode === "insurance" && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Insurance Provider *</Label>
+                  <Select value={formData.insuranceProvider} onValueChange={(v) => update("insuranceProvider", v)}>
+                    <SelectTrigger className="h-12 text-base"><SelectValue placeholder="Select" /></SelectTrigger>
+                    <SelectContent>
+                      {INSURANCE_PROVIDERS.map(p => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label className="text-sm font-semibold">Insurance Member Number</Label>
+                  <Input value={formData.insuranceNumber} onChange={(e) => update("insuranceNumber", e.target.value)} className="h-12 text-base" placeholder="e.g. INS-123456" />
+                </div>
               </div>
             )}
           </div>
@@ -285,8 +313,8 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">Phone Number *</Label>
-                <Input type="tel" required value={formData.phone} onChange={(e) => update("phone", e.target.value)} placeholder="0712345678" className="h-12 text-base" />
-                <p className="text-xs text-muted-foreground">Format: 07XXXXXXXX or +254XXXXXXXXX</p>
+                <PhoneInput required value={formData.phone} onChange={(v) => update("phone", v)} />
+                <p className="text-xs text-muted-foreground">Pick the country code — international numbers are accepted</p>
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">Email *</Label>
@@ -294,14 +322,6 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
                 <p className="text-xs text-muted-foreground">Used for portal login and notifications</p>
               </div>
             </div>
-            {formData.patientType === "cuea_staff" && formData.insuranceProvider && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mt-5">
-                <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Insurance Member Number</Label>
-                  <Input value={formData.insuranceNumber} onChange={(e) => update("insuranceNumber", e.target.value)} className="h-12 text-base" placeholder="e.g. INS-123456" />
-                </div>
-              </div>
-            )}
           </div>
 
           <Separator />
@@ -309,7 +329,7 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
           {/* Section 4: Next of Kin */}
           <div>
             <SectionHeader icon={Heart} title="Next of Kin" filled={kinFilled.filled} total={kinFilled.total} />
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">Name *</Label>
                 <Input required value={formData.nextOfKinName} onChange={(e) => update("nextOfKinName", e.target.value)} className="h-12 text-base" placeholder="Full name" />
@@ -320,7 +340,7 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
               </div>
               <div className="space-y-2">
                 <Label className="text-sm font-semibold">Phone *</Label>
-                <Input required type="tel" value={formData.nextOfKinPhone} onChange={(e) => update("nextOfKinPhone", e.target.value)} className="h-12 text-base" placeholder="0712345678" />
+                <PhoneInput required value={formData.nextOfKinPhone} onChange={(v) => update("nextOfKinPhone", v)} />
               </div>
             </div>
           </div>

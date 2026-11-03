@@ -25,6 +25,8 @@ export function ReferralForm({ patientId, patientName, patientAge, patientGender
   const [internalOpen, setInternalOpen] = useState(false);
   const [reasons, setReasons] = useState("");
   const [treatmentGiven, setTreatmentGiven] = useState("");
+  const [doctor, setDoctor] = useState(doctorName);
+  const [referredTo, setReferredTo] = useState("");
   const [saving, setSaving] = useState(false);
 
   const isControlled = controlledOpen !== undefined;
@@ -36,8 +38,8 @@ export function ReferralForm({ patientId, patientName, patientAge, patientGender
 
   // Reset form when opening
   useEffect(() => {
-    if (open) { setReasons(""); setTreatmentGiven(""); }
-  }, [open]);
+    if (open) { setReasons(""); setTreatmentGiven(""); setReferredTo(""); setDoctor(doctorName); }
+  }, [open, doctorName]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -47,9 +49,9 @@ export function ReferralForm({ patientId, patientName, patientAge, patientGender
         patient_id: patientId,
         encounter_id: encounterId || null,
         referred_by: user?.id || "",
-        reasons_for_referral: reasons,
+        reasons_for_referral: referredTo.trim() ? `Referred to: ${referredTo.trim()}\n${reasons}` : reasons,
         treatment_given: treatmentGiven,
-        doctor_name: doctorName,
+        doctor_name: doctor.trim(),
       });
       if (error) throw error;
       toast({ title: "Referral saved" });
@@ -60,6 +62,8 @@ export function ReferralForm({ patientId, patientName, patientAge, patientGender
       setSaving(false);
     }
   };
+
+  const esc = (v: string) => v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!)).replace(/\n/g, "<br/>");
 
   const handlePrint = () => {
     const printWindow = window.open("", "_blank");
@@ -74,15 +78,16 @@ export function ReferralForm({ patientId, patientName, patientAge, patientGender
       <body>
         <h1>CATHOLIC UNIVERSITY OF EASTERN AFRICA</h1>
         <h2>REFERRAL FORM</h2>
-        <div class="field"><span class="label">Name of Patient:</span> <span class="line">${patientName}</span></div>
+        <div class="field"><span class="label">Name of Patient:</span> <span class="line">${esc(patientName)}</span></div>
         <div style="display:flex;gap:40px">
           <div class="field"><span class="label">Age:</span> ${patientAge}</div>
           <div class="field"><span class="label">Sex:</span> ${patientGender}</div>
           <div class="field"><span class="label">Date:</span> ${new Date().toLocaleDateString()}</div>
         </div>
-        <div class="field"><span class="label">Reasons for Referral:</span><div class="line">${reasons}</div></div>
-        <div class="field"><span class="label">Treatment Given:</span><div class="line">${treatmentGiven}</div></div>
-        <div class="field"><span class="label">Name of Doctor:</span> ${doctorName}</div>
+        ${referredTo.trim() ? `<div class="field"><span class="label">Referred to:</span> ${esc(referredTo)}</div>` : ""}
+        <div class="field"><span class="label">Reasons for Referral:</span><div class="line">${esc(reasons)}</div></div>
+        <div class="field"><span class="label">Treatment Given:</span><div class="line">${esc(treatmentGiven)}</div></div>
+        <div class="field"><span class="label">Name of Doctor:</span> ${esc(doctor)}</div>
         <div class="field"><span class="label">Signature:</span> ___________________</div>
         <div class="footer">CUEA/DVC ADM/INF/01/fm01</div>
       </body></html>
@@ -97,7 +102,7 @@ export function ReferralForm({ patientId, patientName, patientAge, patientGender
         <DialogTitle>Referral Form — CUEA Infirmary</DialogTitle>
       </DialogHeader>
       <div className="space-y-4">
-        <div className="grid grid-cols-3 gap-3 text-sm">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
           <div><Label>Patient</Label><Input readOnly value={patientName} className="bg-muted" /></div>
           <div><Label>Age</Label><Input readOnly value={patientAge} className="bg-muted" /></div>
           <div><Label>Gender</Label><Input readOnly value={patientGender} className="bg-muted" /></div>
@@ -110,15 +115,21 @@ export function ReferralForm({ patientId, patientName, patientAge, patientGender
           <Label>Treatment Given</Label>
           <Textarea rows={3} value={treatmentGiven} onChange={(e) => setTreatmentGiven(e.target.value)} />
         </div>
-        <div className="space-y-2">
-          <Label>Doctor</Label>
-          <Input readOnly value={doctorName} className="bg-muted" />
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div className="space-y-2">
+            <Label htmlFor="ref-doctor">Name of doctor *</Label>
+            <Input id="ref-doctor" value={doctor} onChange={(e) => setDoctor(e.target.value)} placeholder="e.g. Dr. Jane Wanjiku" className="h-11" />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="ref-to">Referred to (facility)</Label>
+            <Input id="ref-to" value={referredTo} onChange={(e) => setReferredTo(e.target.value)} placeholder="e.g. Kenyatta National Hospital" className="h-11" />
+          </div>
         </div>
         <div className="flex justify-end gap-2">
-          <Button variant="outline" onClick={handlePrint} disabled={!reasons}>
+          <Button variant="outline" onClick={handlePrint} disabled={!reasons || !doctor.trim()}>
             <Printer className="h-4 w-4 mr-1" /> Print
           </Button>
-          <Button onClick={handleSave} disabled={!reasons || saving}>
+          <Button onClick={handleSave} disabled={!reasons || !doctor.trim() || saving}>
             {saving ? "Saving..." : "Save Referral"}
           </Button>
         </div>

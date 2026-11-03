@@ -9,7 +9,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
-import { BedDouble, FlaskConical, Loader2, Plus, Stethoscope, CheckCircle2 } from "lucide-react";
+import { BedDouble, FlaskConical, Loader2, Plus, Stethoscope, CheckCircle2, Printer } from "lucide-react";
+import { LabResultsTable, groupByVisit } from "@/components/LabResultsTable";
+import { printVisitLabReport } from "@/lib/labReport";
+import { serviceFee } from "@/lib/pricing";
 import { PROCEDURE_OPTIONS } from "@/components/NursingProcedures";
 import { logAuditEvent } from "@/lib/auditLog";
 import { notifyRoles } from "@/lib/notifications";
@@ -47,7 +50,7 @@ export function AdmitPatientDialog({ open, onOpenChange, patientId, encounterId,
       }).select("id").single();
       if (error) throw error;
       if (bedId) await supabase.from("beds").update({ status: "occupied", current_patient_id: patientId, current_admission_id: data.id }).eq("id", bedId);
-      await supabase.from("service_charges").insert({ patient_id: patientId, encounter_id: encounterId, ticket_id: ticketId, service_type: "admission", description: "Admission", amount: 1000, billing_stage: "inpatient" });
+      await supabase.from("service_charges").insert({ patient_id: patientId, encounter_id: encounterId, ticket_id: ticketId, service_type: "admission", description: "Admission", amount: serviceFee("admission"), billing_stage: "inpatient" });
       logAuditEvent({ action: "patient_admitted", module: "consultation", details: { admission_id: data.id, patient_id: patientId } });
       await notifyRoles(["nurse", "ward_manager"], { title: "New admission", message: `${patientName} has been admitted.`, category: "inpatient", link: "/inpatient" });
       toast({ title: "Patient admitted", description: "The patient now appears on the Inpatient page." });
@@ -176,49 +179,37 @@ export function ProceduresToPerform({ ticketId }: { ticketId?: string }) {
 }
 
 // ─── Lab results tab (current + past) ────────────────────────────
-export function LabResultsTab({ patientId }: { patientId: string }) {
+export function LabResultsTab({ patientId, patient }: { patientId: string; patient?: { full_name?: string | null; patient_id?: string | null; gender?: string | null; date_of_birth?: string | null } }) {
   const [orders, setOrders] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     setLoading(true);
     supabase.from("lab_orders")
-      .select("id, status, created_at, completed_at, result_value, result_notes, flag, encounter_id, test:lab_tests_catalog(test_name, unit, normal_range), fields:lab_result_fields(field_name, field_value, unit, reference_range, flag, sort_order)")
-      .eq("patient_id", patientId).order("created_at", { ascending: false }).limit(100)
+      .select("id, status, created_at, completed_at, result_entered_at, result_value, result_notes, flag, encounter_id, test:lab_tests_catalog(test_name, unit, normal_range), fields:lab_result_fields(field_name, field_value, unit, reference_range, flag, sort_order)")
+      .eq("patient_id", patientId).order("created_at", { ascending: false }).limit(150)
       .then(({ data }) => { setOrders(data || []); setLoading(false); });
   }, [patientId]);
 
-  const groups = orders.reduce<Record<string, any[]>>((acc, o) => { (acc[o.encounter_id] ||= []).push(o); return acc; }, {});
+  const visits = groupByVisit(orders);
 
   return (
     <Card className="border-border/60">
-      <CardHeader className="px-4 pt-4 pb-2"><CardTitle className="text-sm font-semibold flex items-center gap-2"><FlaskConical className="h-4 w-4" /> Lab Results (current & past)</CardTitle></CardHeader>
-      <CardContent className="px-4 pb-4 space-y-4">
+      <CardHeader className="px-4 pt-4 pb-2"><CardTitle className="text-sm font-semibold flex items-center gap-2"><FlaskConical className="h-4 w-4" /> Lab results (this and past visits)</CardTitle></CardHeader>
+      <CardContent className="px-4 pb-4 space-y-5">
         {loading ? <p className="text-xs text-muted-foreground">Loading…</p> : orders.length === 0 ? <p className="text-xs text-muted-foreground text-center py-6">No lab tests on record</p> :
-          Object.entries(groups).map(([enc, list]) => (
-            <div key={enc} className="border rounded-lg">
-              <div className="px-3 py-2 bg-muted/40 text-xs font-semibold">Visit of {new Date(list[0].created_at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })} · {list.length} test(s)</div>
-              <div className="divide-y">
-                {list.map(o => (
-                  <div key={o.id} className="p-3 text-sm space-y-1">
-                    <div className="flex justify-between items-center">
-                      <span className="font-medium">{o.test?.test_name}</span>
-                      <Badge variant={o.status === "completed" ? "default" : "outline"}>{o.status === "completed" ? "Completed" : (o.status || "pending").replace(/_/g, " ")}</Badge>
-                    </div>
-                    {o.fields?.length ? (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 text-xs">
-                        {[...o.fields].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0)).map((f: any) => (
-                          <div key={f.field_name} className={`flex justify-between ${f.flag && f.flag !== "N" ? "font-bold text-destructive" : ""}`}>
-                            <span>{f.field_name}</span><span>{f.field_value ?? "-"} {f.unit} {f.flag && f.flag !== "N" ? `(${f.flag})` : ""}</span>
-                          </div>
-                        ))}
-                      </div>
-                    ) : o.result_value ? (
-                      <p className={`text-xs ${o.flag && o.flag !== "N" ? "font-bold text-destructive" : ""}`}>Result: {o.result_value} {o.test?.unit} {o.test?.normal_range ? `(ref ${o.test.normal_range})` : ""}</p>
-                    ) : null}
-                    {o.result_notes && <p className="text-xs text-muted-foreground">{o.result_notes}</p>}
-                  </div>
-                ))}
+          visits.map((v, i) => (
+            <div key={v.encounterId} className="space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold">
+                  {i === 0 ? "Latest visit" : "Visit"} · {new Date(v.date).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })} · {v.orders.length} test(s)
+                </p>
+                {v.orders.some((o) => o.status === "completed") && (
+                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => printVisitLabReport(patient || {}, v.orders)}>
+                    <Printer className="h-3.5 w-3.5 mr-1" /> Print
+                  </Button>
+                )}
               </div>
+              <LabResultsTable orders={v.orders} />
             </div>
           ))}
       </CardContent>

@@ -93,3 +93,88 @@ export async function printLabReport(
   const url = doc.output("bloburl");
   window.open(url, "_blank");
 }
+
+/**
+ * One combined, bordered lab report for every test of a visit.
+ * `orders` use the same shape as LabResultsTable (test, fields / lab_result_fields, result_value…).
+ */
+export async function printVisitLabReport(
+  patient: { full_name?: string | null; patient_id?: string | null; gender?: string | null; date_of_birth?: string | null; inpatient?: boolean },
+  orders: any[],
+) {
+  const doc = new jsPDF();
+  const W = doc.internal.pageSize.getWidth();
+  const maroon: [number, number, number] = [128, 0, 32];
+  const orange: [number, number, number] = [230, 126, 34];
+  let logo: string | null = null;
+  try {
+    const blob = await (await fetch("/favicon.png")).blob();
+    logo = await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result as string); fr.readAsDataURL(blob); });
+  } catch { /* no logo */ }
+
+  doc.setFillColor(...maroon); doc.rect(0, 0, W, 26, "F");
+  doc.setFillColor(...orange); doc.rect(0, 26, W, 2, "F");
+  if (logo) doc.addImage(logo, "PNG", 10, 3, 20, 20);
+  doc.setTextColor(255, 255, 255);
+  doc.setFont("helvetica", "bold"); doc.setFontSize(14);
+  doc.text("THE CATHOLIC UNIVERSITY CLINIC", W / 2, 12, { align: "center" });
+  doc.setFont("helvetica", "normal"); doc.setFontSize(10);
+  doc.text("Laboratory Department — Results", W / 2, 19, { align: "center" });
+
+  const done = orders.map((o) => o.completed_at || o.result_entered_at).filter(Boolean).sort().pop();
+  doc.setTextColor(0, 0, 0); doc.setFontSize(9);
+  const rows: [string, string][] = [
+    [`Name: ${patient.full_name || ""}`, `Date: ${done ? format(new Date(done), "yyyy-MM-dd HH:mm") : format(new Date(), "yyyy-MM-dd")}`],
+    [`Patient ID: ${patient.patient_id || ""}`, `Age: ${ageOf(patient.date_of_birth)}`],
+    [`Gender: ${patient.gender || ""}`, `Patient Type: ${patient.inpatient ? "Inpatient" : "Outpatient"}`],
+  ];
+  let y = 36;
+  rows.forEach(([a, b]) => { doc.text(a, 14, y); doc.text(b, W / 2 + 5, y); y += 6; });
+
+  const body: any[] = [];
+  for (const o of orders) {
+    const name = o.test?.test_name || "Lab test";
+    const fields = [...(o.fields || o.lab_result_fields || [])].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    if (o.status !== "completed") {
+      body.push([{ content: name, styles: { fontStyle: "bold" } }, { content: "Result pending", colSpan: 5, styles: { fontStyle: "italic" } }]);
+    } else if (fields.length) {
+      fields.forEach((f: any, i: number) => {
+        const row: any[] = [];
+        if (i === 0) row.push({ content: name, rowSpan: fields.length, styles: { fontStyle: "bold", valign: "top" } });
+        row.push(f.field_name, f.field_value || "---", f.unit || "", f.reference_range || "", f.flag && f.flag !== "N" ? f.flag : "");
+        body.push(row);
+      });
+    } else {
+      body.push([{ content: name, styles: { fontStyle: "bold" } }, "Result", o.result_value || "---", o.test?.unit || "", o.test?.normal_range || "", o.flag === "abnormal" ? "Abn" : ""]);
+    }
+  }
+
+  autoTable(doc, {
+    startY: y + 2,
+    head: [["Test", "Parameter", "Result", "Unit", "Ref. Range", "Flag"]],
+    body,
+    theme: "grid",
+    styles: { fontSize: 8.5, cellPadding: 1.6, lineColor: [120, 120, 120], lineWidth: 0.2 },
+    headStyles: { fillColor: maroon, textColor: 255, fontStyle: "bold" },
+    columnStyles: { 0: { cellWidth: 38 }, 1: { cellWidth: 38 }, 2: { cellWidth: 28, halign: "right" }, 3: { cellWidth: 22 }, 4: { cellWidth: 34 }, 5: { cellWidth: 14, halign: "center" } },
+    didParseCell: (d) => {
+      if (d.section !== "body") return;
+      const raw = d.row.raw as any[];
+      const flag = raw[raw.length - 1];
+      if (flag && typeof flag === "string" && d.column.index >= raw.length - 4) { d.cell.styles.fontStyle = "bold"; d.cell.styles.textColor = [180, 0, 0]; }
+    },
+  });
+
+  let fy = (doc as any).lastAutoTable.finalY + 8;
+  const notes = orders.filter((o) => o.result_notes?.trim()).map((o) => `${o.test?.test_name}: ${o.result_notes}`).join("   ");
+  doc.setFontSize(9);
+  if (notes) { const c = doc.splitTextToSize(`Comments: ${notes}`, W - 28); doc.text(c, 14, fy); fy += c.length * 5 + 4; }
+  doc.setFontSize(8); doc.setFont("helvetica", "italic");
+  doc.text("*Claim: The report is only responsible for the delivered sample!", 14, fy); fy += 10;
+  doc.setFont("helvetica", "normal"); doc.setFontSize(9);
+  doc.text("Doctor: ______________________________", 14, fy);
+  doc.text("Lab Technician: ______________________", W / 2 + 5, fy);
+
+  doc.autoPrint();
+  window.open(doc.output("bloburl"), "_blank");
+}

@@ -1,205 +1,92 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { useToast } from "@/hooks/use-toast";
-import { Receipt, Loader2, Smartphone } from "lucide-react";
-import { logAuditEvent } from "@/lib/auditLog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Receipt, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { PaymentPanel } from "@/components/PaymentPanel";
+import { createInvoiceForTicket, type Invoice } from "@/lib/billing";
+import { formatKES } from "@/lib/pricing";
 
 interface InterimPaymentProps {
   ticketId: string;
   patientId: string;
 }
 
+/** "Pay now" from any station: bills everything charged so far on this visit and takes payment (no cash). */
 export function InterimPayment({ ticketId, patientId }: InterimPaymentProps) {
-  const { toast } = useToast();
   const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
   const [charges, setCharges] = useState<any[]>([]);
-  const [existingPayments, setExistingPayments] = useState(0);
-  const [amount, setAmount] = useState("");
-  const [method, setMethod] = useState("cash");
-  const [phoneNumber, setPhoneNumber] = useState("");
-  const [processing, setProcessing] = useState(false);
+  const [invoice, setInvoice] = useState<Invoice | null>(null);
+  const [ticket, setTicket] = useState<any>(null);
+  const [patient, setPatient] = useState<any>(null);
 
   useEffect(() => {
-    if (open) fetchCharges();
-  }, [open]);
-
-  const fetchCharges = async () => {
-    const [chargesRes, paymentsRes] = await Promise.all([
-      supabase.from("service_charges").select("*").eq("ticket_id", ticketId),
-      supabase.from("payments").select("amount").eq("patient_id", patientId).eq("status", "completed"),
-    ]);
-    setCharges(chargesRes.data || []);
-    const paid = (paymentsRes.data || []).reduce((s: number, p: any) => s + (p.amount || 0), 0);
-    setExistingPayments(paid);
-  };
-
-  const totalCharges = charges.reduce((s, c) => s + (c.amount || 0), 0);
-  const balance = totalCharges - existingPayments;
-
-  const handlePay = async () => {
-    const payAmount = parseFloat(amount);
-    if (!payAmount || payAmount <= 0) return;
-    setProcessing(true);
-
-    try {
-      // Find or create invoice
-      let invoiceId: string;
-      const { data: existingInvoice } = await supabase
-        .from("invoices")
-        .select("id")
-        .eq("patient_id", patientId)
-        .eq("status", "pending")
-        .limit(1)
-        .maybeSingle();
-
-      if (existingInvoice) {
-        invoiceId = existingInvoice.id;
-      } else {
-        const invoiceNumber = `INV-${Date.now().toString(36).toUpperCase()}`;
-        const { data: newInv, error: invError } = await supabase.from("invoices").insert({
-          patient_id: patientId,
-          invoice_number: invoiceNumber,
-          total_amount: totalCharges,
-          net_amount: totalCharges,
-          amount_paid: 0,
-          balance: totalCharges,
-          status: "pending",
-        }).select("id").single();
-        if (invError || !newInv) throw new Error(invError?.message || "Failed to create invoice — check your permissions");
-        invoiceId = newInv.id;
+    if (!open) return;
+    setLoading(true);
+    (async () => {
+      const [chg, tk, pt] = await Promise.all([
+        supabase.from("service_charges").select("*").eq("ticket_id", ticketId).order("created_at"),
+        supabase.from("tickets").select("id, payment_mode").eq("id", ticketId).maybeSingle(),
+        supabase.from("patients").select("admission_number, payroll_number, insurance_provider, insurance_number, patient_type, profiles!inner(phone)").eq("id", patientId).maybeSingle(),
+      ]);
+      setCharges(chg.data || []);
+      setTicket(tk.data);
+      setPatient(pt.data);
+      try {
+        setInvoice(await createInvoiceForTicket(ticketId));
+      } catch (e) {
+        toast.error("Could not prepare the bill", { description: e instanceof Error ? e.message : String(e) });
       }
+      setLoading(false);
+    })();
+  }, [open, ticketId, patientId]);
 
-      if (method === "mpesa") {
-        // For M-Pesa: trigger STK push only, callback handles payment recording
-        const { error } = await supabase.functions.invoke("mpesa-stk-push", {
-          body: {
-            phoneNumber,
-            amount: payAmount,
-            invoiceId,
-            accountReference: `INTERIM-${ticketId.slice(0, 8)}`,
-          },
-        });
-        if (error) throw error;
-
-        await logAuditEvent({
-          action: "INTERIM_MPESA_STK_PUSH",
-          module: "billing",
-          details: { ticket_id: ticketId, amount: payAmount, phone: phoneNumber, patient_id: patientId },
-        });
-
-        toast({ title: "STK Push sent", description: "Check phone to complete M-Pesa payment" });
-        setOpen(false);
-        setAmount("");
-        setPhoneNumber("");
-        return;
-      }
-
-      // For non-M-Pesa methods: record payment directly
-      await supabase.from("payments").insert({
-        patient_id: patientId,
-        invoice_id: invoiceId,
-        amount: payAmount,
-        payment_method: method as any,
-        status: "completed",
-        paid_at: new Date().toISOString(),
-        received_by: (await supabase.auth.getUser()).data.user?.id ?? null,
-      });
-
-      // Update invoice
-      const newPaid = existingPayments + payAmount;
-      const newBalance = totalCharges - newPaid;
-      await supabase.from("invoices").update({
-        amount_paid: newPaid,
-        balance: newBalance,
-        status: newBalance <= 0 ? "paid" : "partial",
-      }).eq("id", invoiceId);
-
-      await logAuditEvent({
-        action: "INTERIM_PAYMENT",
-        module: "billing",
-        details: { ticket_id: ticketId, amount: payAmount, method, patient_id: patientId },
-      });
-
-      toast({ title: "Payment recorded", description: `KES ${payAmount} received via ${method}` });
-      setOpen(false);
-      setAmount("");
-    } catch (error: any) {
-      toast({ title: "Payment failed", description: error.message, variant: "destructive" });
-    } finally {
-      setProcessing(false);
-    }
-  };
+  const total = charges.reduce((s, c) => s + Number(c.amount || 0), 0);
 
   return (
     <>
-      <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="gap-1">
-        <Receipt className="h-4 w-4" /> Pay Now
+      <Button variant="outline" size="sm" onClick={() => setOpen(true)} className="gap-1 h-8">
+        <Receipt className="h-4 w-4" /> Pay now
       </Button>
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-sm">
+        <DialogContent className="max-w-md max-h-[92vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Interim Payment</DialogTitle>
+            <DialogTitle>Pay for this visit</DialogTitle>
+            <DialogDescription>Everything charged so far on this visit.</DialogDescription>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-2 text-sm">
-              {charges.map(c => (
-                <div key={c.id} className="flex justify-between">
-                  <span>{c.description}</span>
-                  <span>KES {c.amount}</span>
-                </div>
-              ))}
-              <div className="flex justify-between font-bold border-t pt-2">
-                <span>Total</span><span>KES {totalCharges.toFixed(2)}</span>
+          {loading ? (
+            <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : (
+            <div className="space-y-4">
+              <div className="rounded-lg border divide-y text-sm">
+                {charges.length === 0 && <p className="p-3 text-muted-foreground">No charges yet.</p>}
+                {charges.map((c) => (
+                  <div key={c.id} className="flex justify-between gap-3 px-3 py-2">
+                    <span>{c.description}</span><span className="whitespace-nowrap">{formatKES(c.amount)}</span>
+                  </div>
+                ))}
+                {charges.length > 0 && (
+                  <div className="flex justify-between px-3 py-2 font-bold"><span>Total</span><span>{formatKES(total)}</span></div>
+                )}
               </div>
-              <div className="flex justify-between">
-                <span>Paid</span><span>KES {existingPayments.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between font-bold text-primary">
-                <span>Balance</span><span>KES {balance.toFixed(2)}</span>
-              </div>
+              {invoice && Number(invoice.balance ?? 0) > 0 ? (
+                <PaymentPanel
+                  invoice={invoice}
+                  paymentMode={ticket?.payment_mode}
+                  patientPhone={patient?.profiles?.phone}
+                  patient={patient}
+                  onPaid={async (balance) => {
+                    if (balance <= 0) setOpen(false);
+                    else setInvoice(await createInvoiceForTicket(ticketId));
+                  }}
+                />
+              ) : charges.length > 0 ? (
+                <p className="text-center text-sm font-medium text-[hsl(var(--success))]">Everything on this visit is paid.</p>
+              ) : null}
             </div>
-            <div className="space-y-2">
-              <Label>Amount (KES)</Label>
-              <Input type="number" value={amount} onChange={e => setAmount(e.target.value)} placeholder={balance.toFixed(2)} />
-            </div>
-            <div className="space-y-2">
-              <Label>Payment Method</Label>
-              <Select value={method} onValueChange={setMethod}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="cash">Cash</SelectItem>
-                  <SelectItem value="mpesa">M-Pesa</SelectItem>
-                  <SelectItem value="card">Card</SelectItem>
-                  <SelectItem value="insurance">Insurance</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            {method === "mpesa" && (
-              <div className="space-y-2">
-                <Label>Phone Number</Label>
-                <Input type="tel" placeholder="254712345678" value={phoneNumber} onChange={e => setPhoneNumber(e.target.value)} />
-              </div>
-            )}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setOpen(false)}>Cancel</Button>
-            {method === "mpesa" ? (
-              <Button onClick={handlePay} disabled={processing || !amount || !phoneNumber} className="bg-green-600 hover:bg-green-700 text-white">
-                {processing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Smartphone className="h-4 w-4 mr-2" />}
-                Send STK Push
-              </Button>
-            ) : (
-              <Button onClick={handlePay} disabled={processing || !amount}>
-                {processing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Record Payment
-              </Button>
-            )}
-          </DialogFooter>
+          )}
         </DialogContent>
       </Dialog>
     </>

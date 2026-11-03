@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { useQueueTransition } from "@/hooks/useQueueTransition";
-import { StationQueue } from "@/components/StationQueue";
+import { StationQueue, StationShell } from "@/components/StationQueue";
 import { Camera, Search, Clock, CheckCircle, AlertCircle, FileImage } from "lucide-react";
 import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
@@ -147,18 +147,20 @@ const Imaging = () => {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      <StationQueue
-        stationStages={["at_imaging"]}
-        nextStage="at_pharmacy"
-        title="Imaging Queue"
-        onSelectPatient={setSelectedTicket}
-        selectedTicketId={selectedTicket?.id}
-        collapsed={queueCollapsed}
-        onToggleCollapse={() => setQueueCollapsed(!queueCollapsed)}
-      />
-
-      <div className="flex-1 overflow-auto p-6 space-y-6">
+    <StationShell
+      queue={
+        <StationQueue
+          stationStages={["at_imaging"]}
+          nextStage="waiting_for_doctor"
+          title="Imaging Queue"
+          onSelectPatient={setSelectedTicket}
+          selectedTicketId={selectedTicket?.id}
+          collapsed={queueCollapsed}
+          onToggleCollapse={() => setQueueCollapsed(!queueCollapsed)}
+        />
+      }
+    >
+      <div className="space-y-6">
         <div className="flex justify-between items-center flex-wrap gap-4">
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-2"><Camera className="h-7 w-7 text-primary" /> Imaging & Radiology</h1>
@@ -335,7 +337,7 @@ const Imaging = () => {
           )}
         </DialogContent>
       </Dialog>
-    </div>
+    </StationShell>
   );
 };
 

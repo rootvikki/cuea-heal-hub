@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUser } from "@/contexts/UserContext";
+import { LabResultsTable, groupByVisit } from "@/components/LabResultsTable";
 import {
   Dialog,
   DialogContent,
@@ -171,7 +172,7 @@ export const PatientDetailDialog = ({
           </p>
         ) : (
           <Tabs defaultValue="demographics" className="space-y-4">
-            <TabsList className={`grid w-full ${isDoctor ? 'grid-cols-5' : 'grid-cols-1'}`}>
+            <TabsList className={`grid w-full ${isDoctor ? 'grid-cols-3 sm:grid-cols-5 h-auto' : 'grid-cols-1'}`}>
               <TabsTrigger value="demographics">Profile</TabsTrigger>
               {isDoctor && <TabsTrigger value="vitals">Vitals</TabsTrigger>}
               {isDoctor && <TabsTrigger value="encounters">Visits</TabsTrigger>}
@@ -182,7 +183,7 @@ export const PatientDetailDialog = ({
             {/* Demographics */}
             <TabsContent value="demographics">
               <ScrollArea className="h-[500px]">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <Card>
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm">Personal Info</CardTitle>
@@ -297,7 +298,8 @@ export const PatientDetailDialog = ({
                     </CardContent>
                   </Card>
 
-                  <Card>
+                  {isClinicalStaff && (
+<Card>
                     <CardHeader className="pb-2">
                       <CardTitle className="text-sm flex items-center gap-1">
                         <Heart className="h-3 w-3" /> Medical Info
@@ -346,6 +348,7 @@ export const PatientDetailDialog = ({
                       </div>
                     </CardContent>
                   </Card>
+                  )}
                 </div>
               </ScrollArea>
             </TabsContent>
@@ -529,63 +532,15 @@ export const PatientDetailDialog = ({
                     No lab results
                   </p>
                 ) : (
-                  <div className="space-y-3">
-                    {labOrders.map((lab) => {
-                      const fields = (lab.lab_result_fields || []).slice().sort((a: any, b: any) => (a.sort_order || 0) - (b.sort_order || 0));
-                      return (
-                        <Card key={lab.id}>
-                          <CardContent className="p-3 space-y-2">
-                            <div className="flex justify-between items-start">
-                              <div>
-                                <p className="text-sm font-medium">
-                                  {lab.test?.test_name || "Unknown test"}
-                                </p>
-                                <p className="text-xs text-muted-foreground">
-                                  {format(new Date(lab.created_at), "MMM d, yyyy")}
-                                </p>
-                              </div>
-                              <Badge
-                                variant={lab.status === "completed" ? "default" : "outline"}
-                                className="text-xs"
-                              >
-                                {labOrderStatusLabel(lab.status)}
-                              </Badge>
-                            </div>
-                            <LabOrderTimeline order={lab} />
-                            {fields.length > 0 ? (
-                              <div className="space-y-1 border-t pt-2">
-                                {fields.map((f: any) => (
-                                  <div key={f.id} className="grid grid-cols-12 gap-2 text-xs items-center">
-                                    <span className="col-span-4 text-muted-foreground">{f.field_name}</span>
-                                    <span className="col-span-3 font-mono font-medium">{f.field_value || "—"} {f.unit || ""}</span>
-                                    <span className="col-span-4 text-muted-foreground">Ref: {f.reference_range || "—"}</span>
-                                    <span className="col-span-1">
-                                      {f.flag && <Badge variant={f.flag === "H" ? "destructive" : "secondary"} className="text-[10px] px-1">{f.flag}</Badge>}
-                                    </span>
-                                  </div>
-                                ))}
-                              </div>
-                            ) : lab.result_value ? (
-                              <div className="p-2 bg-muted rounded text-sm">
-                                <span className="font-medium">{lab.result_value}</span>{" "}
-                                {lab.test?.unit}
-                                {lab.test?.normal_range && (
-                                  <span className="text-muted-foreground ml-2">
-                                    (ref: {lab.test.normal_range})
-                                  </span>
-                                )}
-                                {lab.flag && <Badge variant={lab.flag === "H" ? "destructive" : "secondary"} className="ml-2">{lab.flag}</Badge>}
-                              </div>
-                            ) : (
-                              <p className="text-xs text-muted-foreground italic">Awaiting results...</p>
-                            )}
-                            {lab.result_notes && (
-                              <p className="text-xs text-muted-foreground border-t pt-1">📝 {lab.result_notes}</p>
-                            )}
-                          </CardContent>
-                        </Card>
-                      );
-                    })}
+                  <div className="space-y-4">
+                    {groupByVisit(labOrders).map((g) => (
+                      <div key={g.encounterId} className="space-y-1.5">
+                        <p className="text-xs font-semibold text-muted-foreground">
+                          Visit of {format(new Date(g.date), "MMM d, yyyy")} · {g.orders.length} test(s)
+                        </p>
+                        <LabResultsTable orders={g.orders} compact />
+                      </div>
+                    ))}
                   </div>
                 )}
               </ScrollArea>

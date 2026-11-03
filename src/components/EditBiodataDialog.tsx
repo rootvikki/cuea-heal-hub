@@ -7,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { logAuditEvent } from "@/lib/auditLog";
+import { PhoneInput } from "@/components/PhoneInput";
+import { isValidPhone, normalizePhone } from "@/lib/validation";
+import { PAYMENT_MODES } from "@/lib/pricing";
 
 interface Props {
   open: boolean;
@@ -24,7 +27,7 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
     if (!open) return;
     setF({
       full_name: profile?.full_name || "",
-      gender: profile?.gender || "",
+      gender: (profile?.gender || "").toLowerCase(),
       date_of_birth: profile?.date_of_birth || "",
       phone: profile?.phone || "",
       address: profile?.address || "",
@@ -37,6 +40,9 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
       next_of_kin_name: patient?.next_of_kin_name || "",
       next_of_kin_relationship: patient?.next_of_kin_relationship || "",
       next_of_kin_phone: patient?.next_of_kin_phone || "",
+      insurance_provider: patient?.insurance_provider || "",
+      insurance_number: patient?.insurance_number || "",
+      preferred_payment_mode: patient?.preferred_payment_mode || "mpesa_school_fees",
     });
   }, [open, patient, profile]);
 
@@ -45,6 +51,8 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
 
   const save = async () => {
     if (!f.full_name.trim()) return toast.error("Name is required");
+    if (f.phone && !isValidPhone(f.phone)) return toast.error("Phone number is not valid");
+    if (f.next_of_kin_phone && !isValidPhone(f.next_of_kin_phone)) return toast.error("Next of kin phone is not valid");
     setSaving(true);
     const { error: pe } = await supabase
       .from("profiles")
@@ -52,7 +60,7 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
         full_name: f.full_name.trim(),
         gender: nn(f.gender),
         date_of_birth: nn(f.date_of_birth),
-        phone: nn(f.phone),
+        phone: f.phone ? normalizePhone(f.phone) : null,
         address: nn(f.address),
       })
       .eq("user_id", patient.user_id);
@@ -67,8 +75,11 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
         admission_number: nn(f.admission_number),
         next_of_kin_name: nn(f.next_of_kin_name),
         next_of_kin_relationship: nn(f.next_of_kin_relationship),
-        next_of_kin_phone: nn(f.next_of_kin_phone),
-      })
+        next_of_kin_phone: f.next_of_kin_phone ? normalizePhone(f.next_of_kin_phone) : null,
+        insurance_provider: nn(f.insurance_provider),
+        insurance_number: nn(f.insurance_number),
+        preferred_payment_mode: f.preferred_payment_mode,
+      } as any)
       .eq("id", patient.id);
     setSaving(false);
     if (pe || te) return toast.error(`Could not save: ${(pe || te)?.message}`);
@@ -119,12 +130,27 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
           {field("admission_number", "School admission no.")}
           {field("national_id", "National ID")}
           {field("nationality", "Nationality")}
-          {field("phone", "Phone")}
+          <div className="space-y-1.5">
+            <Label>Phone</Label>
+            <PhoneInput value={f.phone || ""} onChange={(v) => setF((p) => ({ ...p, phone: v }))} />
+          </div>
           {field("email", "Email", "email")}
           {field("address", "Address")}
           {field("next_of_kin_name", "Next of kin")}
           {field("next_of_kin_relationship", "Relationship")}
-          {field("next_of_kin_phone", "Next of kin phone")}
+          <div className="space-y-1.5">
+            <Label>Next of kin phone</Label>
+            <PhoneInput value={f.next_of_kin_phone || ""} onChange={(v) => setF((p) => ({ ...p, next_of_kin_phone: v }))} />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Usual payment mode</Label>
+            <Select value={f.preferred_payment_mode} onValueChange={(v) => setF((p) => ({ ...p, preferred_payment_mode: v }))}>
+              <SelectTrigger className="h-12"><SelectValue /></SelectTrigger>
+              <SelectContent>{PAYMENT_MODES.map((m) => <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>)}</SelectContent>
+            </Select>
+          </div>
+          {field("insurance_provider", "Insurance provider")}
+          {field("insurance_number", "Insurance member no.")}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
