@@ -469,6 +469,11 @@ const Pharmacy = () => {
   const openItems = sheet ? sheet.items.filter((i) => !["dispensed", "not_dispensed", "collected"].includes(i.status)) : [];
   const editable = sheet?.stage === "new";
 
+  // Long lists are shown a page at a time so the screen stays short
+  const sheetPages = usePaged(visibleSheets, { size: 10, resetKey: `${rxSearch}|${showOlderRx}` });
+  const invPages = usePaged(filteredInventory, { resetKey: searchTerm });
+  const cardPages = usePaged(stockTransactions, { resetKey: stockCardItem?.id });
+
   return (
     <StationShell
       queue={
@@ -794,7 +799,7 @@ const Pharmacy = () => {
                 <Card><CardContent className="py-12 text-center text-muted-foreground">No prescriptions waiting</CardContent></Card>
               ) : (
                 <div className="grid gap-2 xl:grid-cols-2">
-                  {visibleSheets.map((s) => (
+                  {sheetPages.pageItems.map((s) => (
                     <button key={s.key} type="button" onClick={() => setOpenKey(s.key)} className="w-full text-left p-3 border rounded-lg hover:bg-muted/40 transition-colors space-y-2">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="min-w-0">
@@ -837,7 +842,7 @@ const Pharmacy = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredInventory.map((item) => (
+                    {invPages.pageItems.map((item) => (
                       <TableRow key={item.id}>
                         <TableCell>
                           <p className="font-medium">{item.drug_name}</p>
@@ -867,6 +872,7 @@ const Pharmacy = () => {
                     ))}
                   </TableBody>
                 </Table>
+                <Pager pager={invPages} label="drugs" className="border-t mt-2" />
               </CardContent>
             </Card>
           </TabsContent>
@@ -905,7 +911,7 @@ const Pharmacy = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {stockTransactions.map((tx) => (
+                      {cardPages.pageItems.map((tx) => (
                         <TableRow key={tx.id}>
                           <TableCell>{new Date(tx.transaction_date).toLocaleDateString()}</TableCell>
                           <TableCell>{tx.received_from || tx.issued_to || "-"}</TableCell>
@@ -920,6 +926,7 @@ const Pharmacy = () => {
                     </TableBody>
                   </Table>
                 )}
+                {stockCardItem && <Pager pager={cardPages} label="stock-card lines" className="border-t mt-2" />}
               </CardContent>
             </Card>
           </TabsContent>
