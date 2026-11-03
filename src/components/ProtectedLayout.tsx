@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { PageBreadcrumb } from "@/components/PageBreadcrumb";
 import IdleTimeout from "@/components/IdleTimeout";
 import { CriticalAlertsBar } from "@/components/CriticalAlertsBar";
+import { WorkLogButton } from "@/components/WorkLog";
 
 interface ProtectedLayoutProps {
   children: React.ReactNode;
@@ -72,6 +73,7 @@ const ProtectedLayout = ({ children, allowedRoles }: ProtectedLayoutProps) => {
             </SidebarTrigger>
             <span className="ml-3 font-semibold text-sm lg:hidden">CUEA Infirmary</span>
             <div className="ml-auto flex items-center">
+              <WorkLogButton />
               <NotificationBell />
             </div>
           </header>
