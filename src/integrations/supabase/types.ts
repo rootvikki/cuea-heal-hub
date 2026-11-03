@@ -2790,6 +2790,72 @@ export type Database = {
         }
         Returns: number
       }
+      pharmacy_receive_stock: {
+        Args: {
+          _batch?: string
+          _expiry?: string
+          _inventory_id: string
+          _invoice_ref?: string
+          _qty: number
+          _received_from?: string
+          _request_id?: string
+        }
+        Returns: {
+          average_monthly_consumption: number | null
+          batch_number: string | null
+          category: string | null
+          created_at: string | null
+          drug_name: string
+          expiry_date: string | null
+          formulation: string | null
+          generic_name: string | null
+          id: string
+          insurance_price: number | null
+          maximum_stock: number | null
+          minimum_stock: number | null
+          package: string | null
+          quantity: number
+          reorder_level: number | null
+          strength_size: string | null
+          unit_price: number
+          updated_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pharmacy_inventory"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      pharmacy_set_stock: {
+        Args: { _inventory_id: string; _new_qty: number; _reason?: string }
+        Returns: {
+          average_monthly_consumption: number | null
+          batch_number: string | null
+          category: string | null
+          created_at: string | null
+          drug_name: string
+          expiry_date: string | null
+          formulation: string | null
+          generic_name: string | null
+          id: string
+          insurance_price: number | null
+          maximum_stock: number | null
+          minimum_stock: number | null
+          package: string | null
+          quantity: number
+          reorder_level: number | null
+          strength_size: string | null
+          unit_price: number
+          updated_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pharmacy_inventory"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       sign_off_lab_order: {
         Args: { _comments: string; _order_id: string }
         Returns: {
