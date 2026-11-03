@@ -1,4 +1,12 @@
 import { useLiveTable } from "@/lib/liveUpdates";
+import { useFormDraft } from "@/hooks/useFormDraft";
+import { DraftStatus } from "@/components/DraftStatus";
+
+const EMPTY_DRUG = {
+  drugName: "", genericName: "", batchNumber: "", quantity: "", unitPrice: "", insurancePrice: "",
+  expiryDate: "", reorderLevel: "50", strengthSize: "", packageType: "",
+  minimumStock: "", maximumStock: "",
+};
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { InventoryEditDialog } from "@/components/InventoryEditDialog";
 import { useUser } from "@/contexts/UserContext";
@@ -94,10 +102,10 @@ const Pharmacy = () => {
   const [editItem, setEditItem] = useState<any>(null);
   const [tab, setTab] = useState("prescriptions");
   const [showOlderRx, setShowOlderRx] = useState(false);
-  const [formData, setFormData] = useState({
-    drugName: "", genericName: "", batchNumber: "", quantity: "", unitPrice: "", insurancePrice: "",
-    expiryDate: "", reorderLevel: "50", strengthSize: "", packageType: "",
-    minimumStock: "", maximumStock: "",
+  const [formData, setFormData] = useState(EMPTY_DRUG);
+  const drugDraft = useFormDraft("pharmacy-add-drug", formData, setFormData, {
+    reset: EMPTY_DRUG,
+    isEmpty: (v) => !v.drugName && !v.genericName && !v.quantity && !v.unitPrice && !v.batchNumber,
   });
 
   const fetchInventory = useCallback(async () => {
@@ -408,7 +416,8 @@ const Pharmacy = () => {
     } else {
       toast.success("Drug added to inventory");
       setDialogOpen(false);
-      setFormData({ drugName: "", genericName: "", batchNumber: "", quantity: "", unitPrice: "", insurancePrice: "", expiryDate: "", reorderLevel: "50", strengthSize: "", packageType: "", minimumStock: "", maximumStock: "" });
+      drugDraft.clear();
+      setFormData(EMPTY_DRUG);
       fetchInventory();
     }
   };
@@ -687,7 +696,7 @@ const Pharmacy = () => {
                 <Button className="gap-2" disabled={!canEditInventory}><Plus className="h-4 w-4" /> Add Drug</Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
-                <DialogHeader><DialogTitle>Add Medication to Inventory</DialogTitle></DialogHeader>
+                <DialogHeader><DialogTitle>Add Medication to Inventory</DialogTitle><DraftStatus draft={drugDraft} /></DialogHeader>
                 <form onSubmit={handleAddInventory} className="space-y-5">
                   <div className="grid grid-cols-2 gap-5">
                     <div className="space-y-2"><Label className="text-sm font-semibold">Drug Name *</Label><Input value={formData.drugName} onChange={(e) => setFormData({ ...formData, drugName: e.target.value })} required className="h-12 text-base" /></div>
