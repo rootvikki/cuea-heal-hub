@@ -376,7 +376,7 @@ const Consultation = () => {
   );
 
   const costEstimate = useMemo(() => {
-    const consultation = 500;
+    const consultation = serviceFee("consultation", (selectedTicket as any)?.payment_mode, (selectedTicket?.patient as any)?.patient_type);
     const labs = selectedLabTests.reduce((sum, id) => {
       const test = labTests.find(t => t.id === id);
       return sum + (test?.price || 0);
@@ -693,13 +693,14 @@ const Consultation = () => {
 
     if (encounterError) throw new Error(`The visit record could not be saved: ${encounterError.message}`);
 
+    const pType = await patientTypeOf(selectedTicket!.patient!.id, (selectedTicket!.patient as any)?.patient_type);
     await supabase.from("service_charges").insert({
       patient_id: selectedTicket!.patient!.id,
       encounter_id: encounterData.id,
       ticket_id: selectedTicket!.id,
       service_type: "consultation",
-      description: "Doctor Consultation",
-      amount: 500,
+      description: serviceFeeDescription("Doctor Consultation", "consultation", pType),
+      amount: serviceFee("consultation", (selectedTicket as any)?.payment_mode, pType),
       billing_stage: "consultation",
     });
 

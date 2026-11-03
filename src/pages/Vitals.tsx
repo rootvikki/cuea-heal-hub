@@ -25,7 +25,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { SendToDialog } from "@/components/SendToDialog";
 import { ReportsButton } from "@/components/StationReports";
 import { sendPatientTo } from "@/lib/stations";
-import { paymentModeLabel, serviceFee } from "@/lib/pricing";
+import { paymentModeLabel, serviceFee, serviceFeeDescription } from "@/lib/pricing";
+import { patientTypeOf } from "@/lib/billing";
 import { calculateAgeYears } from "@/lib/utils";
 
 // ─── Vital range helpers ─────────────────────────────────────────
@@ -225,9 +226,11 @@ const Vitals = () => {
 
     const { count: feeCount } = await supabase.from("service_charges").select("id", { count: "exact", head: true }).eq("ticket_id", selectedTicket.id).eq("service_type", "triage");
     if (!feeCount) {
+      const pType = await patientTypeOf(selectedTicket.patient_id, selectedTicket.patient?.patient_type);
       await supabase.from("service_charges").insert({
         patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id,
-        service_type: "triage", description: "Triage / Vitals Assessment Fee", amount: serviceFee("triage", selectedTicket.payment_mode), billing_stage: "triage",
+        service_type: "triage", description: serviceFeeDescription("Triage / Vitals Assessment Fee", "triage", pType),
+        amount: serviceFee("triage", selectedTicket.payment_mode, pType), billing_stage: "triage",
       });
     }
 
