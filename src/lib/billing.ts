@@ -101,6 +101,21 @@ export async function createInvoiceForTicket(ticketId: string, confirmed?: Confi
   return invoice as Invoice;
 }
 
+/**
+ * Billing desk changes amounts on a confirmed bill that has nothing paid yet. The database
+ * (`update_unpaid_bill`) refuses once a payment exists, rebuilds the bill lines and totals in one step.
+ */
+export async function updateUnpaidBill(invoice: Invoice, lines: ConfirmedCharge[]): Promise<Invoice> {
+  const { data, error } = await supabase.rpc("update_unpaid_bill", {
+    _invoice_id: invoice.id,
+    _lines: lines.map((l) => ({ id: l.id, description: l.description, amount: Number(l.amount) || 0 })),
+  });
+  if (error) throw new Error(error.message);
+  const updated = data as unknown as Invoice;
+  logAuditEvent({ action: "invoice_amounts_edited", module: "billing", details: { invoice_number: invoice.invoice_number, before: invoice.net_amount, after: updated.net_amount, lines } });
+  return updated;
+}
+
 /** Records a (non M-Pesa STK) payment and updates the invoice. Returns the new balance. */
 export async function recordPayment(invoice: Invoice, amount: number, method: PaymentMethod | "mpesa_manual", reference: string) {
   const { data: { user } } = await supabase.auth.getUser();
