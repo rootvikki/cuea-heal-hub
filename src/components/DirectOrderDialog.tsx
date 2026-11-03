@@ -11,7 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { FlaskConical, Pill, Plus, X, Loader2, Search } from "lucide-react";
 import { logAuditEvent } from "@/lib/auditLog";
 import { notifyRoles } from "@/lib/notifications";
-import { FORMULATIONS, FREQUENCIES, formatRx } from "@/lib/rxFormat";
+import { FORMULATIONS, FREQUENCIES, DURATIONS, formatRx } from "@/lib/rxFormat";
 import { priceFor, paymentModeLabel, formatKES } from "@/lib/pricing";
 
 interface Props {
@@ -24,7 +24,7 @@ interface Props {
 }
 
 interface RxLine { formulation: string; medication_name: string; strength: string; frequency: string; duration: string; quantity: number }
-const emptyRx: RxLine = { formulation: "Tabs", medication_name: "", strength: "", frequency: "BD", duration: "5 days", quantity: 1 };
+const emptyRx: RxLine = { formulation: "Tabs", medication_name: "", strength: "", frequency: "BD", duration: "5/7", quantity: 1 };
 
 /**
  * Lets reception / triage send a patient straight to the lab or pharmacy
@@ -229,7 +229,7 @@ export function DirectOrderDialog({ open, onOpenChange, mode, ticket, source, on
                   <SelectContent>{FREQUENCIES.map(f => <SelectItem key={f} value={f}>{f}</SelectItem>)}</SelectContent>
                 </Select></div>
               <div className="space-y-1"><Label>Duration</Label>
-                <Input className="h-12" value={rx.duration} onChange={e => setRx({ ...rx, duration: e.target.value })} /></div>
+                <Input className="h-12" list="rx-durations" value={rx.duration} onChange={e => setRx({ ...rx, duration: e.target.value })} placeholder="e.g. 5/7, 1/52, 1/12" /><datalist id="rx-durations">{DURATIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}</datalist></div>
               <div className="space-y-1"><Label>Quantity</Label>
                 <Input className="h-12" type="number" min={1} value={rx.quantity} onChange={e => setRx({ ...rx, quantity: parseInt(e.target.value) || 1 })} /></div>
             </div>
