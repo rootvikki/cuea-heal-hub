@@ -15,7 +15,7 @@ import { BarChart3, Download, Printer, Loader2, Search, RotateCcw } from "lucide
 import { calculateAgeYears } from "@/lib/utils";
 import { paymentModeLabel, PAYMENT_MODES } from "@/lib/pricing";
 import { stageLabel } from "@/lib/stations";
-import { RESULT_CATEGORY_LABELS, resultCategory, type ResultCategory } from "@/lib/labFields";
+import { RESULT_CATEGORY_LABELS, STRUCTURED_FIELDS, answerBreakdown, fieldKind, flagLabel, isCriticalFlag, isPanelTest, resultCategory, splitMulti, type ResultCategory } from "@/lib/labFields";
 
 // ─── shared helpers ───────────────────────────────────────────────
 type Col<T> = { key: string; label: string; value: (r: T) => string | number };
@@ -366,13 +366,26 @@ export function VisitsReport({ variant = "reception" }: { variant?: "reception" 
 interface LabRow {
   _id: string; date: string; name: string; opd: string; gender: string; age: number | null;
   test: string; result: string; category: ResultCategory; status: string;
+  fields: { field_name: string; field_value: string | null; flag: string | null }[];
 }
+
+/** The answer a result line counts under: the picked answer(s), or High / Low / Critical / Within range for numbers. */
+const answersOf = (test: string, f: { field_name: string; field_value: string | null; flag: string | null }) => {
+  const def = (STRUCTURED_FIELDS[test] || []).find((d) => d.name === f.field_name);
+  const v = (f.field_value || "").trim();
+  if (!def || !v) return v ? [v] : [];
+  const kind = fieldKind(def);
+  if (kind === "number") return [isCriticalFlag(f.flag) ? "Critical" : f.flag === "H" ? "High" : f.flag === "L" ? "Low" : "Within range"];
+  return kind === "multi" ? splitMulti(v) : [v];
+};
 
 export function LabReport() {
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
   const [test, setTest] = useState("all");
   const [result, setResult] = useState("all");
+  const [param, setParam] = useState("all");
+  const [answer, setAnswer] = useState("all");
   const [gender, setGender] = useState("all");
   const [minAge, setMinAge] = useState("");
   const [maxAge, setMaxAge] = useState("");
@@ -390,14 +403,18 @@ export function LabReport() {
     try {
       const { data, error } = await supabase
         .from("lab_orders")
-        .select("id, created_at, status, result_value, flag, test_id, lab_tests_catalog(test_name), patients!inner(patient_id, profiles!inner(full_name, gender, date_of_birth)), lab_result_fields(field_name, field_value, flag)")
+        .select("id, created_at, status, result_value, flag, rejection_reason, test_id, lab_tests_catalog(test_name), patients!inner(patient_id, profiles!inner(full_name, gender, date_of_birth)), lab_result_fields(field_name, field_value, flag, sort_order)")
         .gte("created_at", iso(from)).lte("created_at", iso(to, true))
         .order("created_at", { ascending: false }).limit(3000);
       if (error) throw error;
       setRows((data || []).map((o: any) => {
-        const fields = (o.lab_result_fields || []) as any[];
-        const abnormalFields = fields.filter((f) => f.flag && f.flag !== "N").map((f) => `${f.field_name} ${f.field_value} (${f.flag})`);
-        const resultText = o.status !== "completed" ? "Pending" : fields.length ? (abnormalFields.length ? abnormalFields.join("; ") : "Within range") : (o.result_value || "");
+        const fields = ((o.lab_result_fields || []) as any[]).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+        const testName = o.lab_tests_catalog?.test_name || "";
+        const abnormalFields = fields.filter((f) => flagLabel(f.flag)).map((f) => `${f.field_name} ${f.field_value} (${flagLabel(f.flag).replace(/[↑↓]/g, "").trim()})`);
+        const resultText = o.status === "rejected" ? `Sample rejected: ${o.rejection_reason || ""}`
+          : o.status !== "completed" ? "Pending"
+          : fields.length && isPanelTest(testName) ? (abnormalFields.length ? abnormalFields.join("; ") : "Within range")
+          : (o.result_value || "");
         return {
           _id: o.id,
           date: o.created_at,
@@ -409,6 +426,7 @@ export function LabReport() {
           result: resultText,
           category: resultCategory(o),
           status: o.status || "pending",
+          fields,
         };
       }));
     } catch (e) {
@@ -424,6 +442,11 @@ export function LabReport() {
   const filtered = useMemo(() => rows.filter((r) => {
     if (test !== "all" && r.test !== test) return false;
     if (result !== "all" && r.category !== result) return false;
+    if (param !== "all") {
+      const f = r.fields.find((x) => x.field_name === param);
+      if (!f) return false;
+      if (answer !== "all" && !answersOf(r.test, f).includes(answer)) return false;
+    }
     if (gender !== "all" && (gender === "not_recorded" ? r.gender !== NOT_RECORDED : r.gender.toLowerCase() !== gender)) return false;
     if (minAge && (r.age == null || r.age < Number(minAge))) return false;
     if (maxAge && (r.age == null || r.age > Number(maxAge))) return false;
@@ -432,7 +455,17 @@ export function LabReport() {
       if (![r.name, r.opd, r.test, r.result].some((x) => x.toLowerCase().includes(s))) return false;
     }
     return true;
-  }), [rows, test, result, gender, minAge, maxAge, text]);
+  }), [rows, test, result, param, answer, gender, minAge, maxAge, text]);
+
+  // Parameter / answer filters follow the chosen test's answer list
+  const paramDefs = test !== "all" ? STRUCTURED_FIELDS[test] || [] : [];
+  const paramDef = paramDefs.find((d) => d.name === param);
+  const answerOptions = paramDef ? (fieldKind(paramDef) === "number" ? ["Within range", "High", "Low", "Critical"] : paramDef.options || []) : [];
+  useEffect(() => { setParam("all"); setAnswer("all"); }, [test]);
+  useEffect(() => { setAnswer("all"); }, [param]);
+
+  const breakdown = useMemo(() => answerBreakdown(filtered.map((r) => ({ test: r.test, status: r.status, fields: r.fields }))), [filtered]);
+  const breakdownRows = useMemo(() => [...breakdown.entries()].flatMap(([key, m]) => [...m.entries()].sort((a, b) => b[1] - a[1]).map(([ans, n]) => ({ key, ans, n }))), [breakdown]);
 
   const cols: Col<LabRow>[] = [
     { key: "date", label: "Date", value: (r) => format(new Date(r.date), "dd MMM yyyy HH:mm") },
@@ -452,6 +485,8 @@ export function LabReport() {
     { label: "Positive", value: by("positive") },
     { label: "Negative", value: by("negative") },
     { label: "Abnormal", value: by("abnormal") },
+    { label: "Critical", value: by("critical") },
+    { label: "Rejected", value: by("rejected") },
     { label: "Pending", value: by("pending") },
   ];
 
@@ -461,7 +496,7 @@ export function LabReport() {
     return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
   }, [filtered]);
 
-  const reset = () => { setTest("all"); setResult("all"); setGender("all"); setMinAge(""); setMaxAge(""); setText(""); };
+  const reset = () => { setTest("all"); setResult("all"); setParam("all"); setAnswer("all"); setGender("all"); setMinAge(""); setMaxAge(""); setText(""); };
   const subtitle = `${format(new Date(from), "dd MMM yyyy")} – ${format(new Date(to), "dd MMM yyyy")}`;
 
   return (
@@ -470,6 +505,12 @@ export function LabReport() {
         <DateRange from={from} to={to} setFrom={setFrom} setTo={setTo} />
         <SimpleSelect label="Test" value={test} onChange={setTest} options={[{ value: "all", label: "All tests" }, ...tests.map((t) => ({ value: t.test_name, label: t.test_name }))]} />
         <SimpleSelect label="Result" value={result} onChange={setResult} options={[{ value: "all", label: "All results" }, ...(Object.keys(RESULT_CATEGORY_LABELS) as ResultCategory[]).map((k) => ({ value: k, label: RESULT_CATEGORY_LABELS[k] }))]} />
+        {paramDefs.length > 0 && (
+          <SimpleSelect label="Parameter" value={param} onChange={setParam} options={[{ value: "all", label: "Any parameter" }, ...paramDefs.map((d) => ({ value: d.name, label: d.name }))]} />
+        )}
+        {answerOptions.length > 0 && (
+          <SimpleSelect label="Answer" value={answer} onChange={setAnswer} options={[{ value: "all", label: "Any answer" }, ...answerOptions.map((a) => ({ value: a, label: a }))]} />
+        )}
         <SimpleSelect label="Gender" value={gender} onChange={setGender} options={[{ value: "all", label: "All" }, { value: "male", label: "Male" }, { value: "female", label: "Female" }]} />
         <AgeRange min={minAge} max={maxAge} setMin={setMinAge} setMax={setMaxAge} />
         <div className="space-y-1 col-span-2">
@@ -499,6 +540,32 @@ export function LabReport() {
         </div>
       )}
       {loading ? <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div> : <ResultsTable rows={filtered} cols={cols} />}
+      {breakdownRows.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="font-semibold text-sm">Results by answer <span className="text-muted-foreground font-normal">— how often each answer was given (completed tests in this list)</span></p>
+            <Button variant="outline" size="sm" onClick={() => downloadCsv(`Lab_Answers_${from}_${to}.csv`, toCsv(breakdownRows.map((r, i) => ({ ...r, _id: String(i) })), [
+              { key: "test", label: "Test › Parameter", value: (r) => r.key },
+              { key: "ans", label: "Answer", value: (r) => r.ans },
+              { key: "n", label: "Count", value: (r) => r.n },
+            ]))}>
+              <Download className="h-4 w-4 mr-1" /> Answer counts (CSV)
+            </Button>
+          </div>
+          <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+            {[...breakdown.entries()].map(([key, m]) => (
+              <div key={key} className="rounded-md border p-2">
+                <p className="text-xs font-semibold mb-1">{key}</p>
+                <div className="flex flex-wrap gap-1">
+                  {[...m.entries()].sort((a, b) => b[1] - a[1]).map(([ans, n]) => (
+                    <Badge key={ans} variant="outline" className="font-normal">{ans}: <span className="font-bold ml-1">{n}</span></Badge>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

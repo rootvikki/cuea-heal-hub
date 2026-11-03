@@ -11,6 +11,7 @@ export interface LabOrderTimelineOrder {
   processing_started_at?: string | null;
   completed_at?: string | null;
   result_entered_at?: string | null;
+  rejection_reason?: string | null;
 }
 
 export const LAB_ORDER_STEPS: { key: LabOrderStatus; label: string }[] = [
@@ -33,7 +34,7 @@ export const nextLabOrderStatus = (status: string | null | undefined): LabOrderS
 };
 
 export const labOrderStatusLabel = (status: string | null | undefined) =>
-  LAB_ORDER_STEPS[labOrderStepIndex(status)].label;
+  status === "rejected" ? "Sample rejected" : LAB_ORDER_STEPS[labOrderStepIndex(status)].label;
 
 const stepTime = (order: LabOrderTimelineOrder, key: LabOrderStatus) => {
   switch (key) {
@@ -59,6 +60,14 @@ interface LabOrderTimelineProps {
 
 export function LabOrderTimeline({ order, compact = false, className }: LabOrderTimelineProps) {
   const current = labOrderStepIndex(order.status);
+
+  if (order.status === "rejected") {
+    return (
+      <p className={cn("text-xs font-medium text-destructive", className)}>
+        Sample rejected{order.rejection_reason ? `: ${order.rejection_reason}` : ""} — a new sample is needed.
+      </p>
+    );
+  }
 
   return (
     <div className={cn("flex items-start gap-1 w-full overflow-x-auto", className)}>

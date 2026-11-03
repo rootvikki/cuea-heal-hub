@@ -8,9 +8,17 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { StationQueue, StationShell } from "@/components/StationQueue";
-import { TestTube, Search, Printer, CheckCircle2, PackageCheck, Save, Send, ArrowLeft, Clock, BarChart3, Loader2 } from "lucide-react";
+import { TestTube, Search, Printer, CheckCircle2, PackageCheck, Save, Send, ArrowLeft, Clock, BarChart3, Loader2, Ban, RotateCcw, Siren } from "lucide-react";
 import { printVisitLabReport } from "@/lib/labReport";
-import { STRUCTURED_FIELDS, getFlag, refRangeFor, resultCategory } from "@/lib/labFields";
+import {
+  STRUCTURED_FIELDS, CANNED_COMMENTS, REJECTION_REASONS, PANEL_RESULT, fieldFlag, flagLabel, getFlag, isCriticalFlag, isPanelTest,
+  missingAnswers, orderFlag, refRangeFor, resultCategory, summaryText, visibleFields, type LabFieldDef,
+} from "@/lib/labFields";
+import { LabFieldInput } from "@/components/LabFieldInput";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { useLiveTable } from "@/lib/liveUpdates";
 import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
 import { LabResultsTable } from "@/components/LabResultsTable";
@@ -34,8 +42,28 @@ interface LabVisit {
   origin: "doctor" | "dental" | "direct";
 }
 
+/** Still being worked on (not completed and not rejected). */
+const isOpen = (o: any) => o.status !== "completed" && o.status !== "rejected";
+
 const visitStatus = (orders: any[]): LabVisit["status"] =>
-  orders.every((o) => o.status === "completed") ? "done" : orders.some((o) => o.status !== "pending") ? "received" : "new";
+  orders.every((o) => !isOpen(o)) ? "done" : orders.some((o) => o.status !== "pending") ? "received" : "new";
+
+/** Result template for an order. Older results typed as free text (no saved lines) keep showing that text. */
+const defsFor = (o: any): LabFieldDef[] | null => {
+  const defs = STRUCTURED_FIELDS[o.test?.test_name || ""];
+  if (!defs) return null;
+  if (o.status === "completed" && !(o.lab_result_fields || []).length) return null;
+  return defs;
+};
+
+/** Finished results show exactly what was saved (older answers may not match today's answer lists). */
+const savedLines = (o: any): any[] | null => {
+  const rows = (o.lab_result_fields || []) as any[];
+  if (o.status !== "completed" || !rows.length) return null;
+  return [...rows].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+};
+
+interface CriticalAlert { id: string; lab_order_id: string | null; title: string; acknowledged: boolean | null; acknowledged_by: string | null; acknowledged_at: string | null; acknowledged_note: string | null; ackName?: string }
 
 const STATUS_BADGE: Record<LabVisit["status"], { label: string; cls: string }> = {
   new: { label: "New", cls: "bg-yellow-100 text-yellow-800 border-yellow-300" },
@@ -121,15 +149,35 @@ const Laboratory = () => {
     for (const o of openVisit.orders) {
       const saved: Record<string, string> = {};
       (o.lab_result_fields || []).forEach((f: any) => { saved[f.field_name] = f.field_value || ""; });
-      const defs = STRUCTURED_FIELDS[o.test?.test_name || ""];
+      const defs = defsFor(o);
       d[o.id] = {
         fields: defs ? Object.fromEntries(defs.map((f) => [f.name, saved[f.name] || ""])) : {},
-        value: o.result_value && o.result_value !== "See structured results" ? o.result_value : "",
+        value: o.result_value && o.result_value !== PANEL_RESULT ? o.result_value : "",
         notes: o.result_notes || "",
       };
     }
     setDraft(d);
   }, [openVisitKey, openVisit?.orders.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Critical-value alerts raised for the open request, with who acknowledged them
+  const [alerts, setAlerts] = useState<CriticalAlert[]>([]);
+  const openOrderIds = openVisit?.orders.map((o) => o.id).join(",") || "";
+  const loadAlerts = useCallback(async () => {
+    if (!openOrderIds) { setAlerts([]); return; }
+    const { data } = await supabase.from("critical_alerts")
+      .select("id, lab_order_id, title, acknowledged, acknowledged_by, acknowledged_at, acknowledged_note")
+      .in("lab_order_id", openOrderIds.split(",")).order("created_at", { ascending: false });
+    const list = (data || []) as CriticalAlert[];
+    const ids = [...new Set(list.map((a) => a.acknowledged_by).filter(Boolean))] as string[];
+    const names = new Map<string, string>();
+    if (ids.length) {
+      const { data: profs } = await supabase.from("profiles").select("user_id, full_name").in("user_id", ids);
+      (profs || []).forEach((p) => names.set(p.user_id, p.full_name));
+    }
+    setAlerts(list.map((a) => ({ ...a, ackName: a.acknowledged_by ? names.get(a.acknowledged_by) : undefined })));
+  }, [openOrderIds]);
+  useEffect(() => { void loadAlerts(); }, [loadAlerts]);
+  useLiveTable(["critical_alerts"], () => void loadAlerts());
 
   const s = searchTerm.toLowerCase();
   const match = (v: LabVisit) => !s || [v.patient?.profile?.full_name, v.patient?.patient_id, ...v.orders.map((o) => o.test?.test_name)].some((x) => x?.toLowerCase().includes(s));
@@ -143,6 +191,7 @@ const Laboratory = () => {
       const uid = await authUserIdForStaff(id);
       await notifyUser(uid, { title, message, category: "lab", referenceId: visit.orders[0]?.id, link: visit.origin === "dental" ? "/dental" : "/consultation" });
     }
+    return doctorIds.length;
   };
 
   /** One click: sample received & collected & processing for every test in the request. */
@@ -174,29 +223,62 @@ const Laboratory = () => {
     return !!d.value.trim() || Object.values(d.fields).some((v) => v.trim());
   };
 
-  /** Saves every test that has results typed in. */
+  /** Alerts the doctor (and nurses) straight away about critical values; they must acknowledge. */
+  const raiseCritical = async (visit: LabVisit, list: { order: any; text: string }[]) => {
+    if (!list.length) return;
+    const name = visit.patient?.profile?.full_name || "a patient";
+    for (const c of list) {
+      const { error } = await supabase.from("critical_alerts").insert({
+        alert_type: "lab_critical", severity: "critical",
+        title: `CRITICAL ${c.order.test?.test_name}: ${c.text}`,
+        message: `${name} (${visit.patient?.patient_id || "—"}) — ${c.text}. Please act and acknowledge.`,
+        patient_id: visit.patient?.id, reference_id: c.order.id, lab_order_id: c.order.id,
+      });
+      if (error) console.error("critical alert", error);
+    }
+    const summary = list.map((c) => c.text).join(", ");
+    const title = `CRITICAL lab result — ${name}`;
+    const sent = await notifyOrderers(visit, title, summary);
+    await notifyRoles(sent ? ["nurse"] : ["doctor", "clinical_officer", "nurse"], { title, message: summary, category: "lab", link: "/consultation" });
+    logAuditEvent({ action: "lab_critical_value", module: "laboratory", details: { visit: visit.key, values: list.map((c) => c.text) } });
+    toast.error("Critical value — doctor alerted", { description: summary, duration: 10000 });
+  };
+
+  /** Saves every test whose answers are complete. Tests with missing answers are listed, not saved. */
   const saveResults = async (visit: LabVisit) => {
     const staffId = await currentStaffId();
     const now = new Date().toISOString();
     let abnormal = false;
-    let saved = 0;
+    let critical = false;
+    const savedIds = new Set<string>();
+    const incomplete: string[] = [];
+    const criticals: { order: any; text: string }[] = [];
     for (const o of visit.orders) {
-      if (o.status === "completed" || !hasEntry(o)) continue;
+      if (!isOpen(o) || !hasEntry(o)) continue;
       const d = draft[o.id];
+      const testName = o.test?.test_name || "";
       const gender = o.patient?.profile?.gender;
-      const defs = STRUCTURED_FIELDS[o.test?.test_name || ""];
+      const age = calculateAgeYears(o.patient?.profile?.date_of_birth);
+      const defs = defsFor(o);
       let flag: string | null = null;
+      let resultValue = d.value.trim();
       if (defs) {
-        await supabase.from("lab_result_fields").delete().eq("lab_order_id", o.id);
-        const rows = defs.map((def, idx) => {
-          const value = d.fields[def.name] || "";
-          const ref = refRangeFor(def, gender);
-          const f = getFlag(value, ref);
-          if (f) flag = "abnormal";
-          return { lab_order_id: o.id, field_name: def.name, field_value: value, unit: def.unit || null, reference_range: ref || null, flag: f, sort_order: idx };
-        });
+        const missing = missingAnswers(defs, d.fields);
+        if (missing.length) { incomplete.push(`${testName}: ${missing.join(", ")}`); continue; }
+        const rows = visibleFields(defs, d.fields)
+          .filter((def) => (d.fields[def.name] || "").trim())
+          .map((def) => {
+            const value = d.fields[def.name].trim();
+            const f = fieldFlag(def, value, gender, age);
+            if (isCriticalFlag(f)) criticals.push({ order: o, text: `${def.name === "Result" ? testName : def.name} ${value}${def.unit ? ` ${def.unit}` : ""}` });
+            return { lab_order_id: o.id, field_name: def.name, field_value: value, unit: def.unit || null, reference_range: refRangeFor(def, gender, age) || null, flag: f, sort_order: defs.indexOf(def) };
+          });
+        const { error: delErr } = await supabase.from("lab_result_fields").delete().eq("lab_order_id", o.id);
+        if (delErr) throw delErr;
         const { error } = await supabase.from("lab_result_fields").insert(rows);
         if (error) throw error;
+        flag = orderFlag(testName, rows.map((r) => r.flag), rows.map((r) => r.field_value));
+        resultValue = isPanelTest(testName) ? PANEL_RESULT : summaryText(defs, d.fields);
       } else {
         const cat = resultCategory({ status: "completed", result_value: d.value });
         if (getFlag(d.value, o.test?.normal_range)) flag = "abnormal";
@@ -204,18 +286,54 @@ const Laboratory = () => {
         else if (cat === "negative") flag = "negative";
       }
       if (flag && flag !== "negative") abnormal = true;
+      if (flag === "critical") critical = true;
       const { error } = await supabase.from("lab_orders").update({
         status: "completed", completed_at: now,
         received_at: o.received_at || now, sample_collected_at: o.sample_collected_at || now, processing_started_at: o.processing_started_at || now,
-        result_value: defs ? "See structured results" : d.value.trim(),
+        result_value: resultValue,
         result_notes: d.notes.trim() || null, result_entered_by: staffId, result_entered_at: now, flag,
       }).eq("id", o.id);
       if (error) throw error;
-      saved++;
+      savedIds.add(o.id);
     }
-    if (saved) logAuditEvent({ action: "lab_results_entered", module: "laboratory", details: { visit: visit.key, tests: saved } });
-    const remaining = visit.orders.filter((o) => o.status !== "completed" && !hasEntry(o)).length;
-    return { saved, remaining, abnormal };
+    if (savedIds.size) logAuditEvent({ action: "lab_results_entered", module: "laboratory", details: { visit: visit.key, tests: savedIds.size } });
+    await raiseCritical(visit, criticals);
+    const remaining = visit.orders.filter((o) => isOpen(o) && !savedIds.has(o.id)).length;
+    return { saved: savedIds.size, remaining, abnormal, critical, incomplete };
+  };
+
+  // Specimen rejection
+  const [rejecting, setRejecting] = useState<any>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectNote, setRejectNote] = useState("");
+  const rejectSample = async () => {
+    if (!rejecting || !openVisit || !rejectReason) return;
+    try {
+      const staffId = await currentStaffId();
+      const reason = rejectNote.trim() ? `${rejectReason} — ${rejectNote.trim()}` : rejectReason;
+      const { error } = await supabase.from("lab_orders").update({ status: "rejected", rejection_reason: reason, rejected_at: new Date().toISOString(), rejected_by: staffId }).eq("id", rejecting.id);
+      if (error) throw error;
+      const name = openVisit.patient?.profile?.full_name || "a patient";
+      await notifyOrderers(openVisit, "Lab sample rejected", `${rejecting.test?.test_name} for ${name}: ${reason}. A new sample is needed.`);
+      logAuditEvent({ action: "lab_sample_rejected", module: "laboratory", details: { order: rejecting.id, test: rejecting.test?.test_name, reason } });
+      toast.success("Sample rejected", { description: "The doctor has been told a new sample is needed." });
+      setRejecting(null); setRejectReason(""); setRejectNote("");
+      await fetchOrders();
+    } catch (e) {
+      toast.error("Could not reject", { description: e instanceof Error ? e.message : String(e) });
+    }
+  };
+  const newSampleReceived = async (o: any) => {
+    const staffId = await currentStaffId();
+    const now = new Date().toISOString();
+    const { error } = await supabase.from("lab_orders").update({
+      status: "in_progress", rejection_reason: null, rejected_at: null, rejected_by: null,
+      received_at: now, received_by: staffId, sample_collected_at: now, collected_by: staffId, processing_started_at: now, processed_by: staffId,
+    }).eq("id", o.id);
+    if (error) { toast.error("Could not update", { description: error.message }); return; }
+    logAuditEvent({ action: "lab_sample_recollected", module: "laboratory", details: { order: o.id, previous_reason: o.rejection_reason } });
+    toast.success("New sample received");
+    await fetchOrders();
   };
 
   const handleSave = async () => {
@@ -223,7 +341,8 @@ const Laboratory = () => {
     setBusy("save");
     try {
       const r = await saveResults(openVisit);
-      toast.success(r.saved ? `Saved ${r.saved} result(s)` : "Nothing new to save", { description: r.remaining ? `${r.remaining} test(s) still without results` : undefined });
+      if (r.incomplete.length) toast.warning("Some tests were not saved — answers missing", { description: r.incomplete.join(" · "), duration: 8000 });
+      if (r.saved || !r.incomplete.length) toast.success(r.saved ? `Saved ${r.saved} result(s)` : "Nothing new to save", { description: r.remaining ? `${r.remaining} test(s) still without results` : undefined });
       await fetchOrders();
     } catch (e) {
       toast.error("Could not save results", { description: e instanceof Error ? e.message : String(e) });
@@ -237,9 +356,11 @@ const Laboratory = () => {
   const beforeSend = async () => {
     if (!openVisit) return;
     const r = await saveResults(openVisit);
-    if (r.remaining > 0) throw new Error(`${r.remaining} test(s) have no result yet. Enter them first.`);
+    if (r.incomplete.length) throw new Error(`Answers missing — ${r.incomplete.join(" · ")}`);
+    if (r.remaining > 0) throw new Error(`${r.remaining} test(s) have no result yet. Enter them first, or reject the sample.`);
     const name = openVisit.patient?.profile?.full_name || "a patient";
-    await notifyOrderers(openVisit, r.abnormal ? "Abnormal lab results ready" : "Lab results ready", `Results for ${name} are ready${r.abnormal ? " — some values are abnormal" : ""}.`);
+    const rejected = openVisit.orders.filter((o) => o.status === "rejected").length;
+    await notifyOrderers(openVisit, r.abnormal ? "Abnormal lab results ready" : "Lab results ready", `Results for ${name} are ready${r.abnormal ? " — some values are abnormal" : ""}${rejected ? `. ${rejected} sample(s) rejected — new sample needed` : ""}.`);
     await notifyRoles(["nurse"], { title: "Lab results ready", message: `Results for ${name} are ready.`, category: "lab", link: "/vitals" });
   };
 
@@ -263,9 +384,41 @@ const Laboratory = () => {
 
   const setField = (orderId: string, patch: Partial<Draft[string]>) => setDraft((p) => ({ ...p, [orderId]: { ...p[orderId], ...patch } }));
 
+  /** Comment box, standard-comment picker and Reject sample, shown with each test. */
+  const testTools = (o: any, d: Draft[string], locked: boolean) => (
+    <div className="space-y-1.5">
+      <Textarea rows={2} placeholder="Comment (optional)" value={d.notes} disabled={locked}
+        onChange={(e) => setField(o.id, { notes: e.target.value })} className="text-xs min-h-[48px]" />
+      {!locked && (
+        <div className="flex flex-wrap gap-1.5">
+          <Select value="" onValueChange={(c) => setField(o.id, { notes: d.notes.trim() ? `${d.notes.trim()} ${c}` : c })}>
+            <SelectTrigger className="h-8 text-xs w-auto min-w-[9rem]" aria-label="Add a standard comment"><SelectValue placeholder="+ Standard comment" /></SelectTrigger>
+            <SelectContent>{CANNED_COMMENTS.map((c) => <SelectItem key={c} value={c} className="text-xs">{c}</SelectItem>)}</SelectContent>
+          </Select>
+          <Button type="button" size="sm" variant="outline" className="h-8 text-xs text-destructive" onClick={() => { setRejecting(o); setRejectReason(""); setRejectNote(""); }}>
+            <Ban className="h-3.5 w-3.5 mr-1" /> Reject sample
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+
+  const rejectedBlock = (o: any) => (
+    <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 md:px-0 md:py-0">
+      <p className="text-sm"><span className="font-semibold text-destructive">Sample rejected:</span> {o.rejection_reason || "—"}
+        {o.rejected_at && <span className="text-muted-foreground text-xs"> · {new Date(o.rejected_at).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}</span>}
+      </p>
+      {canManageLab && (
+        <Button size="sm" variant="outline" className="h-8" onClick={() => void newSampleReceived(o)}>
+          <RotateCcw className="h-3.5 w-3.5 mr-1" /> New sample received
+        </Button>
+      )}
+    </div>
+  );
+
   const renderVisitCard = (v: LabVisit) => {
     const st = STATUS_BADGE[v.status];
-    const done = v.orders.filter((o) => o.status === "completed").length;
+    const done = v.orders.filter((o) => !isOpen(o)).length;
     return (
       <button key={v.key} type="button" onClick={() => setOpenVisitKey(v.key)}
         className="w-full text-left p-3 border rounded-lg hover:bg-muted/40 transition-colors space-y-2">
@@ -284,7 +437,7 @@ const Laboratory = () => {
         <div className="flex flex-wrap gap-1">
           {v.orders.map((o) => (
             <Badge key={o.id} variant={o.status === "completed" ? "default" : "soft"} className="text-[11px] font-normal">
-              {o.status === "completed" && <CheckCircle2 className="h-3 w-3 mr-1" />}{o.test?.test_name}
+              {o.status === "completed" && <CheckCircle2 className="h-3 w-3 mr-1" />}{o.status === "rejected" && <Ban className="h-3 w-3 mr-1" />}{o.test?.test_name}
             </Badge>
           ))}
         </div>
@@ -353,105 +506,145 @@ const Laboratory = () => {
               )}
             </div>
 
+            {/* Critical values raised for this request */}
+            {alerts.length > 0 && (
+              <div className="space-y-1.5">
+                {alerts.map((al) => (
+                  <div key={al.id} className={cn("flex flex-wrap items-center gap-2 rounded-md border p-2 text-sm", al.acknowledged ? "bg-muted/40" : "border-destructive bg-destructive/10")}>
+                    <Siren className={cn("h-4 w-4", al.acknowledged ? "text-muted-foreground" : "text-destructive")} />
+                    <span className="font-semibold">{al.title}</span>
+                    <span className="text-muted-foreground">
+                      {al.acknowledged
+                        ? `Acknowledged by ${al.ackName || "staff"}${al.acknowledged_at ? ` at ${new Date(al.acknowledged_at).toLocaleString([], { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}` : ""}${al.acknowledged_note ? ` — ${al.acknowledged_note}` : ""}`
+                        : "Doctor alerted — waiting for acknowledgement. Phone the doctor if no response."}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* Step 2 — results, all tests in one bordered table */}
             <div className="space-y-3">
               <div className="flex items-center gap-2 text-sm">
                 <span className="flex h-6 w-6 items-center justify-center rounded-full bg-primary text-primary-foreground text-xs font-bold">2</span>
-                Enter results <span className="text-muted-foreground text-xs hidden sm:inline">(Enter / ↑ ↓ move between boxes)</span>
+                Enter results <span className="text-muted-foreground text-xs hidden sm:inline">(pick the answer; number boxes: Enter / ↑ ↓ move)</span>
               </div>
-              {/* Phones: one card per test, one box per line */}
+              {/* Phones: one card per test, one answer per line */}
               <div className="md:hidden space-y-3">
                 {openVisit.orders.map((o) => {
-                  const defs = STRUCTURED_FIELDS[o.test?.test_name || ""];
+                  const defs = defsFor(o);
                   const d = draft[o.id] || { fields: {}, value: "", notes: "" };
-                  const locked = !canManageLab || o.status === "completed";
+                  const locked = !canManageLab || !isOpen(o);
                   const gender = o.patient?.profile?.gender;
+                  const age = calculateAgeYears(o.patient?.profile?.date_of_birth);
                   return (
                     <div key={o.id} className="rounded-lg border">
                       <p className="px-3 py-2 border-b bg-muted/40 font-semibold text-sm flex items-center gap-1">
                         {o.test?.test_name}
                         {o.status === "completed" && <CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))]" />}
                       </p>
-                      <div className="divide-y">
-                        {defs ? defs.map((def) => {
-                          const ref = refRangeFor(def, gender);
-                          const val = d.fields[def.name] || "";
-                          const flag = getFlag(val, ref);
-                          return (
-                            <div key={def.name} className={cn("flex items-center gap-2 px-3 py-1.5", flag && "bg-destructive/5")}>
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium">{def.name} {flag && <span className="text-destructive font-bold">{flag === "H" ? "↑" : "↓"}</span>}</p>
-                                <p className="text-[11px] text-muted-foreground truncate">{[ref, def.unit].filter(Boolean).join(" · ")}</p>
-                              </div>
-                              <Input data-lab-field inputMode="decimal" value={val} disabled={locked} onKeyDown={onResultKey}
-                                onChange={(e) => setField(o.id, { fields: { ...d.fields, [def.name]: e.target.value } })}
-                                className={cn("h-11 w-28 text-base", flag && "border-destructive font-bold text-destructive")} />
+                      {o.status === "rejected" ? rejectedBlock(o) : savedLines(o) ? (
+                        <div className="divide-y">
+                          {savedLines(o)!.map((f) => (
+                            <div key={f.id} className={cn("px-3 py-2 flex items-baseline justify-between gap-2", flagLabel(f.flag) && "bg-destructive/5")}>
+                              <p className="text-sm">{f.field_name}</p>
+                              <p className="text-sm font-semibold text-right">{f.field_value || "—"} {f.unit || ""} {flagLabel(f.flag) && <span className="text-destructive text-xs">{flagLabel(f.flag)}</span>}</p>
                             </div>
-                          );
-                        }) : (
-                          <div className="px-3 py-2 space-y-2">
-                            <Input data-lab-field value={d.value} disabled={locked} onKeyDown={onResultKey} placeholder="Type result"
-                              onChange={(e) => setField(o.id, { value: e.target.value })} className="h-11 text-base" />
-                            {!locked && (
-                              <div className="grid grid-cols-2 gap-2">
-                                {["Positive", "Negative"].map((q) => (
-                                  <Button key={q} type="button" variant={d.value === q ? "default" : "outline"} className="h-10" onClick={() => setField(o.id, { value: q })}>
-                                    {q === "Positive" ? "+ve Positive" : "-ve Negative"}
-                                  </Button>
-                                ))}
-                              </div>
-                            )}
-                            {o.test?.normal_range && <p className="text-[11px] text-muted-foreground">Normal: {o.test.normal_range} {o.test.unit || ""}</p>}
-                          </div>
-                        )}
-                        <div className="px-3 py-2">
-                          <Textarea rows={2} placeholder="Comment (optional)" value={d.notes} disabled={locked}
-                            onChange={(e) => setField(o.id, { notes: e.target.value })} className="text-sm" />
+                          ))}
                         </div>
-                      </div>
+                      ) : (
+                        <div className="divide-y">
+                          {defs ? visibleFields(defs, d.fields).map((def) => {
+                            const ref = refRangeFor(def, gender, age);
+                            const val = d.fields[def.name] || "";
+                            const flag = fieldFlag(def, val, gender, age);
+                            return (
+                              <div key={def.name} className={cn("px-3 py-2 space-y-1", flag && "bg-destructive/5")}>
+                                <div className="flex items-baseline justify-between gap-2">
+                                  <p className="text-sm font-medium">{def.name}{def.optional && <span className="text-muted-foreground font-normal text-xs"> (if done)</span>} {flag && <span className="text-destructive font-bold text-xs">{flagLabel(flag)}</span>}</p>
+                                  <p className="text-[11px] text-muted-foreground truncate">{[ref, def.unit].filter(Boolean).join(" · ")}</p>
+                                </div>
+                                <LabFieldInput def={def} value={val} flag={flag} size="lg" disabled={locked} onKeyDown={onResultKey}
+                                  onChange={(v) => setField(o.id, { fields: { ...d.fields, [def.name]: v } })} />
+                              </div>
+                            );
+                          }) : (
+                            <div className="px-3 py-2 space-y-2">
+                              <Input data-lab-field value={d.value} disabled={locked} onKeyDown={onResultKey} placeholder="Type result"
+                                onChange={(e) => setField(o.id, { value: e.target.value })} className="h-11 text-base" />
+                              {o.test?.normal_range && <p className="text-[11px] text-muted-foreground">Normal: {o.test.normal_range} {o.test.unit || ""}</p>}
+                            </div>
+                          )}
+                          <div className="px-3 py-2">{testTools(o, d, locked)}</div>
+                        </div>
+                      )}
                     </div>
                   );
                 })}
               </div>
               <div className="hidden md:block overflow-x-auto rounded-md">
-                <table className="w-full border-collapse border border-border text-sm min-w-[640px]">
+                <table className="w-full border-collapse border border-border text-sm min-w-[720px]">
                   <thead>
                     <tr>{["Test", "Parameter", "Result", "Unit", "Reference range", "Flag"].map((h) => <th key={h} className="border bg-muted px-2 py-1.5 text-left font-semibold">{h}</th>)}</tr>
                   </thead>
                   <tbody>
                     {openVisit.orders.map((o) => {
-                      const defs = STRUCTURED_FIELDS[o.test?.test_name || ""];
+                      const defs = defsFor(o);
                       const d = draft[o.id] || { fields: {}, value: "", notes: "" };
-                      const locked = !canManageLab || o.status === "completed";
+                      const locked = !canManageLab || !isOpen(o);
                       const gender = o.patient?.profile?.gender;
+                      const age = calculateAgeYears(o.patient?.profile?.date_of_birth);
                       const testCell = (span: number) => (
-                        <td rowSpan={span} className="border px-2 py-1.5 align-top font-semibold bg-muted/30 min-w-[150px]">
+                        <td rowSpan={span} className="border px-2 py-1.5 align-top font-semibold bg-muted/30 min-w-[170px] max-w-[220px]">
                           {o.test?.test_name}
                           {o.status === "completed" && <CheckCircle2 className="inline h-4 w-4 ml-1 text-[hsl(var(--success))]" />}
-                          <Textarea rows={2} placeholder="Comment (optional)" value={d.notes} disabled={locked}
-                            onChange={(e) => setField(o.id, { notes: e.target.value })}
-                            className="mt-2 text-xs font-normal min-h-[48px]" />
+                          {o.status !== "rejected" && <div className="mt-2 font-normal">{testTools(o, d, locked)}</div>}
                         </td>
                       );
-                      if (defs) {
+                      if (o.status === "rejected") {
+                        return (
+                          <tr key={o.id}>
+                            {testCell(1)}
+                            <td colSpan={5} className="border px-2 py-2">{rejectedBlock(o)}</td>
+                          </tr>
+                        );
+                      }
+                      const saved = savedLines(o);
+                      if (saved) {
                         return (
                           <Fragment key={o.id}>
-                            {defs.map((def, i) => {
-                              const ref = refRangeFor(def, gender);
+                            {saved.map((f, i) => (
+                              <tr key={f.id} className={isCriticalFlag(f.flag) ? "bg-destructive/15" : flagLabel(f.flag) ? "bg-destructive/5" : undefined}>
+                                {i === 0 && testCell(saved.length)}
+                                <td className="border px-2 py-1">{f.field_name}</td>
+                                <td className="border px-2 py-1 font-semibold">{f.field_value || "—"}</td>
+                                <td className="border px-2 py-1 text-muted-foreground">{f.unit || ""}</td>
+                                <td className="border px-2 py-1 text-muted-foreground">{f.reference_range || ""}</td>
+                                <td className="border px-2 py-1 text-center font-bold text-destructive whitespace-nowrap">{flagLabel(f.flag)}</td>
+                              </tr>
+                            ))}
+                          </Fragment>
+                        );
+                      }
+                      if (defs) {
+                        const shown = visibleFields(defs, d.fields);
+                        return (
+                          <Fragment key={o.id}>
+                            {shown.map((def, i) => {
+                              const ref = refRangeFor(def, gender, age);
                               const val = d.fields[def.name] || "";
-                              const flag = getFlag(val, ref);
+                              const flag = fieldFlag(def, val, gender, age);
                               return (
-                                <tr key={def.name} className={flag ? "bg-destructive/5" : undefined}>
-                                  {i === 0 && testCell(defs.length)}
-                                  <td className="border px-2 py-1">{def.name}</td>
-                                  <td className="border px-1 py-0.5">
-                                    <Input data-lab-field value={val} disabled={locked} onKeyDown={onResultKey}
-                                      onChange={(e) => setField(o.id, { fields: { ...d.fields, [def.name]: e.target.value } })}
-                                      className={cn("h-9 w-28 text-sm", flag && "border-destructive font-bold text-destructive")} />
+                                <tr key={def.name} className={isCriticalFlag(flag) ? "bg-destructive/15" : flag ? "bg-destructive/5" : undefined}>
+                                  {i === 0 && testCell(shown.length)}
+                                  <td className="border px-2 py-1">{def.name}{def.optional && <span className="text-muted-foreground text-xs"> (if done)</span>}</td>
+                                  <td className="border px-1 py-1">
+                                    <LabFieldInput def={def} value={val} flag={flag} disabled={locked} onKeyDown={onResultKey}
+                                      onChange={(v) => setField(o.id, { fields: { ...d.fields, [def.name]: v } })} />
                                   </td>
                                   <td className="border px-2 py-1 text-muted-foreground">{def.unit}</td>
                                   <td className="border px-2 py-1 text-muted-foreground">{ref || ""}</td>
-                                  <td className="border px-2 py-1 text-center font-bold text-destructive">{flag === "H" ? "↑ H" : flag === "L" ? "↓ L" : ""}</td>
+                                  <td className="border px-2 py-1 text-center font-bold text-destructive whitespace-nowrap">{flagLabel(flag)}</td>
                                 </tr>
                               );
                             })}
@@ -467,19 +660,10 @@ const Laboratory = () => {
                             <Input data-lab-field value={d.value} disabled={locked} onKeyDown={onResultKey}
                               onChange={(e) => setField(o.id, { value: e.target.value })}
                               placeholder="Type result" className={cn("h-9 w-full min-w-[9rem] text-sm", flag && "border-destructive font-bold text-destructive")} />
-                            {!locked && (
-                              <div className="flex gap-1 mt-1">
-                                {["Positive", "Negative"].map((q) => (
-                                  <Button key={q} type="button" size="sm" variant={d.value === q ? "default" : "outline"} className="h-7 px-2 text-xs" onClick={() => setField(o.id, { value: q })}>
-                                    {q === "Positive" ? "+ve" : "-ve"}
-                                  </Button>
-                                ))}
-                              </div>
-                            )}
                           </td>
                           <td className="border px-2 py-1 text-muted-foreground">{o.test?.unit || ""}</td>
                           <td className="border px-2 py-1 text-muted-foreground">{o.test?.normal_range || ""}</td>
-                          <td className="border px-2 py-1 text-center font-bold text-destructive">{flag === "H" ? "↑ H" : flag === "L" ? "↓ L" : ""}</td>
+                          <td className="border px-2 py-1 text-center font-bold text-destructive">{flagLabel(flag)}</td>
                         </tr>
                       );
                     })}
@@ -556,6 +740,32 @@ const Laboratory = () => {
           </TabsContent>
         </Tabs>
       )}
+
+      <Dialog open={!!rejecting} onOpenChange={(v) => { if (!v) setRejecting(null); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Reject sample — {rejecting?.test?.test_name}</DialogTitle>
+            <DialogDescription>The doctor is told a new sample is needed. The rejection is recorded in the lab reports.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Reason *</Label>
+              <Select value={rejectReason || undefined} onValueChange={setRejectReason}>
+                <SelectTrigger className="h-12"><SelectValue placeholder="Choose a reason" /></SelectTrigger>
+                <SelectContent>{REJECTION_REASONS.map((r) => <SelectItem key={r} value={r}>{r}</SelectItem>)}</SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Note (optional)</Label>
+              <Textarea rows={3} value={rejectNote} onChange={(e) => setRejectNote(e.target.value)} placeholder="e.g. only 0.5 mL received" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRejecting(null)}>Cancel</Button>
+            <Button variant="destructive" disabled={!rejectReason} onClick={() => void rejectSample()}><Ban className="h-4 w-4 mr-1" /> Reject sample</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <SendToDialog
         open={sendOpen}

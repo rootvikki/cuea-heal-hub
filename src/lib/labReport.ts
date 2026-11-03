@@ -14,6 +14,10 @@ const flagFor = (value: string, range?: string) => {
   return "";
 };
 
+/** Flag text for PDFs (the standard PDF font has no arrow symbols). */
+const pdfFlag = (flag?: string | null) =>
+  ({ H: "H", L: "L", HH: "HH CRIT", LL: "LL CRIT", C: "CRIT", POS: "+ve", A: "Abn" } as Record<string, string>)[flag || ""] ?? (flag && flag !== "N" ? flag : "");
+
 const ageOf = (dob?: string | null) => {
   if (!dob) return "";
   const d = new Date(dob), n = new Date();
@@ -109,17 +113,19 @@ export async function printVisitLabReport(
   for (const o of orders) {
     const name = o.test?.test_name || "Lab test";
     const fields = [...(o.fields || o.lab_result_fields || [])].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-    if (o.status !== "completed") {
+    if (o.status === "rejected") {
+      body.push([{ content: name, styles: { fontStyle: "bold" } }, { content: `Sample rejected: ${o.rejection_reason || "-"} - new sample needed`, colSpan: 5, styles: { fontStyle: "italic" } }]);
+    } else if (o.status !== "completed") {
       body.push([{ content: name, styles: { fontStyle: "bold" } }, { content: "Result pending", colSpan: 5, styles: { fontStyle: "italic" } }]);
     } else if (fields.length) {
       fields.forEach((f: any, i: number) => {
         const row: any[] = [];
         if (i === 0) row.push({ content: name, rowSpan: fields.length, styles: { fontStyle: "bold", valign: "top" } });
-        row.push(f.field_name, f.field_value || "---", f.unit || "", f.reference_range || "", f.flag && f.flag !== "N" ? f.flag : "");
+        row.push(f.field_name, f.field_value || "---", f.unit || "", f.reference_range || "", pdfFlag(f.flag));
         body.push(row);
       });
     } else {
-      body.push([{ content: name, styles: { fontStyle: "bold" } }, "Result", o.result_value || "---", o.test?.unit || "", o.test?.normal_range || "", o.flag === "abnormal" ? "Abn" : ""]);
+      body.push([{ content: name, styles: { fontStyle: "bold" } }, "Result", o.result_value || "---", o.test?.unit || "", o.test?.normal_range || "", o.flag === "critical" ? "CRIT" : o.flag === "abnormal" ? "Abn" : o.flag === "positive" ? "+ve" : ""]);
     }
   }
 
@@ -130,7 +136,7 @@ export async function printVisitLabReport(
     theme: "grid",
     styles: { fontSize: 8.5, cellPadding: 1.6, lineColor: [120, 120, 120], lineWidth: 0.2 },
     headStyles: { fillColor: maroon, textColor: 255, fontStyle: "bold" },
-    columnStyles: { 0: { cellWidth: 38 }, 1: { cellWidth: 38 }, 2: { cellWidth: 28, halign: "right" }, 3: { cellWidth: 22 }, 4: { cellWidth: 34 }, 5: { cellWidth: 14, halign: "center" } },
+    columnStyles: { 0: { cellWidth: 34 }, 1: { cellWidth: 36 }, 2: { cellWidth: 34, halign: "right" }, 3: { cellWidth: 18 }, 4: { cellWidth: 30 }, 5: { cellWidth: 18, halign: "center" } },
     didParseCell: (d) => {
       if (d.section !== "body") return;
       const raw = d.row.raw as any[];

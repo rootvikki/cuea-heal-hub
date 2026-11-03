@@ -10,7 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
  */
 export const LIVE_TABLES = [
   "pharmacy_inventory", "pharmacy_stock_transactions", "pharmacy_replenishment_requests",
-  "invoices", "payments", "service_charges", "procedure_orders", "patients",
+  "invoices", "payments", "service_charges", "procedure_orders", "patients", "critical_alerts",
 ] as const;
 export type LiveTable = (typeof LIVE_TABLES)[number];
 

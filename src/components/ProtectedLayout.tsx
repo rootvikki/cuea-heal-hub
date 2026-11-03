@@ -9,6 +9,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { PageBreadcrumb } from "@/components/PageBreadcrumb";
 import IdleTimeout from "@/components/IdleTimeout";
+import { CriticalAlertsBar } from "@/components/CriticalAlertsBar";
 
 interface ProtectedLayoutProps {
   children: React.ReactNode;
@@ -74,6 +75,7 @@ const ProtectedLayout = ({ children, allowedRoles }: ProtectedLayoutProps) => {
               <NotificationBell />
             </div>
           </header>
+          <CriticalAlertsBar />
           <main className="flex-1 min-w-0 p-3 sm:p-6 lg:p-8">
             <PageBreadcrumb />
             {children}

@@ -64,6 +64,13 @@
       "when": 1793699934431,
       "tag": "0008_lock_number_counters",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793700539497,
+      "tag": "0009_lab_structured_results",
+      "breakpoints": true
     }
   ]
 }
