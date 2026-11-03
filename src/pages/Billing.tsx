@@ -16,6 +16,7 @@ import { SendToDialog } from "@/components/SendToDialog";
 import { createInvoiceForTicket, routeAfterPayment, type Invoice } from "@/lib/billing";
 import { formatKES, paymentModeLabel } from "@/lib/pricing";
 import { drawInfirmaryLetterhead, openPdfWindow } from "@/lib/letterhead";
+import { printInvoiceReceipt } from "@/lib/receipt";
 
 const statusColor: Record<string, string> = { pending: "bg-yellow-100 text-yellow-800", partial: "bg-blue-100 text-blue-800", paid: "bg-green-100 text-green-800", cancelled: "bg-muted" };
 
@@ -307,7 +308,10 @@ const Billing = () => {
                   <td className="px-2 py-2">{formatKES(inv.net_amount)}</td>
                   <td className="px-2 py-2">{formatKES(inv.balance)}</td>
                   <td className="px-2 py-2"><Badge className={statusColor[inv.status] || "bg-muted"}>{inv.status}</Badge></td>
-                  <td className="px-2 py-2 text-right">
+                  <td className="px-2 py-2 text-right whitespace-nowrap space-x-1.5">
+                    {Number(inv.amount_paid || 0) > 0 && <Button size="sm" variant="ghost" onClick={() => void printInvoiceReceipt(inv.id).catch((e) => toast.error(e instanceof Error ? e.message : String(e)))}>
+                      <Printer className="h-4 w-4 mr-1" /> Receipt
+                    </Button>}
                     {inv.status !== "paid" && <Button size="sm" variant="outline" onClick={async () => {
                       const { data: t } = inv.ticket_id ? await supabase.from("tickets").select("payment_mode").eq("id", inv.ticket_id).maybeSingle() : { data: null };
                       setPayInvoice({ ...inv, payment_mode: (t as any)?.payment_mode ?? "mpesa_school_fees" });
