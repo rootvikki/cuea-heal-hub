@@ -10,7 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
-import { Bed, Users, Home, AlertCircle, UserPlus, LogOut } from "lucide-react";
+import { Bed, Users, Home, AlertCircle, UserPlus, LogOut, NotebookPen, Syringe } from "lucide-react";
+import { WardCareDialog } from "@/components/WardCareDialog";
+import { Pager, usePaged } from "@/components/Pager";
 
 interface Ward {
   id: string;
@@ -35,6 +37,7 @@ interface Admission {
   id: string;
   patient_id: string;
   bed_id: string;
+  encounter_id?: string | null;
   admission_type: string;
   admitted_at: string;
   expected_discharge_date: string | null;
@@ -62,6 +65,10 @@ const Inpatient = () => {
   const [dischargeDialogOpen, setDischargeDialogOpen] = useState(false);
   const [dischargeSummary, setDischargeSummary] = useState("");
   const [dischargeType, setDischargeType] = useState("normal");
+  const [careFor, setCareFor] = useState<Admission | null>(null);
+  const [careTab, setCareTab] = useState<"notes" | "procedures">("notes");
+  const admissionsPager = usePaged(admissions, { size: 25 });
+  const openCare = (a: Admission, t: "notes" | "procedures") => { setCareTab(t); setCareFor(a); };
 
   useEffect(() => {
     fetchData();
@@ -301,7 +308,7 @@ const Inpatient = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {admissions.map((admission) => {
+                    {admissionsPager.pageItems.map((admission) => {
                       const daysAdmitted = Math.ceil(
                         (new Date().getTime() - new Date(admission.admitted_at).getTime()) / (1000 * 60 * 60 * 24)
                       );
@@ -338,17 +345,27 @@ const Inpatient = () => {
                             </Badge>
                           </TableCell>
                           <TableCell>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => {
-                                setSelectedAdmission(admission);
-                                setDischargeDialogOpen(true);
-                              }}
-                            >
-                              <LogOut className="h-4 w-4 mr-1" />
-                              Discharge
-                            </Button>
+                            <div className="flex flex-wrap gap-2">
+                              <Button size="sm" onClick={() => openCare(admission, "notes")}>
+                                <NotebookPen className="h-4 w-4 mr-1" />
+                                Notes
+                              </Button>
+                              <Button size="sm" variant="secondary" onClick={() => openCare(admission, "procedures")}>
+                                <Syringe className="h-4 w-4 mr-1" />
+                                Procedures
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() => {
+                                  setSelectedAdmission(admission);
+                                  setDischargeDialogOpen(true);
+                                }}
+                              >
+                                <LogOut className="h-4 w-4 mr-1" />
+                                Discharge
+                              </Button>
+                            </div>
                           </TableCell>
                         </TableRow>
                       );
@@ -356,6 +373,7 @@ const Inpatient = () => {
                   </TableBody>
                 </Table>
               )}
+              <Pager pager={admissionsPager} label="patients" />
             </CardContent>
           </Card>
         </TabsContent>
@@ -514,6 +532,20 @@ const Inpatient = () => {
           </div>
         </DialogContent>
       </Dialog>
+
+      <WardCareDialog
+        open={!!careFor}
+        onOpenChange={(o) => { if (!o) setCareFor(null); }}
+        defaultTab={careTab}
+        admission={careFor && {
+          id: careFor.id,
+          patient_id: careFor.patient_id,
+          encounter_id: careFor.encounter_id,
+          patientName: careFor.patient?.profiles?.full_name || "Patient",
+          patientNumber: careFor.patient?.patient_id,
+          place: careFor.bed ? `${careFor.bed.ward?.name ?? ""} · Bed ${careFor.bed.bed_number}` : "No bed assigned",
+        }}
+      />
     </div>
   );
 };
