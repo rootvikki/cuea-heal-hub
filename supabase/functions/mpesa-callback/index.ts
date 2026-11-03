@@ -36,7 +36,8 @@ serve(async (req) => {
     }
 
     if (Number(stk.ResultCode) === 0) {
-      if (tx.status === "pending") {
+      // "failed" too: Safaricom's own confirmation wins over an earlier status check that gave up.
+      if (tx.status === "pending" || tx.status === "failed") {
         await finalizeMpesaSuccess(supabase, tx, { receipt, amount: get("Amount") ? Number(get("Amount")) : null, paidAt, resultDesc: stk.ResultDesc });
       } else if (tx.status === "completed" && !tx.mpesa_receipt_number && receipt) {
         // Already recorded by the status check — fill in the real receipt number.

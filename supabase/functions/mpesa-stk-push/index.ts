@@ -94,7 +94,9 @@ serve(async (req) => {
 
       const { data: tx } = await supabase.from("mpesa_transactions").select("*").eq("checkout_request_id", checkoutRequestId).maybeSingle();
       if (!(await mayUseInvoice(tx?.invoice_id))) return json({ success: false, error: "Payment not found." }, 404);
-      if (tx && tx.status !== "pending") return json({ success: true, status: tx.status, receipt: tx.mpesa_receipt_number, message: tx.result_desc });
+      // Re-ask Safaricom for rows wrongly marked failed while the payment was still processing.
+      const recheck = tx && tx.status === "failed" && isStillProcessing(tx.result_code, tx.result_desc);
+      if (tx && tx.status !== "pending" && !recheck) return json({ success: true, status: tx.status, receipt: tx.mpesa_receipt_number, message: tx.result_desc });
 
       const qRes = await fetch(`${cfg.baseUrl}/mpesa/stkpushquery/v1/query`, {
         method: "POST",
@@ -103,19 +105,22 @@ serve(async (req) => {
       });
       const q = await qRes.json().catch(() => ({}));
       console.log("STK query:", JSON.stringify(q));
-      if (q.ResultCode === undefined) {
-        return json({ success: true, status: "pending", message: "Waiting for the patient to enter their PIN…" });
+      const waiting = { success: true, status: "pending", message: "Waiting for M-Pesa to confirm the payment…" };
+      if (q.ResultCode === undefined || q.ResultCode === null || q.ResultCode === "") {
+        return json(isStillProcessing(q.errorCode, q.errorMessage) ? { ...waiting, status: "processing" } : waiting);
       }
+      if (isStillProcessing(q.ResultCode, q.ResultDesc)) return json({ ...waiting, status: "processing" });
       if (String(q.ResultCode) === "0") {
         // Safaricom confirms payment — record it now even if the callback never arrives.
         if (tx) await finalizeMpesaSuccess(supabase, tx, { amount: tx.amount, resultDesc: q.ResultDesc });
-        return json({ success: true, status: "completed", receipt: null, message: "Payment confirmed by M-Pesa." });
+        const { data: fresh } = tx ? await supabase.from("mpesa_transactions").select("mpesa_receipt_number").eq("id", tx.id).maybeSingle() : { data: null };
+        return json({ success: true, status: "completed", receipt: fresh?.mpesa_receipt_number ?? null, message: "Payment confirmed by M-Pesa." });
       }
       const message = explainResult(q.ResultCode, q.ResultDesc);
       if (tx) {
         await supabase.from("mpesa_transactions").update({
           status: "failed", result_code: String(q.ResultCode), result_desc: message, updated_at: new Date().toISOString(),
-        }).eq("id", tx.id).eq("status", "pending");
+        }).eq("id", tx.id).in("status", ["pending", "failed"]);
       }
       return json({ success: true, status: "failed", message });
     }
