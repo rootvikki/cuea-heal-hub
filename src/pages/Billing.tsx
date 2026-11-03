@@ -15,7 +15,7 @@ import { Receipt, CreditCard, FileText, DollarSign, Plus, Trash2, Send, Printer,
 import { logAuditEvent } from "@/lib/auditLog";
 import { PaymentPanel } from "@/components/PaymentPanel";
 import { SendToDialog } from "@/components/SendToDialog";
-import { createInvoiceForTicket, routeAfterPayment, setVisitPaymentMode, type Invoice } from "@/lib/billing";
+import { createInvoiceForTicket, routeAfterPayment, setVisitPaymentMode, updateUnpaidBill, type Invoice } from "@/lib/billing";
 import { PAYMENT_MODES, allowedPaymentModes, formatKES, paymentModeLabel, type PaymentMode } from "@/lib/pricing";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { drawInfirmaryLetterhead, openPdfWindow } from "@/lib/letterhead";
@@ -67,12 +67,12 @@ const Billing = () => {
       supabase.from("invoices").select("*").eq("ticket_id", ticket.id).order("created_at"),
       supabase.from("patients").select("patient_id, patient_type, payroll_number, admission_number, national_id, insurance_provider, insurance_number, profiles!inner(full_name, phone)").eq("id", ticket.patient_id).maybeSingle(),
     ]);
-    // Keep amounts the desk has typed but not yet confirmed — a live refresh must not undo them
+    // Keep amounts the desk has typed but not yet saved — a live refresh must not undo them
     setCharges((prev) => {
-      const edited = new Map(prev.filter((c) => c._edited && !c.invoice_id).map((c) => [c.id, c]));
+      const edited = new Map(prev.filter((c) => c._edited).map((c) => [c.id, c]));
       return (chg.data || []).map((c: any) => {
         const e = edited.get(c.id);
-        return e && !c.invoice_id ? { ...c, description: e.description, amount: e.amount, _edited: true } : { ...c, _edited: false };
+        return e && (e.invoice_id ?? null) === (c.invoice_id ?? null) ? { ...c, description: e.description, amount: e.amount, _edited: true } : { ...c, _edited: false };
       });
     });
     setVisitInvoices((inv.data || []) as Invoice[]);
@@ -89,6 +89,10 @@ const Billing = () => {
 
   const unbilled = charges.filter((c) => !c.invoice_id);
   const openInvoice = visitInvoices.find((i) => i.status !== "paid");
+  // A confirmed bill stays editable at the desk until anything is paid on it
+  const editableInvoice = openInvoice && openInvoice.status === "pending" && Number(openInvoice.amount_paid || 0) === 0 ? openInvoice : null;
+  const canEditLine = (c: any) => !c.invoice_id || c.invoice_id === editableInvoice?.id;
+  const billEdits = editableInvoice ? charges.filter((c) => c._edited && c.invoice_id === editableInvoice.id) : [];
   const visitTotal = charges.reduce((s, c) => s + Number(c.amount || 0), 0);
   const visitPaid = visitInvoices.reduce((s, i) => s + Number(i.amount_paid || 0), 0);
 
