@@ -11,7 +11,10 @@ const MAX_AGE_MS = 24 * 3600 * 1000;
 
 let currentUserId: string | null = null;
 void supabase.auth.getSession().then(({ data }) => { currentUserId = data.session?.user.id ?? null; });
-supabase.auth.onAuthStateChange((_e, session) => { currentUserId = session?.user.id ?? null; });
+supabase.auth.onAuthStateChange((event, session) => {
+  currentUserId = session?.user.id ?? null;
+  if (event === "SIGNED_OUT") clearAllDrafts();
+});
 
 const storageKey = (key: string) => `${PREFIX}${currentUserId ?? "anon"}:${key}`;
 
