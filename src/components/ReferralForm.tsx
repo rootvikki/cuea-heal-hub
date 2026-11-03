@@ -66,34 +66,27 @@ export function ReferralForm({ patientId, patientName, patientAge, patientGender
   const esc = (v: string) => v.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!)).replace(/\n/g, "<br/>");
 
   const handlePrint = () => {
-    const printWindow = window.open("", "_blank");
-    if (!printWindow) return;
-    printWindow.document.write(`
-      <html><head><title>Referral Form</title>
-      <style>body{font-family:serif;padding:40px;max-width:700px;margin:auto}
-      h1{text-align:center;font-size:18px}h2{font-size:14px;text-align:center;margin-bottom:30px}
+    printWithLetterhead({
+      docTitle: "Referral Form",
+      title: "Referral Form",
+      css: `body{font-family:serif;padding:40px;max-width:700px;margin:auto}
       .field{margin-bottom:15px}.label{font-weight:bold}
       .line{border-bottom:1px solid #000;min-height:20px;margin-top:5px;padding:4px 0}
-      .footer{margin-top:40px;font-size:10px;text-align:right}</style></head>
-      <body>
-        <h1>CATHOLIC UNIVERSITY OF EASTERN AFRICA</h1>
-        <h2>REFERRAL FORM</h2>
+      .footer{margin-top:40px;font-size:10px;text-align:right}`,
+      body: `
         <div class="field"><span class="label">Name of Patient:</span> <span class="line">${esc(patientName)}</span></div>
         <div style="display:flex;gap:40px">
           <div class="field"><span class="label">Age:</span> ${patientAge}</div>
           <div class="field"><span class="label">Sex:</span> ${patientGender}</div>
-          <div class="field"><span class="label">Date:</span> ${new Date().toLocaleDateString()}</div>
+          <div class="field"><span class="label">Date:</span> ${new Date().toLocaleDateString("en-GB")}</div>
         </div>
         ${referredTo.trim() ? `<div class="field"><span class="label">Referred to:</span> ${esc(referredTo)}</div>` : ""}
         <div class="field"><span class="label">Reasons for Referral:</span><div class="line">${esc(reasons)}</div></div>
         <div class="field"><span class="label">Treatment Given:</span><div class="line">${esc(treatmentGiven)}</div></div>
         <div class="field"><span class="label">Name of Doctor:</span> ${esc(doctor)}</div>
         <div class="field"><span class="label">Signature:</span> ___________________</div>
-        <div class="footer">CUEA/DVC ADM/INF/01/fm01</div>
-      </body></html>
-    `);
-    printWindow.document.close();
-    printWindow.print();
+        <div class="footer">CUEA/DVC ADM/INF/01/fm01</div>`,
+    });
   };
 
   const dialogContent = (

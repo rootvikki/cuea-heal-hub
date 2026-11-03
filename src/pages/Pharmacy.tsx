@@ -330,8 +330,6 @@ const Pharmacy = () => {
 
   /** Prints the full prescription with what was / was not dispensed and alternatives. */
   const printSheet = (s: RxSheet) => {
-    const w = window.open("", "_blank");
-    if (!w) return toast.error("Allow pop-ups to print");
     const rows = s.items.map((rx, i) => {
       const l = lines[rx.id];
       const decision = (rx.pharmacy_decision || l?.decision || "") as string;
@@ -351,30 +349,27 @@ const Pharmacy = () => {
       </tr>`;
     }).join("");
     const p = s.patient || {};
-    w.document.write(`<html><head><title>Prescription — ${esc(p.profile?.full_name)}</title>
-      <style>
+    const ok = printWithLetterhead({
+      docTitle: `Prescription — ${p.profile?.full_name || ""}`,
+      title: "Prescription & Dispensing Record",
+      css: `
         body{font-family:Arial,Helvetica,sans-serif;padding:24px;color:#111;max-width:900px;margin:auto}
-        h1{font-size:16px;text-align:center;margin:0}h2{font-size:13px;text-align:center;margin:4px 0 16px;font-weight:normal}
         .meta{display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;font-size:12px;margin-bottom:12px}
         table{width:100%;border-collapse:collapse;font-size:12px}th,td{border:1px solid #555;padding:6px;vertical-align:top}
         th{background:#eee;text-align:left}.c{text-align:center}.big{font-size:18px}
-        .key{font-size:11px;margin-top:8px}.sign{display:flex;justify-content:space-between;margin-top:36px;font-size:12px}
-      </style></head><body>
-      <h1>THE CATHOLIC UNIVERSITY OF EASTERN AFRICA — UNIVERSITY INFIRMARY</h1>
-      <h2>PRESCRIPTION &amp; DISPENSING RECORD</h2>
+        .key{font-size:11px;margin-top:8px}.sign{display:flex;justify-content:space-between;margin-top:36px;font-size:12px}`,
+      body: `
       <div class="meta">
-        <div><b>Patient:</b> ${esc(p.profile?.full_name)}</div><div><b>Date:</b> ${new Date().toLocaleString()}</div>
+        <div><b>Patient:</b> ${esc(p.profile?.full_name)}</div><div><b>Date:</b> ${new Date().toLocaleString("en-GB", { timeZone: "Africa/Nairobi" })}</div>
         <div><b>OPD No.:</b> ${esc(p.patient_id)}</div><div><b>Age / Sex:</b> ${esc(calculateAge(p.profile?.date_of_birth))} / ${esc(p.profile?.gender || "")}</div>
         <div><b>Payment mode:</b> ${esc(paymentModeLabel(s.ticket?.payment_mode))}</div><div><b>Ticket:</b> ${esc(s.ticket?.ticket_number || "")}</div>
       </div>
       <table><thead><tr><th>#</th><th>Medication</th><th>Qty prescribed</th><th>Qty given</th><th>Dispensed</th><th>Alternative given</th><th>Pharmacist note</th></tr></thead>
       <tbody>${rows}</tbody></table>
       <p class="key">&#9745; dispensed &nbsp; &#9746; not dispensed (not available) &nbsp; &#9744; pending</p>
-      <div class="sign"><span>Pharmacist: ____________________</span><span>Patient signature: ____________________</span></div>
-      </body></html>`);
-    w.document.close();
-    w.focus();
-    w.print();
+      <div class="sign"><span>Pharmacist: ____________________</span><span>Patient signature: ____________________</span></div>`,
+    });
+    if (!ok) toast.error("Allow pop-ups to print");
   };
 
   const fetchStockCard = async (inventoryId: string) => {
