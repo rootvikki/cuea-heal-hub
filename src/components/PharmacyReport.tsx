@@ -143,7 +143,7 @@ export function PharmacyReport({ inventory }: { inventory: InvItem[] }) {
   const stat = (label: string, value: string | number, onClick?: () => void, tone?: string) => (
     <button type="button" onClick={onClick} disabled={!onClick} className={cn("rounded-lg border p-3 text-left transition-colors", onClick && "hover:bg-muted/50", tone)}>
       <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className="text-xl font-bold">{value}</p>
+      <p className="text-lg font-bold leading-tight break-words">{value}</p>
     </button>
   );
 
