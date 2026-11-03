@@ -2909,6 +2909,31 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      update_unpaid_bill: {
+        Args: { _invoice_id: string; _lines: Json }
+        Returns: {
+          amount_paid: number | null
+          balance: number | null
+          created_at: string | null
+          discount: number | null
+          encounter_id: string | null
+          id: string
+          invoice_number: string
+          net_amount: number
+          patient_id: string
+          status: Database["public"]["Enums"]["payment_status"] | null
+          tax: number | null
+          ticket_id: string | null
+          total_amount: number
+          updated_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
     }
     Enums: {
       app_role:
