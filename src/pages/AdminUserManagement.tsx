@@ -69,7 +69,27 @@ const ALL_ROLES: { value: AppRole; label: string }[] = [
 const AdminUserManagement = () => {
   const { toast } = useToast();
   const navigate = useNavigate();
-  const { startImpersonation } = useUser();
+  const { user: currentUser } = useUser();
+
+  /** Opens a new tab signed in as this user (their own session, nothing else changes here). */
+  const loginAs = async (target: { user_id: string; full_name?: string | null }) => {
+    const tab = window.open("about:blank", "_blank");
+    if (!tab) {
+      toast({ title: "Pop-up blocked", description: "Allow pop-ups for this site, then try Log in as again.", variant: "destructive" });
+      return;
+    }
+    tab.document.title = "Signing in…";
+    const { data, error } = await supabase.functions.invoke("admin-login-as", { body: { userId: target.user_id } });
+    const message = (data as { error?: string } | null)?.error || (error ? await readFunctionError(error) : null);
+    if (message || !data?.tokenHash) {
+      tab.close();
+      toast({ title: "Could not log in as this user", description: message || "No sign-in token was returned.", variant: "destructive" });
+      return;
+    }
+    tab.opener = null;
+    tab.location.href = `${window.location.origin}/login-as#t=${encodeURIComponent(data.tokenHash)}`;
+    toast({ title: `Opened a new tab as ${data.name || target.full_name || "this user"}`, description: "Your own tab stays signed in as you." });
+  };
   const [loading, setLoading] = useState(true);
   const [users, setUsers] = useState<UserWithRoles[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -497,7 +517,7 @@ const AdminUserManagement = () => {
                               <DropdownMenuItem onClick={() => openPasswordDialog(user)}>
                                 <KeyRound className="mr-2 h-4 w-4" />Change Password
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={async () => { await startImpersonation(user.user_id); navigate("/dashboard"); }}>
+                              <DropdownMenuItem disabled={user.user_id === currentUser?.id} onClick={() => void loginAs(user)}>
                                 <Eye className="mr-2 h-4 w-4" />Login As
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />

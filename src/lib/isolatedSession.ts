@@ -83,5 +83,7 @@ export async function signOutThisTab(signOut: (opts?: { scope?: "global" | "loca
     /* ignore */
   }
   window.close();
+  // If the browser refuses to close the tab, leave it on the sign-in page.
+  window.setTimeout(() => window.location.replace("/auth"), 300);
   return true;
 }

@@ -30,7 +30,7 @@ export function AppSidebar() {
   const { roles: userRoles, isAdmin: hasAdminAccess, profile } = useUser();
 
   const handleLogout = async () => {
-    let error: { message: string } | null = null;
+    let error = null as { message: string } | null;
     try {
       if (await signOutThisTab((o) => supabase.auth.signOut(o).then((r) => { error = r.error; }))) return;
     } catch (e) {

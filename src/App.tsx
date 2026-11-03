@@ -10,6 +10,7 @@ import ProtectedLayout from "@/components/ProtectedLayout";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import Index from "./pages/Index";
 import Auth from "./pages/Auth";
+import LoginAs from "./pages/LoginAs";
 import ResetPassword from "./pages/ResetPassword";
 import AdminUserManagement from "./pages/AdminUserManagement";
 import Dashboard from "./pages/Dashboard";
