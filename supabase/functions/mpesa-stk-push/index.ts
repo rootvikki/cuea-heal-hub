@@ -31,13 +31,22 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabase = createClient(supabaseUrl, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
 
-    // ── Only signed-in clinic staff may start or check payments ──
+    // ── Signed-in clinic staff, or a patient paying their own bill ──
     const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
     const { data: { user } } = token ? await supabase.auth.getUser(token) : { data: { user: null } };
     if (!user) return json({ success: false, error: "Please sign in again to take payments." }, 401);
     const { data: roleRows } = await supabase.from("user_roles").select("role").eq("user_id", user.id);
     const roles = (roleRows || []).map((r: { role: string }) => r.role);
-    if (!roles.some((r) => STAFF_ROLES.includes(r))) return json({ success: false, error: "Your account is not allowed to take payments." }, 403);
+    const isStaff = roles.some((r) => STAFF_ROLES.includes(r));
+    const isPatient = roles.includes("patient");
+    if (!isStaff && !isPatient) return json({ success: false, error: "Your account is not allowed to take payments." }, 403);
+    /** Patients may only pay / check their own invoices. */
+    const mayUseInvoice = async (invoiceId: string | null | undefined) => {
+      if (isStaff) return true;
+      if (!invoiceId) return false;
+      const { data } = await supabase.from("invoices").select("id, patients!inner(user_id)").eq("id", invoiceId).maybeSingle();
+      return (data as { patients?: { user_id?: string } } | null)?.patients?.user_id === user.id;
+    };
 
     const body = await req.json().catch(() => ({}));
     const cfg = await loadMpesaConfig(supabase);
