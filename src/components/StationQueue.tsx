@@ -65,6 +65,11 @@ const waitLabel = (since?: string | null) => {
   return mins >= 60 ? `${Math.floor(mins / 60)}h ${mins % 60}m` : `${mins}m`;
 };
 
+/** A visit checked in more than 18 hours ago (i.e. a previous day) that was never closed. */
+export const STALE_HOURS = 18;
+export const isStaleTicket = (t: { checked_in_at?: string | null; created_at?: string | null }) =>
+  Date.now() - new Date(t.checked_in_at || t.created_at || Date.now()).getTime() > STALE_HOURS * 3600 * 1000;
+
 const stageToStation = (stage: string): StationKey | undefined => STATIONS.find((s) => s.stage === stage)?.key;
 
 export function StationQueue({ stationStages, nextStage, title, onSelectPatient, selectedTicketId, collapsed = false, onToggleCollapse, triageClaimMode = false }: StationQueueProps) {
@@ -76,11 +81,16 @@ export function StationQueue({ stationStages, nextStage, title, onSelectPatient,
 
   const queryKey = useMemo(() => ["station-queue", ...stationStages], [stationStages]);
 
-  const { data: tickets = [] } = useQuery({
+  const { data: allTickets = [] } = useQuery({
     queryKey,
     queryFn: () => fetchStationTickets(stationStages),
     refetchInterval: 20000,
   });
+
+  // Visits left open from previous days are hidden so today's patients stay on top
+  const [showOld, setShowOld] = useState(false);
+  const oldTickets = allTickets.filter((t: any) => isStaleTicket(t));
+  const tickets = showOld ? allTickets : allTickets.filter((t: any) => !isStaleTicket(t));
 
   useEffect(() => {
     if (!triageClaimMode) return;
@@ -227,6 +237,11 @@ export function StationQueue({ stationStages, nextStage, title, onSelectPatient,
       <Button size="sm" className="w-full h-9" onClick={serveNext} disabled={tickets.length === 0}>
         <FastForward className="h-4 w-4 mr-1.5" /> Serve next patient
       </Button>
+      {oldTickets.length > 0 && (
+        <button type="button" onClick={() => setShowOld((v) => !v)} className="w-full text-[11px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline">
+          {showOld ? "Hide" : "Show"} {oldTickets.length} older visit{oldTickets.length > 1 ? "s" : ""} from previous days
+        </button>
+      )}
     </div>
   );
 

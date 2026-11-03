@@ -88,6 +88,7 @@ const Pharmacy = () => {
   const [replenishKey, setReplenishKey] = useState(0);
   const [editItem, setEditItem] = useState<any>(null);
   const [tab, setTab] = useState("prescriptions");
+  const [showOlderRx, setShowOlderRx] = useState(false);
   const [formData, setFormData] = useState({
     drugName: "", genericName: "", batchNumber: "", quantity: "", unitPrice: "",
     expiryDate: "", reorderLevel: "50", strengthSize: "", packageType: "",
@@ -400,7 +401,11 @@ const Pharmacy = () => {
     i.drug_name.toLowerCase().includes(searchTerm.toLowerCase()) || (i.generic_name || "").toLowerCase().includes(searchTerm.toLowerCase()),
   );
   const rq = rxSearch.toLowerCase();
-  const visibleSheets = sheets.filter((s) => s.stage !== "done" && (!rq || [s.patient?.profile?.full_name, s.patient?.patient_id, ...s.items.map((i) => i.medication_name)].some((x) => x?.toLowerCase().includes(rq))));
+  // Today's work first: sheets for patients at pharmacy/billing now, or prescribed in the last 18 hours
+  const isCurrentSheet = (s: RxSheet) =>
+    ["at_pharmacy", "at_billing"].includes(s.ticket?.workflow_stage) || Date.now() - new Date(s.createdAt).getTime() < 18 * 3600 * 1000;
+  const olderSheets = sheets.filter((s) => s.stage !== "done" && !isCurrentSheet(s));
+  const visibleSheets = sheets.filter((s) => s.stage !== "done" && (showOlderRx || isCurrentSheet(s)) && (!rq || [s.patient?.profile?.full_name, s.patient?.patient_id, ...s.items.map((i) => i.medication_name)].some((x) => x?.toLowerCase().includes(rq))));
   const openItems = sheet ? sheet.items.filter((i) => !["dispensed", "not_dispensed", "collected"].includes(i.status)) : [];
   const editable = sheet?.stage === "new";
 
@@ -651,6 +656,11 @@ const Pharmacy = () => {
             </div>
 
             <TabsContent value="prescriptions" className="space-y-2">
+              {olderSheets.length > 0 && (
+                <button type="button" onClick={() => setShowOlderRx((v) => !v)} className="text-xs text-muted-foreground hover:text-foreground hover:underline">
+                  {showOlderRx ? "Hide" : "Show"} {olderSheets.length} older prescription{olderSheets.length > 1 ? "s" : ""} not collected on previous days
+                </button>
+              )}
               {visibleSheets.length === 0 ? (
                 <Card><CardContent className="py-12 text-center text-muted-foreground">No prescriptions waiting</CardContent></Card>
               ) : (

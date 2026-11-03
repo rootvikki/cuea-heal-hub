@@ -17,6 +17,7 @@ import {
 import { PatientRegistrationDialog } from "@/components/PatientRegistrationDialog";
 import { EditBiodataDialog } from "@/components/EditBiodataDialog";
 import { SendToDialog } from "@/components/SendToDialog";
+import { isStaleTicket } from "@/components/StationQueue";
 import { InterimPayment } from "@/components/InterimPayment";
 import { VisitsReport } from "@/components/StationReports";
 import { calculateAgeYears, cn } from "@/lib/utils";
@@ -170,7 +171,7 @@ const Reception = () => {
 
   const openCheckIn = (p: FrontDeskPatient) => {
     const existing = activeByPatient.get(p.id);
-    if (existing) {
+    if (existing && !isStaleTicket(existing)) {
       toast.info(`${displayName(p)} is already in the queue`, { description: `${existing.ticket_number} · ${stageLabel(existing.workflow_stage || existing.status)}` });
       return;
     }
@@ -196,10 +197,16 @@ const Reception = () => {
     }
     setIsCheckingIn(true);
     try {
-      const { data: existing } = await supabase.from("tickets").select("id, ticket_number").eq("patient_id", p.id).neq("status", "checked_out").limit(1);
-      if (existing && existing.length > 0) {
-        toast.error("Already checked in", { description: `Active ticket: ${existing[0].ticket_number}` });
+      const { data: openTickets } = await supabase.from("tickets").select("id, ticket_number, checked_in_at, created_at").eq("patient_id", p.id).neq("status", "checked_out");
+      const current = (openTickets || []).filter((t) => !isStaleTicket(t));
+      if (current.length > 0) {
+        toast.error("Already checked in", { description: `Active ticket: ${current[0].ticket_number}` });
         return;
+      }
+      // A visit from a previous day that was never closed must not block today's check-in
+      const leftover = (openTickets || []).filter((t) => isStaleTicket(t)).map((t) => t.id);
+      if (leftover.length) {
+        await supabase.from("tickets").update({ status: "checked_out", workflow_stage: "checked_out", checked_out_at: new Date().toISOString(), assigned_to: null, claimed_at: null }).in("id", leftover);
       }
 
       // Remember payment details on the patient for next time
@@ -249,8 +256,11 @@ const Reception = () => {
     if (!patientId || isCheckingInAppointment) return;
     setIsCheckingInAppointment(apt.id);
     try {
-      const { data: existing } = await supabase.from("tickets").select("id, ticket_number").eq("patient_id", patientId).neq("status", "checked_out").limit(1);
-      if (existing && existing.length > 0) {
+      const { data: openTickets } = await supabase.from("tickets").select("id, ticket_number, checked_in_at, created_at").eq("patient_id", patientId).neq("status", "checked_out");
+      const existing = (openTickets || []).filter((t) => !isStaleTicket(t));
+      const leftover = (openTickets || []).filter((t) => isStaleTicket(t)).map((t) => t.id);
+      if (leftover.length) await supabase.from("tickets").update({ status: "checked_out", workflow_stage: "checked_out", checked_out_at: new Date().toISOString() }).in("id", leftover);
+      if (existing.length > 0) {
         toast.error("Already checked in", { description: `Active ticket: ${existing[0].ticket_number}` });
         return;
       }
@@ -285,12 +295,37 @@ const Reception = () => {
 
   const waitMins = (since: string) => Math.floor((Date.now() - new Date(since).getTime()) / 60000);
 
+  // Visits from previous days that nobody closed — kept out of today's list
+  const staleTickets = useMemo(() => activeTickets.filter((t: any) => isStaleTicket(t)), [activeTickets]);
+  const todayTickets = useMemo(() => activeTickets.filter((t: any) => !isStaleTicket(t)), [activeTickets]);
+  const [closingOld, setClosingOld] = useState(false);
+  const [confirmCloseOld, setConfirmCloseOld] = useState(false);
+  const closeOldVisits = async () => {
+    setClosingOld(true);
+    try {
+      const ids = staleTickets.map((t: any) => t.id);
+      const now = new Date().toISOString();
+      for (let i = 0; i < ids.length; i += 100) {
+        const { error } = await supabase.from("tickets").update({ status: "checked_out", workflow_stage: "checked_out", checked_out_at: now, assigned_to: null, claimed_at: null }).in("id", ids.slice(i, i + 100));
+        if (error) throw error;
+      }
+      logAuditEvent({ action: "old_visits_closed", module: "reception", details: { count: ids.length } });
+      toast.success(`Closed ${ids.length} old visit(s)`);
+      queryClient.invalidateQueries({ queryKey: ["reception-queue"] });
+    } catch (err: any) {
+      toast.error("Could not close old visits", { description: err.message });
+    } finally {
+      setClosingOld(false);
+      setConfirmCloseOld(false);
+    }
+  };
+
   const stageCounts = useMemo(() => {
     const m: Record<string, number> = {};
-    activeTickets.forEach((t: any) => { const k = stageLabel(t.workflow_stage || t.status); m[k] = (m[k] || 0) + 1; });
+    todayTickets.forEach((t: any) => { const k = stageLabel(t.workflow_stage || t.status); m[k] = (m[k] || 0) + 1; });
     return m;
-  }, [activeTickets]);
-  const visibleTickets = stageFilter === "all" ? activeTickets : activeTickets.filter((t: any) => stageLabel(t.workflow_stage || t.status) === stageFilter);
+  }, [todayTickets]);
+  const visibleTickets = stageFilter === "all" ? todayTickets : todayTickets.filter((t: any) => stageLabel(t.workflow_stage || t.status) === stageFilter);
 
   return (
     <div className="space-y-5 max-w-7xl mx-auto">
@@ -385,7 +420,8 @@ const Reception = () => {
                       </thead>
                       <tbody>
                         {searchResults.map((p) => {
-                          const t = activeByPatient.get(p.id);
+                          const t0 = activeByPatient.get(p.id);
+                          const t = t0 && !isStaleTicket(t0) ? t0 : null;
                           return (
                             <tr key={p.id} className="border-b last:border-0 hover:bg-muted/30">
                               <td className="px-3 py-2 font-semibold">{displayName(p)}</td>
@@ -417,7 +453,8 @@ const Reception = () => {
                   {/* Cards on phones */}
                   <div className="md:hidden space-y-2">
                     {searchResults.map((p) => {
-                      const t = activeByPatient.get(p.id);
+                      const t0 = activeByPatient.get(p.id);
+                      const t = t0 && !isStaleTicket(t0) ? t0 : null;
                       return (
                         <div key={p.id} className="p-3 border rounded-lg space-y-2">
                           <div className="flex items-start justify-between gap-2">
@@ -446,9 +483,15 @@ const Reception = () => {
             {/* Active queue */}
             <Card className="lg:col-span-3">
               <CardHeader className="pb-3 space-y-3">
-                <CardTitle className="flex items-center gap-2 text-lg"><Users className="h-5 w-5" /> Patients in the clinic ({activeTickets.length})</CardTitle>
+                <CardTitle className="flex items-center gap-2 text-lg"><Users className="h-5 w-5" /> Patients in the clinic today ({todayTickets.length})</CardTitle>
+                {staleTickets.length > 0 && (
+                  <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-amber-300 bg-amber-50 p-2.5 text-sm text-amber-900">
+                    <span>{staleTickets.length} visit(s) from previous days were never closed.</span>
+                    <Button size="sm" variant="outline" className="h-8 bg-background" onClick={() => setConfirmCloseOld(true)}>Close old visits</Button>
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-1.5">
-                  <Button size="sm" variant={stageFilter === "all" ? "default" : "outline"} className="h-7 text-xs" onClick={() => setStageFilter("all")}>All {activeTickets.length}</Button>
+                  <Button size="sm" variant={stageFilter === "all" ? "default" : "outline"} className="h-7 text-xs" onClick={() => setStageFilter("all")}>All {todayTickets.length}</Button>
                   {Object.entries(stageCounts).map(([k, n]) => (
                     <Button key={k} size="sm" variant={stageFilter === k ? "default" : "outline"} className="h-7 text-xs" onClick={() => setStageFilter(k)}>{k} {n}</Button>
                   ))}
@@ -632,6 +675,22 @@ const Reception = () => {
         ticket={direct ? { id: direct.ticket.id, patient_id: direct.ticket.patient_id ?? direct.ticket.patient?.id, department_id: direct.ticket.department_id, patientName: displayName({ ...direct.ticket.patient?.profile, patient_id: direct.ticket.patient?.patient_id }) } : null}
         onDone={() => queryClient.invalidateQueries({ queryKey: ["reception-queue"] })}
       />
+
+      <Dialog open={confirmCloseOld} onOpenChange={setConfirmCloseOld}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Close {staleTickets.length} old visit(s)?</DialogTitle>
+            <DialogDescription>
+              These patients were checked in before today and never checked out. Closing marks the visits as checked out so today's queues only show
+              patients who are really here. Their records, results and bills are not changed.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2">
+            <Button variant="outline" onClick={() => setConfirmCloseOld(false)} disabled={closingOld}>Cancel</Button>
+            <Button onClick={closeOldVisits} disabled={closingOld}>{closingOld && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Close old visits</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <SendToDialog
         open={!!sendTicket}

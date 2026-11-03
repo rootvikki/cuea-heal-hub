@@ -233,6 +233,7 @@ const Vitals = () => {
     const { data } = await supabase.from("tickets")
       .select("*, patients!inner(id, patient_id, user_id, patient_type, allergies, blood_type, chronic_conditions, insurance_provider, insurance_number, national_id, payroll_number, admission_number, profiles!inner(full_name, phone, date_of_birth, gender))")
       .in("workflow_stage", ["checked_in", "triage"]).is("assigned_to", null)
+      .gte("created_at", new Date(Date.now() - 18 * 3600 * 1000).toISOString())
       .order("priority", { ascending: false }).order("created_at", { ascending: true }).limit(2);
     const next = (data || []).find((t: any) => t.id !== skipId);
     if (!next) { setSelectedTicket(null); return; }
