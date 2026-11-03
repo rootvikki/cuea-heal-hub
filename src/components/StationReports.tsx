@@ -34,7 +34,8 @@ const downloadCsv = (name: string, csv: string) => {
 
 const printPdf = <T,>(title: string, subtitle: string, rows: T[], cols: Col<T>[], summary: string[]) =>
   openPdfWindow(async () => {
-    const doc = new jsPDF({ orientation: cols.length > 7 ? "landscape" : "portrait" });
+    const wide = cols.length > 12;
+    const doc = new jsPDF({ orientation: cols.length > 7 ? "landscape" : "portrait", format: wide ? "a3" : "a4" });
     const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
     const t = await drawInfirmaryLetterhead(doc, { title });
     doc.setFont("helvetica", "normal"); doc.setFontSize(9);
@@ -45,7 +46,7 @@ const printPdf = <T,>(title: string, subtitle: string, rows: T[], cols: Col<T>[]
       head: [cols.map((c) => c.label)],
       body: rows.map((r) => cols.map((c) => String(c.value(r) ?? ""))),
       theme: "grid",
-      styles: { fontSize: 8, cellPadding: 1.4 },
+      styles: { fontSize: wide ? 6.5 : 8, cellPadding: wide ? 1 : 1.4 },
       headStyles: { fillColor: [128, 0, 32] },
       margin: { bottom: 14 },
     });
@@ -150,10 +151,19 @@ const iso = (d: string, end = false) => (end ? endOfDay(new Date(d)) : startOfDa
 
 // ─── Visits report (Reception & Triage) ───────────────────────────
 interface VisitRow {
-  _id: string; date: string; ticket: string; name: string; opd: string; idNo: string; phone: string;
-  gender: string; age: number | null; patientType: string; category: string; paymentMode: string; stage: string;
+  _id: string; date: string; ticket: string; name: string; opd: string; idNo: string; phone: string; email: string;
+  gender: string; dob: string; age: number | null; nationality: string; patientType: string; admissionNo: string; payrollNo: string;
+  insuranceProvider: string; insuranceNo: string; category: string; paymentMode: string; stage: string;
+  kinName: string; kinPhone: string; missing: boolean;
   bp: string; temp: string; weight: string; height: string; bmi: string; urgency: string; complaint: string;
 }
+
+/** Gender is shown as "Male" / "Female"; a missing value is shown as "Not recorded" so the gap is visible. */
+export const NOT_RECORDED = "Not recorded";
+export const genderLabel = (g?: string | null) => {
+  const x = (g || "").trim().toLowerCase();
+  return x === "male" || x === "m" ? "Male" : x === "female" || x === "f" ? "Female" : NOT_RECORDED;
+};
 
 export function VisitsReport({ variant = "reception" }: { variant?: "reception" | "triage" }) {
   const [from, setFrom] = useState(today);
@@ -164,6 +174,7 @@ export function VisitsReport({ variant = "reception" }: { variant?: "reception" 
   const [category, setCategory] = useState("all");
   const [patientType, setPatientType] = useState("all");
   const [payment, setPayment] = useState("all");
+  const [missingOnly, setMissingOnly] = useState("all");
   const [text, setText] = useState("");
   const [rows, setRows] = useState<VisitRow[]>([]);
   const [loading, setLoading] = useState(false);
@@ -173,7 +184,7 @@ export function VisitsReport({ variant = "reception" }: { variant?: "reception" 
     try {
       const { data: tickets, error } = await supabase
         .from("tickets")
-        .select("id, ticket_number, created_at, status, workflow_stage, payment_mode, patient_id, patients!inner(id, patient_id, national_id, patient_type, visit_reason, profiles!inner(full_name, gender, date_of_birth, phone))")
+        .select("id, ticket_number, created_at, status, workflow_stage, payment_mode, patient_id, patients!inner(id, patient_id, national_id, patient_type, visit_reason, email, nationality, admission_number, payroll_number, insurance_provider, insurance_number, next_of_kin_name, next_of_kin_phone, profiles!inner(full_name, gender, date_of_birth, phone, email))")
         .gte("created_at", iso(from)).lte("created_at", iso(to, true))
         .order("created_at", { ascending: false }).limit(2000);
       if (error) throw error;
@@ -203,9 +214,19 @@ export function VisitsReport({ variant = "reception" }: { variant?: "reception" 
           opd: p?.patient_id || "",
           idNo: p?.national_id || "",
           phone: prof.phone || "",
-          gender: prof.gender || "",
+          email: p?.email || prof.email || "",
+          gender: genderLabel(prof.gender),
+          dob: prof.date_of_birth || "",
           age: calculateAgeYears(prof.date_of_birth),
+          nationality: p?.nationality || "",
           patientType: (p?.patient_type || "outsider").replace("cuea_", "").replace(/^\w/, (c: string) => c.toUpperCase()),
+          admissionNo: p?.patient_type === "cuea_student" ? p?.admission_number || "" : "",
+          payrollNo: p?.patient_type === "cuea_staff" ? p?.payroll_number || "" : "",
+          insuranceProvider: p?.insurance_provider || "",
+          insuranceNo: p?.insurance_number || "",
+          kinName: p?.next_of_kin_name || "",
+          kinPhone: p?.next_of_kin_phone || "",
+          missing: !genderLabel(prof.gender).match(/^(Male|Female)$/) || !prof.date_of_birth || !prof.phone,
           category: inpatient ? "Inpatient" : p?.visit_reason === "dental" ? "Dental (Outpatient)" : "Outpatient",
           paymentMode: paymentModeLabel(t.payment_mode),
           stage: stageLabel(t.workflow_stage || t.status),
@@ -229,7 +250,8 @@ export function VisitsReport({ variant = "reception" }: { variant?: "reception" 
   useEffect(() => { void load(); }, [from, to]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const filtered = useMemo(() => rows.filter((r) => {
-    if (gender !== "all" && r.gender.toLowerCase() !== gender) return false;
+    if (gender !== "all" && (gender === "not_recorded" ? r.gender !== NOT_RECORDED : r.gender.toLowerCase() !== gender)) return false;
+    if (missingOnly === "missing" && !r.missing) return false;
     if (minAge && (r.age == null || r.age < Number(minAge))) return false;
     if (maxAge && (r.age == null || r.age > Number(maxAge))) return false;
     if (category === "inpatient" && r.category !== "Inpatient") return false;
@@ -239,12 +261,36 @@ export function VisitsReport({ variant = "reception" }: { variant?: "reception" 
     if (payment !== "all" && r.paymentMode !== paymentModeLabel(payment)) return false;
     if (text) {
       const s = text.toLowerCase();
-      if (![r.name, r.opd, r.idNo, r.phone, r.ticket].some((x) => x.toLowerCase().includes(s))) return false;
+      if (![r.name, r.opd, r.idNo, r.phone, r.ticket, r.email, r.admissionNo, r.payrollNo, r.insuranceNo].some((x) => x.toLowerCase().includes(s))) return false;
     }
     return true;
-  }), [rows, gender, minAge, maxAge, category, patientType, payment, text]);
+  }), [rows, gender, missingOnly, minAge, maxAge, category, patientType, payment, text]);
 
-  const cols: Col<VisitRow>[] = [
+  const cols: Col<VisitRow>[] = variant === "reception"
+    ? [
+        { key: "date", label: "Visit date & time", value: (r) => format(new Date(r.date), "dd MMM yyyy HH:mm") },
+        { key: "ticket", label: "Ticket", value: (r) => r.ticket },
+        { key: "name", label: "Full name", value: (r) => r.name },
+        { key: "opd", label: "OPD No.", value: (r) => r.opd },
+        { key: "id", label: "ID / Passport", value: (r) => r.idNo },
+        { key: "phone", label: "Phone", value: (r) => r.phone },
+        { key: "email", label: "Email", value: (r) => r.email },
+        { key: "gender", label: "Gender", value: (r) => r.gender },
+        { key: "dob", label: "Date of birth", value: (r) => (r.dob ? format(new Date(r.dob), "dd MMM yyyy") : "") },
+        { key: "age", label: "Age", value: (r) => r.age ?? "" },
+        { key: "nat", label: "Nationality", value: (r) => r.nationality },
+        { key: "type", label: "Patient type", value: (r) => r.patientType },
+        { key: "adm", label: "Admission no.", value: (r) => r.admissionNo },
+        { key: "pay_no", label: "Payroll no.", value: (r) => r.payrollNo },
+        { key: "ins", label: "Insurance provider", value: (r) => r.insuranceProvider },
+        { key: "ins_no", label: "Insurance member no.", value: (r) => r.insuranceNo },
+        { key: "pay", label: "Payment mode", value: (r) => r.paymentMode },
+        { key: "category", label: "In/Out/Dental", value: (r) => r.category },
+        { key: "stage", label: "Current station", value: (r) => r.stage },
+        { key: "kin", label: "Next of kin", value: (r) => r.kinName },
+        { key: "kin_phone", label: "Next of kin phone", value: (r) => r.kinPhone },
+      ]
+    : [
     { key: "date", label: "Date", value: (r) => format(new Date(r.date), "dd MMM yyyy HH:mm") },
     { key: "ticket", label: "Ticket", value: (r) => r.ticket },
     { key: "name", label: "Patient", value: (r) => r.name },
@@ -271,12 +317,14 @@ export function VisitsReport({ variant = "reception" }: { variant?: "reception" 
     { label: "Visits", value: filtered.length },
     { label: "Male", value: count((r) => r.gender.toLowerCase() === "male") },
     { label: "Female", value: count((r) => r.gender.toLowerCase() === "female") },
+    { label: "Gender not recorded", value: count((r) => r.gender === NOT_RECORDED) },
+    { label: "Missing details", value: count((r) => r.missing) },
     { label: "Outpatient", value: count((r) => r.category !== "Inpatient") },
     { label: "Inpatient", value: count((r) => r.category === "Inpatient") },
     { label: "Insurance", value: count((r) => r.paymentMode === "Insurance") },
   ];
 
-  const reset = () => { setGender("all"); setMinAge(""); setMaxAge(""); setCategory("all"); setPatientType("all"); setPayment("all"); setText(""); };
+  const reset = () => { setGender("all"); setMissingOnly("all"); setMinAge(""); setMaxAge(""); setCategory("all"); setPatientType("all"); setPayment("all"); setText(""); };
   const title = variant === "triage" ? "Triage Report" : "Reception Visits Report";
   const subtitle = `${format(new Date(from), "dd MMM yyyy")} – ${format(new Date(to), "dd MMM yyyy")}`;
 
@@ -284,7 +332,8 @@ export function VisitsReport({ variant = "reception" }: { variant?: "reception" 
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 items-end">
         <DateRange from={from} to={to} setFrom={setFrom} setTo={setTo} />
-        <SimpleSelect label="Gender" value={gender} onChange={setGender} options={[{ value: "all", label: "All" }, { value: "male", label: "Male" }, { value: "female", label: "Female" }]} />
+        <SimpleSelect label="Gender" value={gender} onChange={setGender} options={[{ value: "all", label: "All" }, { value: "male", label: "Male" }, { value: "female", label: "Female" }, { value: "not_recorded", label: NOT_RECORDED }]} />
+        <SimpleSelect label="Missing details" value={missingOnly} onChange={setMissingOnly} options={[{ value: "all", label: "All patients" }, { value: "missing", label: "No gender, birth date or phone" }]} />
         <AgeRange min={minAge} max={maxAge} setMin={setMinAge} setMax={setMaxAge} />
         <SimpleSelect label="In/Outpatient" value={category} onChange={setCategory} options={[{ value: "all", label: "All" }, { value: "outpatient", label: "Outpatient" }, { value: "inpatient", label: "Inpatient" }, { value: "dental", label: "Dental" }]} />
         <SimpleSelect label="Patient type" value={patientType} onChange={setPatientType} options={[{ value: "all", label: "All" }, { value: "student", label: "Student" }, { value: "staff", label: "Staff" }, { value: "outsider", label: "Outsider" }]} />
@@ -375,7 +424,8 @@ export function LabReport() {
   const filtered = useMemo(() => rows.filter((r) => {
     if (test !== "all" && r.test !== test) return false;
     if (result !== "all" && r.category !== result) return false;
-    if (gender !== "all" && r.gender.toLowerCase() !== gender) return false;
+    if (gender !== "all" && (gender === "not_recorded" ? r.gender !== NOT_RECORDED : r.gender.toLowerCase() !== gender)) return false;
+    if (missingOnly === "missing" && !r.missing) return false;
     if (minAge && (r.age == null || r.age < Number(minAge))) return false;
     if (maxAge && (r.age == null || r.age > Number(maxAge))) return false;
     if (text) {
