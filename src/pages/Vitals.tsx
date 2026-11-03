@@ -1,3 +1,4 @@
+import { ClearOldTriage } from "@/components/ClearOldTriage";
 import { ProceduresToPerform } from "@/components/ConsultationExtras";
 import { DirectOrderDialog } from "@/components/DirectOrderDialog";
 import { useState, useEffect, useMemo, useRef, useCallback } from "react";
@@ -357,6 +358,7 @@ const Vitals = () => {
             Auto-open next
           </label>
           <ReportsButton kind="triage" />
+          <ClearOldTriage />
           <TriageArrivalAlerts />
         </div>
       </div>

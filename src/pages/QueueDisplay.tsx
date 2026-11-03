@@ -1,3 +1,4 @@
+import { isStaleTicket } from "@/components/StationQueue";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -53,7 +54,8 @@ async function fetchDisplayTickets(): Promise<TicketWithDetails[]> {
 
   if (error) throw error;
 
-  return (data || []).map((t: any) => ({
+  // Public screen shows today's visits only — leftovers from previous days are hidden
+  return (data || []).filter((t: any) => !isStaleTicket(t)).map((t: any) => ({
     ...t,
     patient: {
       patient_id: t.patients?.patient_id,
