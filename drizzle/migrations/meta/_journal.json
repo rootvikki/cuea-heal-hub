@@ -78,6 +78,13 @@
       "when": 1793701759702,
       "tag": "0010_pharmacy_direct_restock",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793702601909,
+      "tag": "0011_block_self_edit_personal_details",
+      "breakpoints": true
     }
   ]
 }

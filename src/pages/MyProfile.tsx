@@ -8,36 +8,16 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { User, Lock, Mail, Phone, MapPin, Calendar, Shield } from "lucide-react";
+import { User, Lock, Mail, Phone, Shield } from "lucide-react";
 
 const MyProfile = () => {
   const { user, profile, roles } = useUser();
   const { toast } = useToast();
 
-  const [fullName, setFullName] = useState(profile?.full_name || "");
-  const [phone, setPhone] = useState(profile?.phone || "");
-  const [saving, setSaving] = useState(false);
-
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [changingPassword, setChangingPassword] = useState(false);
-
-  const handleSaveProfile = async () => {
-    if (!user) return;
-    setSaving(true);
-    const { error } = await supabase
-      .from("profiles")
-      .update({ full_name: fullName, phone })
-      .eq("user_id", user.id);
-
-    if (error) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
-    } else {
-      toast({ title: "Profile updated", description: "Your profile has been saved." });
-    }
-    setSaving(false);
-  };
 
   const handleChangePassword = async () => {
     if (newPassword.length < 6) {
@@ -67,7 +47,7 @@ const MyProfile = () => {
         <h1 className="text-3xl font-bold flex items-center gap-2">
           <User className="h-7 w-7 text-primary" /> My Profile
         </h1>
-        <p className="text-muted-foreground mt-1">View and manage your account details</p>
+        <p className="text-muted-foreground mt-1">View your account details and change your password</p>
       </div>
 
       {/* Profile Info */}
@@ -108,28 +88,27 @@ const MyProfile = () => {
         </CardContent>
       </Card>
 
-      {/* Editable Profile */}
+      {/* Personal details — read only; staff update them */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <User className="h-4 w-4 text-primary" /> Personal Details
           </CardTitle>
-          <CardDescription>Update your name and phone number</CardDescription>
+          <CardDescription className="flex items-center gap-1">
+            <Lock className="h-3 w-3" /> To correct your name or phone number, please ask the administrator or reception.
+          </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="fullName">Full Name</Label>
-              <Input id="fullName" value={fullName} onChange={(e) => setFullName(e.target.value)} />
+            <div>
+              <Label className="text-muted-foreground text-xs">Full Name</Label>
+              <p className="font-medium">{profile?.full_name || "—"}</p>
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="phone">Phone</Label>
-              <Input id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
+            <div>
+              <Label className="text-muted-foreground text-xs flex items-center gap-1"><Phone className="h-3 w-3" /> Phone</Label>
+              <p className="font-medium">{profile?.phone || "—"}</p>
             </div>
           </div>
-          <Button onClick={handleSaveProfile} disabled={saving}>
-            {saving ? "Saving…" : "Save Changes"}
-          </Button>
         </CardContent>
       </Card>
 
