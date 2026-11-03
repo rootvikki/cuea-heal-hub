@@ -333,7 +333,7 @@ export function VisitsReport({ variant = "reception" }: { variant?: "reception" 
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 items-end">
         <DateRange from={from} to={to} setFrom={setFrom} setTo={setTo} />
         <SimpleSelect label="Gender" value={gender} onChange={setGender} options={[{ value: "all", label: "All" }, { value: "male", label: "Male" }, { value: "female", label: "Female" }, { value: "not_recorded", label: NOT_RECORDED }]} />
-        <SimpleSelect label="Missing details" value={missingOnly} onChange={setMissingOnly} options={[{ value: "all", label: "All patients" }, { value: "missing", label: "No gender, birth date or phone" }]} />
+        <SimpleSelect label="Missing details" value={missingOnly} onChange={setMissingOnly} options={[{ value: "all", label: "All" }, { value: "missing", label: "No gender, birth date or phone" }]} />
         <AgeRange min={minAge} max={maxAge} setMin={setMinAge} setMax={setMaxAge} />
         <SimpleSelect label="In/Outpatient" value={category} onChange={setCategory} options={[{ value: "all", label: "All" }, { value: "outpatient", label: "Outpatient" }, { value: "inpatient", label: "Inpatient" }, { value: "dental", label: "Dental" }]} />
         <SimpleSelect label="Patient type" value={patientType} onChange={setPatientType} options={[{ value: "all", label: "All" }, { value: "student", label: "Student" }, { value: "staff", label: "Staff" }, { value: "outsider", label: "Outsider" }]} />
