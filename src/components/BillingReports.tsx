@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Pager, usePaged } from "@/components/Pager";
 import * as XLSX from "xlsx";
 import { supabase } from "@/integrations/supabase/client";
 import { useUser } from "@/contexts/UserContext";
@@ -135,6 +136,7 @@ function BillsReport() {
 
   const rows = useMemo(() => raw.map((x) => normaliseBill(x)), [raw]);
   const view = useMemo(() => filterBills(rows, f), [rows, f]);
+  const pages = usePaged(view, { resetKey: `${JSON.stringify(f)}|${r.from}|${r.to}` });
   const tot = billTotals(view);
   const groups = groupBy === "none" ? [] : groupBills(view, groupBy);
   const departments = [...new Set(rows.map((x) => x.department))].filter((d) => d !== "-").sort();
@@ -224,7 +226,7 @@ function BillsReport() {
           <tbody>
             {loading ? <tr><td colSpan={12} className="py-8 text-center text-muted-foreground">Loading…</td></tr>
               : view.length === 0 ? <tr><td colSpan={12} className="py-8 text-center text-muted-foreground">No bills for these choices</td></tr>
-              : view.slice(0, 300).map((x) => (
+              : pages.pageItems.map((x) => (
                 <tr key={x.id} className="border-b hover:bg-muted/30">
                   <td className="px-2 py-1.5 whitespace-nowrap">{ddmm(x.date)}</td><td className="px-2 py-1.5 font-medium">{x.invoice}</td><td className="px-2 py-1.5">{x.patient}</td>
                   <td className="px-2 py-1.5">{x.opd}</td><td className="px-2 py-1.5">{PATIENT_TYPES[x.patientType] || "-"}</td><td className="px-2 py-1.5">{x.ticket}</td>
@@ -238,7 +240,7 @@ function BillsReport() {
               ))}
           </tbody>
         </table>
-        {view.length > 300 && <p className="text-xs text-muted-foreground mt-2">Showing the first 300 of {view.length}. Exports include all rows.</p>}
+        <Pager pager={pages} label="rows" />
       </CardContent></Card>
     </div>
   );
@@ -280,6 +282,7 @@ function ChargesReport() {
 
   const rows = useMemo(() => raw.map(normaliseCharge), [raw]);
   const view = useMemo(() => filterCharges(rows, f), [rows, f]);
+  const pages = usePaged(view, { resetKey: `${JSON.stringify(f)}|${r.from}|${r.to}` });
   const total = view.reduce((a, x) => a + x.amount, 0);
   const unbilled = view.filter((x) => !x.billed);
   const groups = groupBy === "none" ? [] : groupCharges(view, groupBy);
@@ -370,7 +373,7 @@ function ChargesReport() {
           <tbody>
             {loading ? <tr><td colSpan={10} className="py-8 text-center text-muted-foreground">Loading…</td></tr>
               : view.length === 0 ? <tr><td colSpan={10} className="py-8 text-center text-muted-foreground">No services for these choices</td></tr>
-              : view.slice(0, 300).map((x) => (
+              : pages.pageItems.map((x) => (
                 <tr key={x.id} className="border-b hover:bg-muted/30">
                   <td className="px-2 py-1.5 whitespace-nowrap">{ddmm(x.date)}</td><td className="px-2 py-1.5">{x.patient}</td><td className="px-2 py-1.5">{x.opd}</td>
                   <td className="px-2 py-1.5">{PATIENT_TYPES[x.patientType] || "-"}</td><td className="px-2 py-1.5">{x.ticket}</td>
@@ -382,7 +385,7 @@ function ChargesReport() {
               ))}
           </tbody>
         </table>
-        {view.length > 300 && <p className="text-xs text-muted-foreground mt-2">Showing the first 300 of {view.length}. Exports include all rows.</p>}
+        <Pager pager={pages} label="rows" />
       </CardContent></Card>
     </div>
   );

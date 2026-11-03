@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Pager, usePaged } from "@/components/Pager";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -79,6 +80,7 @@ export function PaymentsReport() {
 
   const rows = useMemo<PaymentRow[]>(() => raw.map((r) => normalisePayment(r, staffNames)), [raw, staffNames]);
   const view = useMemo(() => filterPayments(rows, filters), [rows, filters]);
+  const pages = usePaged(view, { resetKey: `${JSON.stringify(filters)}|${from}|${to}` });
   const groups = useMemo(() => (groupBy === "none" ? [] : groupPayments(view, groupBy)), [view, groupBy]);
   const total = view.reduce((a, r) => a + r.amount, 0);
   const departments = useMemo(() => Array.from(new Set(rows.map((r) => r.department))).filter((d) => d !== "-").sort(), [rows]);
@@ -230,14 +232,14 @@ export function PaymentsReport() {
             <TableBody>
               {loading ? <TableRow><TableCell colSpan={DETAIL_HEADERS.length} className="text-center py-8 text-muted-foreground">Loading…</TableCell></TableRow>
                 : view.length === 0 ? <TableRow><TableCell colSpan={DETAIL_HEADERS.length} className="text-center py-8 text-muted-foreground">No payments for these choices</TableCell></TableRow>
-                : view.slice(0, 300).map((r) => {
+                : pages.pageItems.map((r) => {
                   const x = detailValues(r);
                   x[0] = r.date.split("-").reverse().join("/");
                   return <TableRow key={r.id}>{x.map((c, i) => <TableCell key={i} className={i === 15 ? "text-right font-medium whitespace-nowrap" : "whitespace-nowrap"}>{i === 15 ? Number(c).toLocaleString("en-KE", { minimumFractionDigits: 2 }) : c}</TableCell>)}</TableRow>;
                 })}
             </TableBody>
           </Table>
-          {view.length > 300 && <p className="text-xs text-muted-foreground mt-2">Showing the first 300 of {view.length}. Exports include all rows.</p>}
+          <Pager pager={pages} label="payments" />
         </CardContent>
       </Card>
     </div>

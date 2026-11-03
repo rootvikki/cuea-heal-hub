@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Pager, usePaged } from "@/components/Pager";
 import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useUser } from "@/contexts/UserContext";
@@ -150,6 +151,7 @@ function WorkLogView({ station }: { station: WorkStation }) {
   const scoped = useMemo(() => filterWork(rows, station, { group: "all", mine: mine && tracked, search }, myIds), [rows, station, mine, tracked, search, myStaff, user?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const view = useMemo(() => scoped.filter((r) => group === "all" || groupOf(station, r.status)?.key === group), [scoped, group, station]);
   const sum = summarizeWork(scoped, station);
+  const pages = usePaged(view, { resetKey: `${from}|${to}|${group}|${mine}|${search}` });
   const mineCount = tracked ? rows.filter((r) => isMine(r, myIds)).length : 0;
 
   const choose = (p: string) => { setPeriod(p); if (p !== "custom") { const [a, b] = rangeFor(p); setFrom(a); setTo(b); } };
@@ -203,7 +205,7 @@ function WorkLogView({ station }: { station: WorkStation }) {
         </div>
       </div>
 
-      <div className="overflow-auto max-h-[55vh] border rounded-md">
+      <div className="overflow-x-auto border rounded-md">
         <table className="w-full border-collapse text-sm min-w-[900px]">
           <thead className="sticky top-0 z-10">
             <tr>{["Time", "Patient", "OPD No.", "Ticket", "Item", "Details", "Status", "Handled by"].map((h) => <th key={h} className="border bg-muted px-2 py-1.5 text-left font-semibold whitespace-nowrap">{h}</th>)}</tr>
@@ -211,7 +213,7 @@ function WorkLogView({ station }: { station: WorkStation }) {
           <tbody>
             {loading ? <tr><td colSpan={8} className="border py-10 text-center"><Loader2 className="h-5 w-5 animate-spin inline text-muted-foreground" /></td></tr>
               : view.length === 0 ? <tr><td colSpan={8} className="border py-10 text-center text-muted-foreground">Nothing for these choices</td></tr>
-              : view.map((r) => {
+              : pages.pageItems.map((r) => {
                 const t = nairobiParts(r.at), g = groupOf(station, r.status);
                 return (
                   <tr key={r.id} className={cn("hover:bg-muted/40", isMine(r, myIds) && tracked && "bg-primary/5")}>
@@ -229,6 +231,7 @@ function WorkLogView({ station }: { station: WorkStation }) {
           </tbody>
         </table>
       </div>
+      <Pager pager={pages} label="items" />
     </div>
   );
 }
