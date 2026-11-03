@@ -845,29 +845,31 @@ const Pharmacy = () => {
                   <TableBody>
                     {invPages.pageItems.map((item) => (
                       <TableRow key={item.id}>
-                        <TableCell>
-                          <p className="font-medium">{item.drug_name}</p>
-                          {item.generic_name && <p className="text-sm text-muted-foreground">{item.generic_name}</p>}
+                        <TableCell className="py-1.5">
+                          <p className="font-medium leading-tight">{item.drug_name}</p>
+                          {item.generic_name && <p className="text-xs text-muted-foreground">{item.generic_name}</p>}
                         </TableCell>
-                        <TableCell>{[item.formulation, item.strength_size].filter(Boolean).join(" · ") || "-"}</TableCell>
-                        <TableCell>{item.package || "-"}</TableCell>
-                        <TableCell>
+                        <TableCell className="py-1.5 whitespace-nowrap">{[item.formulation, item.strength_size].filter(Boolean).join(" · ") || "-"}</TableCell>
+                        <TableCell className="py-1.5">{item.package || "-"}</TableCell>
+                        <TableCell className="py-1.5">
                           <Badge variant={["out", "low"].includes(stockStatus(item)) ? "destructive" : "outline"}>
                             {item.quantity}
                           </Badge>
                         </TableCell>
-                        <TableCell>KES {item.unit_price}</TableCell>
-                        <TableCell>{item.expiry_date ? new Date(item.expiry_date).toLocaleDateString() : "-"}</TableCell>
-                        <TableCell className="flex gap-2">
-                          {canEditInventory && <Button size="sm" variant="outline" onClick={() => setEditItem(item)}><Pencil className="h-4 w-4 mr-1" /> Edit</Button>}
-                          <Button size="sm" variant="outline" onClick={() => openStockCard(item)}>
-                            <ClipboardList className="h-4 w-4 mr-1" /> Card
-                          </Button>
-                          {canEditInventory && (
-                            <Button size="sm" variant="ghost" onClick={() => setReceiveItem(item)}>
-                              <PackagePlus className="h-4 w-4 mr-1" /> Receive stock
+                        <TableCell className="py-1.5 whitespace-nowrap">KES {item.unit_price}</TableCell>
+                        <TableCell className="py-1.5 whitespace-nowrap">{item.expiry_date ? new Date(item.expiry_date).toLocaleDateString() : "-"}</TableCell>
+                        <TableCell className="py-1.5">
+                          <div className="flex gap-1 whitespace-nowrap">
+                            {canEditInventory && <Button size="sm" variant="outline" className="h-8 px-2" title="Edit" onClick={() => setEditItem(item)}><Pencil className="h-4 w-4 xl:mr-1" /><span className="hidden xl:inline">Edit</span></Button>}
+                            <Button size="sm" variant="outline" className="h-8 px-2" title="Stock card" onClick={() => openStockCard(item)}>
+                              <ClipboardList className="h-4 w-4 xl:mr-1" /><span className="hidden xl:inline">Card</span>
                             </Button>
-                          )}
+                            {canEditInventory && (
+                              <Button size="sm" variant="ghost" className="h-8 px-2" title="Receive stock" onClick={() => setReceiveItem(item)}>
+                                <PackagePlus className="h-4 w-4 xl:mr-1" /><span className="hidden xl:inline">Receive</span>
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
