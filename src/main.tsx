@@ -1,3 +1,5 @@
+// Must stay first: isolates "Log in as" tabs before the backend client starts.
+import "./lib/isolatedSession";
 import { createRoot } from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
