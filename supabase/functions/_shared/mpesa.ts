@@ -45,7 +45,7 @@ export async function loadMpesaConfig(supabase: any): Promise<MpesaConfig> {
 
   let businessShortCode: string, partyB: string;
   if (type === "till") {
-    partyB = cfg.mpesa_till_number || env("MPESA_SHORTCODE") || cfg.mpesa_shortcode || "";
+    partyB = cfg.mpesa_till_number || cfg.mpesa_shortcode || env("MPESA_SHORTCODE") || "";
     businessShortCode = cfg.mpesa_store_number || env("MPESA_BUSINESS_SHORTCODE") || partyB;
   } else {
     businessShortCode = cfg.mpesa_shortcode || env("MPESA_SHORTCODE") || "";
