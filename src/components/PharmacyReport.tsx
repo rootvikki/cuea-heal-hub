@@ -18,6 +18,7 @@ import {
 } from "@/lib/pharmacyReport";
 import { buildPharmacyPdf, buildPharmacyWorkbook, movesCsv, stockCsv, type MoveView } from "@/lib/pharmacyExport";
 import { cn } from "@/lib/utils";
+import { Pager, usePaged } from "@/components/Pager";
 
 const kes = (n: number) => `KES ${n.toLocaleString("en-KE", { minimumFractionDigits: 0, maximumFractionDigits: 2 })}`;
 const ddmm = (ymd?: string | null) => (ymd ? ymd.slice(0, 10).split("-").reverse().join("/") : "-");
@@ -84,6 +85,7 @@ export function PharmacyReport({ inventory }: { inventory: InvItem[] }) {
     return [...rows].sort(cmp[sort]);
   }, [inventory, text, category, formulation, status, expiry, minPrice, maxPrice, sort, today]);
   const sum = useMemo(() => summarizeInventory(stockRows, today), [stockRows, today]);
+  const stockPages = usePaged(stockRows, { resetKey: `${text}|${category}|${formulation}|${status}|${expiry}|${minPrice}|${maxPrice}|${sort}` });
 
   useEffect(() => {
     if (view !== "moves") return;
@@ -112,6 +114,7 @@ export function PharmacyReport({ inventory }: { inventory: InvItem[] }) {
   }, [view, from, to, drug, byId]);
 
   const moveRows = useMemo(() => moves.filter((r) => moveKind === "all" || moveType(r) === moveKind), [moves, moveKind]);
+  const movePages = usePaged(moveRows, { resetKey: `${from}|${to}|${drug}|${moveKind}` });
   const moveSum = useMemo(() => ({
     received: moveRows.reduce((a, r) => a + (r.qty_received || 0), 0),
     issued: moveRows.reduce((a, r) => a + (r.qty_issued || 0), 0),
@@ -194,7 +197,7 @@ export function PharmacyReport({ inventory }: { inventory: InvItem[] }) {
               {stat("Expiring ≤ 90 days", sum.expiringIn90, () => setExpiry("within90"))}
             </div>
 
-            <div className="overflow-auto max-h-[60vh] border rounded-md">
+            <div className="overflow-x-auto border rounded-md">
               <table className="w-full border-collapse text-sm min-w-[1100px]">
                 <thead className="sticky top-0 z-10">
                   <tr>{["Drug", "Form", "Strength", "Pack", "Category", "Batch", "Expiry", "Qty", "Reorder", "Min / Max", "Status", "Price", "Ins. price", "Value"].map((h) => <th key={h} className="border bg-muted px-2 py-1.5 text-left font-semibold whitespace-nowrap">{h}</th>)}</tr>
@@ -202,7 +205,7 @@ export function PharmacyReport({ inventory }: { inventory: InvItem[] }) {
                 <tbody>
                   {stockRows.length === 0 ? (
                     <tr><td colSpan={14} className="border px-2 py-8 text-center text-muted-foreground">No drugs match these filters</td></tr>
-                  ) : stockRows.map((i) => {
+                  ) : stockPages.pageItems.map((i) => {
                     const s = stockStatus(i), b = expiryBucket(i.expiry_date, today);
                     return (
                       <tr key={i.id} className="hover:bg-muted/40">
@@ -226,6 +229,7 @@ export function PharmacyReport({ inventory }: { inventory: InvItem[] }) {
                 </tbody>
               </table>
             </div>
+            <Pager pager={stockPages} label="drugs" />
           </>
         ) : (
           <>
@@ -248,7 +252,7 @@ export function PharmacyReport({ inventory }: { inventory: InvItem[] }) {
               {stat("Issued value", kes(moveSum.value))}
             </div>
             {loadingMoves ? <div className="flex justify-center py-10"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div> : (
-              <div className="overflow-auto max-h-[60vh] border rounded-md">
+              <div className="overflow-x-auto border rounded-md">
                 <table className="w-full border-collapse text-sm min-w-[960px]">
                   <thead className="sticky top-0 z-10">
                     <tr>{["Date", "Drug", "Type", "From / To", "Ref", "Received", "Issued", "Balance", "Price", "Recorded by"].map((h) => <th key={h} className="border bg-muted px-2 py-1.5 text-left font-semibold whitespace-nowrap">{h}</th>)}</tr>
@@ -256,7 +260,7 @@ export function PharmacyReport({ inventory }: { inventory: InvItem[] }) {
                   <tbody>
                     {moveRows.length === 0 ? (
                       <tr><td colSpan={10} className="border px-2 py-8 text-center text-muted-foreground">No stock movements in this period</td></tr>
-                    ) : moveRows.map((r) => (
+                    ) : movePages.pageItems.map((r) => (
                       <tr key={r.id} className="hover:bg-muted/40">
                         <td className="border px-2 py-1 whitespace-nowrap">{ddmm(r.transaction_date)}</td>
                         <td className="border px-2 py-1">{r.drug}{r.strength ? ` ${r.strength}` : ""}</td>
@@ -274,6 +278,7 @@ export function PharmacyReport({ inventory }: { inventory: InvItem[] }) {
                 </table>
               </div>
             )}
+            <Pager pager={movePages} label="stock movements" />
           </>
         )}
       </CardContent>

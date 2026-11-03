@@ -8,6 +8,7 @@ import { useToast } from "@/hooks/use-toast";
 import { logAuditEvent } from "@/lib/auditLog";
 import { PackagePlus } from "lucide-react";
 import { ReceiveStockDialog } from "@/components/ReceiveStockDialog";
+import { Pager, usePaged } from "@/components/Pager";
 
 const OPEN = ["requested", "approved", "ordered"];
 
@@ -17,6 +18,7 @@ export function ReplenishmentRequests({ refreshKey, onStockChanged }: { refreshK
   const [rows, setRows] = useState<any[]>([]);
   const [busy, setBusy] = useState<string | null>(null);
   const [receiving, setReceiving] = useState<{ item: any; request: any } | null>(null);
+  const pages = usePaged(rows);
 
   const load = async () => {
     const { data } = await supabase.from("pharmacy_replenishment_requests").select("*").order("created_at", { ascending: false }).limit(200);
@@ -54,7 +56,7 @@ export function ReplenishmentRequests({ refreshKey, onStockChanged }: { refreshK
               <TableHead>Date</TableHead><TableHead>Medication</TableHead><TableHead>Qty</TableHead><TableHead>Urgency</TableHead><TableHead>Status</TableHead><TableHead>Notes</TableHead><TableHead>Action</TableHead>
             </TableRow></TableHeader>
             <TableBody>
-              {rows.map((r) => {
+              {pages.pageItems.map((r) => {
                 const open = OPEN.includes(r.status);
                 return (
                   <TableRow key={r.id}>
@@ -78,6 +80,7 @@ export function ReplenishmentRequests({ refreshKey, onStockChanged }: { refreshK
             </TableBody>
           </Table>
         )}
+        <Pager pager={pages} label="requests" />
       </CardContent>
       <ReceiveStockDialog
         item={receiving?.item ?? null}

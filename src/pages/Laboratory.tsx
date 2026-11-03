@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, Fragment } from "react";
+import { Pager, usePaged } from "@/components/Pager";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -183,6 +184,8 @@ const Laboratory = () => {
   const match = (v: LabVisit) => !s || [v.patient?.profile?.full_name, v.patient?.patient_id, ...v.orders.map((o) => o.test?.test_name)].some((x) => x?.toLowerCase().includes(s));
   const pendingVisits = visits.filter((v) => v.status !== "done" && match(v));
   const doneVisits = visits.filter((v) => v.status === "done" && match(v));
+  const pendingPages = usePaged(pendingVisits, { size: 10, resetKey: s });
+  const donePages = usePaged(doneVisits, { size: 10, resetKey: s });
   const today = new Date().toISOString().slice(0, 10);
 
   const notifyOrderers = async (visit: LabVisit, title: string, message: string) => {
@@ -715,11 +718,11 @@ const Laboratory = () => {
             </div>
             {loading ? <p className="text-center py-8 text-muted-foreground">Loading…</p>
               : pendingVisits.length === 0 ? <Card><CardContent className="py-12 text-center text-muted-foreground">No lab requests waiting</CardContent></Card>
-              : <div className="grid gap-2 xl:grid-cols-2">{pendingVisits.map(renderVisitCard)}</div>}
+              : <><div className="grid gap-2 xl:grid-cols-2">{pendingPages.pageItems.map(renderVisitCard)}</div><Pager pager={pendingPages} label="requests" /></>}
           </TabsContent>
 
           <TabsContent value="done" className="space-y-4">
-            {doneVisits.length === 0 ? <Card><CardContent className="py-12 text-center text-muted-foreground">No completed results</CardContent></Card> : doneVisits.slice(0, 40).map((v) => (
+            {doneVisits.length === 0 ? <Card><CardContent className="py-12 text-center text-muted-foreground">No completed results</CardContent></Card> : donePages.pageItems.map((v) => (
               <Card key={v.key}>
                 <CardHeader className="pb-2">
                   <div className="flex flex-wrap items-center justify-between gap-2">
@@ -733,6 +736,7 @@ const Laboratory = () => {
                 <CardContent><LabResultsTable orders={v.orders} compact /></CardContent>
               </Card>
             ))}
+            <Pager pager={donePages} label="patients" />
           </TabsContent>
 
           <TabsContent value="reports">

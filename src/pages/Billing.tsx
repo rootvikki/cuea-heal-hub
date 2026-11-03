@@ -1,4 +1,5 @@
 import { useLiveTable } from "@/lib/liveUpdates";
+import { Pager, usePaged } from "@/components/Pager";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import jsPDF from "jspdf";
@@ -188,6 +189,7 @@ const Billing = () => {
     return !s || [i.invoice_number, i.patient?.profile?.full_name, i.patient?.patient_id].some((x: string) => x?.toLowerCase().includes(s));
   });
   const todayStr = new Date().toISOString().split("T")[0];
+  const billPages = usePaged(filteredInvoices, { resetKey: invoiceSearch });
 
   return (
     <StationShell
@@ -354,7 +356,7 @@ const Billing = () => {
             <tbody>
               {filteredInvoices.length === 0 ? (
                 <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">No bills</td></tr>
-              ) : filteredInvoices.map((inv) => (
+              ) : billPages.pageItems.map((inv) => (
                 <tr key={inv.id} className="border-b hover:bg-muted/30">
                   <td className="px-2 py-2 font-medium">{inv.invoice_number}</td>
                   <td className="px-2 py-2"><p>{inv.patient?.profile?.full_name}</p><p className="text-xs text-muted-foreground">{inv.patient?.patient_id}</p></td>
@@ -375,6 +377,7 @@ const Billing = () => {
               ))}
             </tbody>
           </table>
+          <Pager pager={billPages} label="bills" />
         </CardContent>
       </Card>}
       </TabsContent>

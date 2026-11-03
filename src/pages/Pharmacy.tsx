@@ -34,6 +34,7 @@ import { ReceiveStockDialog } from "@/components/ReceiveStockDialog";
 import { PharmacyReport } from "@/components/PharmacyReport";
 import { stockStatus } from "@/lib/pharmacyReport";
 import { FORMULATIONS } from "@/lib/rxFormat";
+import { Pager, usePaged } from "@/components/Pager";
 import { InterimPayment } from "@/components/InterimPayment";
 import { logAuditEvent } from "@/lib/auditLog";
 import { MedicationInteractionCheck } from "@/components/MedicationInteractionCheck";
@@ -179,6 +180,8 @@ const Pharmacy = () => {
 
   // Give the work area the full width while a patient is open
   useEffect(() => { setQueueCollapsed(!!openKey); }, [openKey]);
+  // Inventory, stock card, reorder list and reports get the full width — the queue folds away
+  useEffect(() => { if (tab !== "prescriptions") setQueueCollapsed(true); }, [tab]);
 
   useEffect(() => {
     if (selectedTicket) setOpenKey(selectedTicket.id);
@@ -467,6 +470,11 @@ const Pharmacy = () => {
   const visibleSheets = sheets.filter((s) => s.stage !== "done" && (showOlderRx || isCurrentSheet(s)) && (!rq || [s.patient?.profile?.full_name, s.patient?.patient_id, ...s.items.map((i) => i.medication_name)].some((x) => x?.toLowerCase().includes(rq))));
   const openItems = sheet ? sheet.items.filter((i) => !["dispensed", "not_dispensed", "collected"].includes(i.status)) : [];
   const editable = sheet?.stage === "new";
+
+  // Long lists are shown a page at a time so the screen stays short
+  const sheetPages = usePaged(visibleSheets, { size: 10, resetKey: `${rxSearch}|${showOlderRx}` });
+  const invPages = usePaged(filteredInventory, { resetKey: searchTerm });
+  const cardPages = usePaged(stockTransactions, { resetKey: stockCardItem?.id });
 
   return (
     <StationShell
@@ -793,7 +801,7 @@ const Pharmacy = () => {
                 <Card><CardContent className="py-12 text-center text-muted-foreground">No prescriptions waiting</CardContent></Card>
               ) : (
                 <div className="grid gap-2 xl:grid-cols-2">
-                  {visibleSheets.map((s) => (
+                  {sheetPages.pageItems.map((s) => (
                     <button key={s.key} type="button" onClick={() => setOpenKey(s.key)} className="w-full text-left p-3 border rounded-lg hover:bg-muted/40 transition-colors space-y-2">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div className="min-w-0">
@@ -807,6 +815,7 @@ const Pharmacy = () => {
                   ))}
                 </div>
               )}
+              <Pager pager={sheetPages} label="prescription sheets" />
             </TabsContent>
 
             <TabsContent value="replenishment">
@@ -836,36 +845,39 @@ const Pharmacy = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredInventory.map((item) => (
+                    {invPages.pageItems.map((item) => (
                       <TableRow key={item.id}>
-                        <TableCell>
-                          <p className="font-medium">{item.drug_name}</p>
-                          {item.generic_name && <p className="text-sm text-muted-foreground">{item.generic_name}</p>}
+                        <TableCell className="py-1.5">
+                          <p className="font-medium leading-tight">{item.drug_name}</p>
+                          {item.generic_name && <p className="text-xs text-muted-foreground">{item.generic_name}</p>}
                         </TableCell>
-                        <TableCell>{[item.formulation, item.strength_size].filter(Boolean).join(" · ") || "-"}</TableCell>
-                        <TableCell>{item.package || "-"}</TableCell>
-                        <TableCell>
+                        <TableCell className="py-1.5 whitespace-nowrap">{[item.formulation, item.strength_size].filter(Boolean).join(" · ") || "-"}</TableCell>
+                        <TableCell className="py-1.5">{item.package || "-"}</TableCell>
+                        <TableCell className="py-1.5">
                           <Badge variant={["out", "low"].includes(stockStatus(item)) ? "destructive" : "outline"}>
                             {item.quantity}
                           </Badge>
                         </TableCell>
-                        <TableCell>KES {item.unit_price}</TableCell>
-                        <TableCell>{item.expiry_date ? new Date(item.expiry_date).toLocaleDateString() : "-"}</TableCell>
-                        <TableCell className="flex gap-2">
-                          {canEditInventory && <Button size="sm" variant="outline" onClick={() => setEditItem(item)}><Pencil className="h-4 w-4 mr-1" /> Edit</Button>}
-                          <Button size="sm" variant="outline" onClick={() => openStockCard(item)}>
-                            <ClipboardList className="h-4 w-4 mr-1" /> Card
-                          </Button>
-                          {canEditInventory && (
-                            <Button size="sm" variant="ghost" onClick={() => setReceiveItem(item)}>
-                              <PackagePlus className="h-4 w-4 mr-1" /> Receive stock
+                        <TableCell className="py-1.5 whitespace-nowrap">KES {item.unit_price}</TableCell>
+                        <TableCell className="py-1.5 whitespace-nowrap">{item.expiry_date ? new Date(item.expiry_date).toLocaleDateString() : "-"}</TableCell>
+                        <TableCell className="py-1.5">
+                          <div className="flex gap-1 whitespace-nowrap">
+                            {canEditInventory && <Button size="sm" variant="outline" className="h-8 px-2" title="Edit" onClick={() => setEditItem(item)}><Pencil className="h-4 w-4 xl:mr-1" /><span className="hidden xl:inline">Edit</span></Button>}
+                            <Button size="sm" variant="outline" className="h-8 px-2" title="Stock card" onClick={() => openStockCard(item)}>
+                              <ClipboardList className="h-4 w-4 xl:mr-1" /><span className="hidden xl:inline">Card</span>
                             </Button>
-                          )}
+                            {canEditInventory && (
+                              <Button size="sm" variant="ghost" className="h-8 px-2" title="Receive stock" onClick={() => setReceiveItem(item)}>
+                                <PackagePlus className="h-4 w-4 xl:mr-1" /><span className="hidden xl:inline">Receive</span>
+                              </Button>
+                            )}
+                          </div>
                         </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
                 </Table>
+                <Pager pager={invPages} label="drugs" className="border-t mt-2" />
               </CardContent>
             </Card>
           </TabsContent>
@@ -904,7 +916,7 @@ const Pharmacy = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {stockTransactions.map((tx) => (
+                      {cardPages.pageItems.map((tx) => (
                         <TableRow key={tx.id}>
                           <TableCell>{new Date(tx.transaction_date).toLocaleDateString()}</TableCell>
                           <TableCell>{tx.received_from || tx.issued_to || "-"}</TableCell>
@@ -919,6 +931,7 @@ const Pharmacy = () => {
                     </TableBody>
                   </Table>
                 )}
+                {stockCardItem && <Pager pager={cardPages} label="stock-card lines" className="border-t mt-2" />}
               </CardContent>
             </Card>
           </TabsContent>

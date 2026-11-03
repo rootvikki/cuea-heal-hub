@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { Navigate, useNavigate } from "react-router-dom";
-import { Loader2, Menu } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/AppSidebar";
 import { NotificationBell } from "@/components/NotificationBell";
@@ -62,16 +62,17 @@ const ProtectedLayout = ({ children, allowedRoles }: ProtectedLayoutProps) => {
     }
   }
 
+  // The side menu remembers whether it was hidden (Ctrl/Cmd + B or the button toggles it)
+  const sidebarOpen = typeof document === "undefined" || !document.cookie.split("; ").includes("sidebar:state=false");
+
   return (
-    <SidebarProvider>
+    <SidebarProvider defaultOpen={sidebarOpen}>
       <div className="flex min-h-screen w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">
           <header className="h-12 flex items-center border-b bg-background px-4 sticky top-0 z-30">
-            <SidebarTrigger className="lg:hidden">
-              <Menu className="h-5 w-5" />
-            </SidebarTrigger>
-            <span className="ml-3 font-semibold text-sm lg:hidden">CUEA Infirmary</span>
+            <SidebarTrigger className="h-8 w-8" title="Show / hide the side menu (Ctrl+B)" aria-label="Show or hide the side menu" />
+            <span className="ml-3 font-semibold text-sm">CUEA Infirmary</span>
             <div className="ml-auto flex items-center">
               <WorkLogButton />
               <NotificationBell />

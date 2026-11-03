@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { Pager, usePaged } from "@/components/Pager";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { logAuditEvent } from "@/lib/auditLog";
@@ -363,6 +364,8 @@ const AdminUserManagement = () => {
     return matchesSearch && matchesRole && matchesStatus;
   });
 
+  const userPages = usePaged(filteredUsers, { resetKey: `${searchQuery}|${roleFilter}|${statusFilter}` });
+
   const getRoleBadgeVariant = (role: string) => {
     switch (role) {
       case "super_admin": return "destructive";
@@ -489,7 +492,7 @@ const AdminUserManagement = () => {
                   {filteredUsers.length === 0 ? (
                     <TableRow><TableCell colSpan={7} className="text-center py-8 text-muted-foreground">No users found</TableCell></TableRow>
                   ) : (
-                    filteredUsers.map((user) => (
+                    userPages.pageItems.map((user) => (
                       <TableRow key={user.user_id} className={user.status === "suspended" ? "opacity-60" : ""}>
                         <TableCell>
                           <p className="font-medium">{user.full_name || "No name"}</p>
@@ -545,6 +548,7 @@ const AdminUserManagement = () => {
                   )}
                 </TableBody>
               </Table>
+              <Pager pager={userPages} label="users" className="px-2" />
             </div>
           )}
         </CardContent>
