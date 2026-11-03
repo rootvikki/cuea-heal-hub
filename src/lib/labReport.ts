@@ -109,13 +109,15 @@ export async function printVisitLabReport(
   for (const o of orders) {
     const name = o.test?.test_name || "Lab test";
     const fields = [...(o.fields || o.lab_result_fields || [])].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-    if (o.status !== "completed") {
+    if (o.status === "rejected") {
+      body.push([{ content: name, styles: { fontStyle: "bold" } }, { content: `Sample rejected: ${o.rejection_reason || "-"} - new sample needed`, colSpan: 5, styles: { fontStyle: "italic" } }]);
+    } else if (o.status !== "completed") {
       body.push([{ content: name, styles: { fontStyle: "bold" } }, { content: "Result pending", colSpan: 5, styles: { fontStyle: "italic" } }]);
     } else if (fields.length) {
       fields.forEach((f: any, i: number) => {
         const row: any[] = [];
         if (i === 0) row.push({ content: name, rowSpan: fields.length, styles: { fontStyle: "bold", valign: "top" } });
-        row.push(f.field_name, f.field_value || "---", f.unit || "", f.reference_range || "", f.flag && f.flag !== "N" ? f.flag : "");
+        row.push(f.field_name, f.field_value || "---", f.unit || "", f.reference_range || "", pdfFlag(f.flag));
         body.push(row);
       });
     } else {

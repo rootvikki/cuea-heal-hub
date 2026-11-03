@@ -1,11 +1,12 @@
 import { Fragment } from "react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
-import { resultCategory } from "@/lib/labFields";
+import { flagLabel, isCriticalFlag, resultCategory } from "@/lib/labFields";
 
 export interface LabResultOrder {
   id: string;
   status?: string | null;
+  rejection_reason?: string | null;
   created_at?: string | null;
   completed_at?: string | null;
   result_entered_at?: string | null;
@@ -18,10 +19,11 @@ export interface LabResultOrder {
 }
 
 const flagCell = (flag?: string | null) => {
-  if (!flag || flag === "N") return null;
-  const high = flag === "H";
+  const label = flagLabel(flag);
+  if (!label) return null;
+  const blue = flag === "L";
   return (
-    <span className={cn("font-bold", high ? "text-destructive" : "text-blue-700")}>{high ? "↑ H" : flag === "L" ? "↓ L" : flag}</span>
+    <span className={cn("font-bold whitespace-nowrap", blue ? "text-blue-700" : "text-destructive", isCriticalFlag(flag) && "rounded bg-destructive px-1 text-destructive-foreground")}>{label}</span>
   );
 };
 
@@ -60,8 +62,10 @@ export function LabResultsTable({ orders, compact = false, className }: { orders
               const testCell = (span: number) => (
                 <td rowSpan={span} className={cn(cell, "align-top font-semibold bg-muted/30")}>
                   {name}
-                  {!done && <Badge variant="outline" className="ml-1 text-[10px]">{(o.status || "pending").replace(/_/g, " ")}</Badge>}
+                  {!done && <Badge variant="outline" className="ml-1 text-[10px]">{o.status === "rejected" ? "sample rejected" : (o.status || "pending").replace(/_/g, " ")}</Badge>}
                   {done && o.flag === "abnormal" && <Badge variant="destructive" className="ml-1 text-[10px]">Abnormal</Badge>}
+                  {done && o.flag === "critical" && <Badge variant="destructive" className="ml-1 text-[10px]">CRITICAL</Badge>}
+                  {done && o.flag === "positive" && <Badge variant="destructive" className="ml-1 text-[10px]">+ve</Badge>}
                 </td>
               );
 
@@ -69,7 +73,9 @@ export function LabResultsTable({ orders, compact = false, className }: { orders
                 return (
                   <tr key={o.id}>
                     {testCell(1)}
-                    <td colSpan={5} className={cn(cell, "text-muted-foreground italic")}>Result pending</td>
+                    <td colSpan={5} className={cn(cell, "text-muted-foreground italic", o.status === "rejected" && "text-destructive not-italic")}>
+                      {o.status === "rejected" ? `Sample rejected: ${o.rejection_reason || "—"} — new sample needed` : "Result pending"}
+                    </td>
                   </tr>
                 );
               }
@@ -78,9 +84,9 @@ export function LabResultsTable({ orders, compact = false, className }: { orders
                 return (
                   <Fragment key={o.id}>
                     {fields.map((f, i) => {
-                      const abnormal = f.flag && f.flag !== "N";
+                      const abnormal = !!flagLabel(f.flag);
                       return (
-                        <tr key={`${o.id}-${f.field_name}`} className={abnormal ? "bg-destructive/5" : undefined}>
+                        <tr key={`${o.id}-${f.field_name}`} className={isCriticalFlag(f.flag) ? "bg-destructive/15" : abnormal ? "bg-destructive/5" : undefined}>
                           {i === 0 && testCell(fields.length)}
                           <td className={cell}>{f.field_name}</td>
                           <td className={cn(cell, "font-medium", abnormal && "font-bold text-destructive")}>{f.field_value || "—"}</td>
