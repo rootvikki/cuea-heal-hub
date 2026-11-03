@@ -26,7 +26,7 @@ const PAGE = 1000;
 
 export function PaymentsReport() {
   const { toast } = useToast();
-  const { profile } = useUser() as { profile?: { full_name?: string } };
+  const { profile } = useUser();
   const [period, setPeriod] = useState<string>("this_month");
   const [from, setFrom] = useState(rangeFor("this_month")[0]);
   const [to, setTo] = useState(rangeFor("this_month")[1]);

@@ -12,6 +12,7 @@ import { FileText, Download, Filter, Users, DollarSign, Activity } from "lucide-
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { PaymentsReport } from "@/components/PaymentsReport";
+import { useUser } from "@/contexts/UserContext";
 
 const AGE_GROUPS = [
   { label: "0-5 years", min: 0, max: 5 },
@@ -28,6 +29,9 @@ const COLORS = ["#0088FE", "#00C49F", "#FFBB28", "#FF8042", "#8884D8", "#82CA9D"
 const DEPARTMENTS = ["All", "Laboratory", "Pharmacy", "Imaging", "Nursing", "Dental", "Financial"];
 
 const Reports = () => {
+  const { hasAnyRole } = useUser();
+  // Finance staff (finance officer, cashier, accountant) only see the payments report
+  const financeOnly = hasAnyRole(["finance_officer", "cashier", "accountant"]) && !hasAnyRole(["admin", "super_admin", "doctor", "clinical_officer", "records_officer", "auditor"]);
   const [loading, setLoading] = useState(false);
   const [department, setDepartment] = useState("All");
   const [filters, setFilters] = useState({
@@ -283,9 +287,9 @@ const Reports = () => {
         <h1 className="text-3xl font-bold">Reports & Analytics</h1>
         <p className="text-muted-foreground">Department and payment reporting with PDF, Excel & CSV export</p>
       </div>
-      <Tabs defaultValue={new URLSearchParams(window.location.search).get("tab") === "payments" ? "payments" : "clinical"}>
+      <Tabs defaultValue={financeOnly || new URLSearchParams(window.location.search).get("tab") === "payments" ? "payments" : "clinical"}>
         <TabsList>
-          <TabsTrigger value="clinical">Department Reports</TabsTrigger>
+          {!financeOnly && <TabsTrigger value="clinical">Department Reports</TabsTrigger>}
           <TabsTrigger value="payments">Payments Report</TabsTrigger>
         </TabsList>
         <TabsContent value="payments" className="mt-6"><PaymentsReport /></TabsContent>
