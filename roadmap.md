@@ -50,3 +50,9 @@
 - [x] Pharmacy owns drug prices and stock (UI + RLS)
 - [x] Reception report: all patient detail columns + Missing details filter
 - [x] Gender: required at registration + edge function, Male/Female only, ask at check-in, "Not recorded" in reports
+
+## Queue, triage, live updates, drafts (Nov 3 2026)
+- [x] Ticket numbers restart at 00001 daily; prefix editable in Settings
+- [x] Clear old triage (automatic at day start + button on Triage)
+- [x] Instant updates setting (inventory, billing, orders, patients)
+- [x] Autosave drafts: registration, triage, add drug, edit patient

@@ -1,6 +1,9 @@
+import { ClearOldTriage } from "@/components/ClearOldTriage";
 import { ProceduresToPerform } from "@/components/ConsultationExtras";
 import { DirectOrderDialog } from "@/components/DirectOrderDialog";
-import { useState, useEffect, useMemo, useRef } from "react";
+import { useState, useEffect, useMemo, useRef, useCallback } from "react";
+import { useFormDraft } from "@/hooks/useFormDraft";
+import { DraftStatus } from "@/components/DraftStatus";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -88,6 +91,8 @@ const emptyForm = {
   allergies: "", presentingComplaint: "", nursingNotes: "", nextVisit: "",
 };
 
+const EMPTY_DRAFT = { form: emptyForm, procedures: [] as SelectedProcedure[], urgencyPriority: "1" };
+
 const Vitals = () => {
   const { toast } = useToast();
   const [selectedTicket, setSelectedTicket] = useState<any>(null);
@@ -131,10 +136,23 @@ const Vitals = () => {
       const lastHeight = rows.find((v) => v.height)?.height;
       const lastAllergies = selectedTicket.patient?.allergies?.length ? selectedTicket.patient.allergies.join(", ") : rows.find((v) => v.allergies_noted)?.allergies_noted;
       const lastDate = rows.find((v) => v.height)?.recorded_at;
-      setForm((f) => ({ ...f, height: lastHeight ? String(lastHeight) : f.height, allergies: lastAllergies || f.allergies }));
+      // Keep anything already typed (or restored from a draft); only fill empty fields
+      setForm((f) => ({ ...f, height: f.height || (lastHeight ? String(lastHeight) : ""), allergies: f.allergies || lastAllergies || "" }));
       setPrefilled({ height: lastHeight ? String(lastHeight) : undefined, allergies: lastAllergies || undefined, date: lastDate || undefined });
     })();
   }, [selectedTicket?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Autosave the triage form per patient — declared after the reset above so a saved draft wins
+  const draftValue = useMemo(() => ({ form, procedures, urgencyPriority }), [form, procedures, urgencyPriority]);
+  const restoreDraft = useCallback((v: typeof draftValue) => {
+    setForm({ ...emptyForm, ...(v.form || {}) });
+    setProcedures(v.procedures || []);
+    if (v.urgencyPriority) setUrgencyPriority(v.urgencyPriority);
+  }, []);
+  const draft = useFormDraft(selectedTicket?.id ? `triage:${selectedTicket.id}` : null, draftValue, restoreDraft, {
+    reset: EMPTY_DRAFT,
+    isEmpty: (v) => v.procedures.length === 0 && Object.entries(v.form).every(([k, x]) => k === "height" || k === "allergies" || !x),
+  });
 
   const numberOrNull = (value: string) => value ? Number(value) : null;
 
@@ -247,6 +265,7 @@ const Vitals = () => {
   const finishPatient = async (sentTo: string) => {
     const done = selectedTicket?.id;
     toast({ title: "Saved", description: `Patient sent to ${sentTo}` });
+    draft.clear();
     setForm(emptyForm); setProcedures([]); setUrgencyPriority("1"); setAiRecommendation(null);
     if (autoNext) await openNextPatient(done); else setSelectedTicket(null);
   };
@@ -339,6 +358,7 @@ const Vitals = () => {
             Auto-open next
           </label>
           <ReportsButton kind="triage" />
+          <ClearOldTriage />
           <TriageArrivalAlerts />
         </div>
       </div>
@@ -543,6 +563,7 @@ const Vitals = () => {
 
           {/* Sticky action bar */}
           <div className="sticky bottom-0 z-20 -mx-3 sm:-mx-1 border-t bg-background/95 backdrop-blur px-3 sm:px-1 py-2 sm:py-3 grid grid-cols-3 gap-2 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
+            <DraftStatus draft={draft} className="col-span-3 sm:mr-auto" />
             <Button variant="outline" className="h-11 sm:h-12 px-2 text-xs sm:text-sm" onClick={() => openDirect("lab")}><FlaskConical className="h-4 w-4 mr-1" /> Lab</Button>
             <Button variant="outline" className="h-11 sm:h-12 px-2 text-xs sm:text-sm" onClick={() => openDirect("pharmacy")}><Pill className="h-4 w-4 mr-1" /> Prescription</Button>
             <Button variant="outline" className="h-11 sm:h-12 px-2 text-xs sm:text-sm" onClick={() => setSendOpen(true)} disabled={saving || !!bpProblem}><Send className="h-4 w-4 mr-1" /> Send to…</Button>

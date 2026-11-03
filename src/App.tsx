@@ -1,3 +1,4 @@
+import { LiveUpdatesHub } from "@/components/LiveUpdatesHub";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -60,6 +61,7 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <LiveUpdatesHub />
       <BrowserRouter>
         <ErrorBoundary>
         <Routes>

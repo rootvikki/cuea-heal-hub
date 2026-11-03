@@ -1,3 +1,4 @@
+import { useLiveTable } from "@/lib/liveUpdates";
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import jsPDF from "jspdf";
@@ -67,6 +68,12 @@ const Billing = () => {
   }, []);
 
   useEffect(() => { if (selectedTicket) void loadVisit(selectedTicket); }, [selectedTicket, loadVisit]);
+
+  // Bills, payments and charges refresh as soon as they are saved anywhere
+  useLiveTable(["invoices", "payments", "service_charges"], () => {
+    void fetchInvoices();
+    if (selectedTicket) void loadVisit(selectedTicket);
+  });
 
   const unbilled = charges.filter((c) => !c.invoice_id);
   const openInvoice = visitInvoices.find((i) => i.status !== "paid");

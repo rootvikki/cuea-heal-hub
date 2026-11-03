@@ -1,3 +1,4 @@
+import { nextTicketNumber } from "@/lib/tickets";
 import { visitPaymentModeFor } from "@/lib/billing";
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -139,7 +140,11 @@ const Queue = () => {
     const isDental = selectedPatient?.visit_reason === "dental";
     const initialStatus = isDental ? "at_dental" : "triage";
 
-    const ticketNumber = `T-${Date.now().toString().slice(-6)}`;
+    let ticketNumber: string;
+    try { ticketNumber = await nextTicketNumber(); } catch (e) {
+      toast({ title: "Could not check in", description: e instanceof Error ? e.message : String(e), variant: "destructive" });
+      return;
+    }
 
     const { error } = await supabase.from("tickets").insert({
       ticket_number: ticketNumber,

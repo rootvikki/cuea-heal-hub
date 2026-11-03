@@ -11,6 +11,8 @@ import { PhoneInput } from "@/components/PhoneInput";
 import { isValidPhone, normalizePhone } from "@/lib/validation";
 import { PAYMENT_MODES, allowedPaymentModes, defaultPaymentMode, paymentModeLabel, type PaymentMode } from "@/lib/pricing";
 import { openVisitIds, setVisitPaymentMode } from "@/lib/billing";
+import { useFormDraft } from "@/hooks/useFormDraft";
+import { DraftStatus } from "@/components/DraftStatus";
 
 const normGender = (g?: string | null) => { const x = (g || "").trim().toLowerCase(); return x === "male" || x === "m" ? "Male" : x === "female" || x === "f" ? "Female" : ""; };
 
@@ -29,6 +31,7 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
   // Always edit the full saved record — the caller may only have a few fields,
   // and saving a partial copy would wipe the rest (nationality, next of kin…).
   const [fresh, setFresh] = useState<{ patient: any; profile: any } | null>(null);
+  const [initialF, setInitialF] = useState<Record<string, string> | undefined>(undefined);
   useEffect(() => {
     if (!open || !patient?.id) { setFresh(null); return; }
     let cancelled = false;
@@ -40,12 +43,13 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
       if (!cancelled) setFresh({ patient: { ...patient, ...(pt || {}) }, profile: { ...profile, ...(pr || {}) } });
     })();
     return () => { cancelled = true; };
-  }, [open, patient, profile]);
+    // Only reload when a different patient is opened — parents re-render (queue refreshes) and pass new objects
+  }, [open, patient?.id, patient?.user_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!open || !fresh) return;
     const { patient, profile } = fresh;
-    setF({
+    const initial: Record<string, string> = {
       full_name: profile?.full_name || "",
       gender: normGender(profile?.gender),
       date_of_birth: profile?.date_of_birth || "",
@@ -63,8 +67,13 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
       insurance_provider: patient?.insurance_provider || "",
       insurance_number: patient?.insurance_number || "",
       preferred_payment_mode: allowedPaymentModes(patient?.patient_type).includes(patient?.preferred_payment_mode as any) ? patient.preferred_payment_mode : defaultPaymentMode(patient || {}),
-    });
+    };
+    setF(initial);
+    setInitialF(initial);
   }, [open, fresh]);
+
+  // Autosave edits per patient until saved
+  const draft = useFormDraft(patient?.id ? `biodata:${patient.id}` : null, f, setF, { enabled: open && !!fresh, reset: initialF });
 
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
   const nn = (v: string) => (v.trim() === "" ? null : v.trim());
@@ -120,6 +129,7 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
       }
     }
     await logAuditEvent({ action: "PATIENT_BIODATA_EDITED", module: "reception", details: { patient_id: patient.id, changes: f } });
+    draft.clear();
     toast.success("Patient biodata updated");
     onOpenChange(false);
     onSaved();
@@ -137,6 +147,7 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit patient biodata — {patient?.patient_id}</DialogTitle>
+          <DraftStatus draft={draft} />
         </DialogHeader>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {field("full_name", "Full name")}
