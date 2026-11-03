@@ -68,6 +68,14 @@ export async function createInvoiceForTicket(ticketId: string): Promise<Invoice 
 export async function recordPayment(invoice: Invoice, amount: number, method: PaymentMethod | "mpesa_manual", reference: string) {
   const { data: { user } } = await supabase.auth.getUser();
   const dbMethod = method === "mpesa_manual" ? "mpesa" : method;
+  if (method === "mpesa_manual") {
+    // The same M-Pesa code can only pay once (it may already have come in through the prompt).
+    const [{ count: used }, { count: viaPrompt }] = await Promise.all([
+      supabase.from("payments").select("id", { count: "exact", head: true }).eq("transaction_ref", reference).eq("status", "completed"),
+      supabase.from("mpesa_transactions").select("id", { count: "exact", head: true }).eq("mpesa_receipt_number", reference).eq("status", "completed"),
+    ]);
+    if (used || viaPrompt) throw new Error(`M-Pesa code ${reference} has already been recorded — this payment is already on the system.`);
+  }
   const { error } = await supabase.from("payments").insert({
     invoice_id: invoice.id,
     patient_id: invoice.patient_id,

@@ -80,7 +80,7 @@ export async function loadMpesaConfig(supabase: any): Promise<MpesaConfig> {
  */
 export async function finalizeMpesaSuccess(
   supabase: any,
-  tx: { id: string; invoice_id: string | null; amount: number; checkout_request_id: string },
+  tx: { id: string; invoice_id: string | null; amount: number; checkout_request_id: string; created_at?: string | null },
   info: { receipt?: string | null; amount?: number | null; paidAt?: Date | null; resultDesc?: string | null },
 ): Promise<boolean> {
   const paidAt = (info.paidAt || new Date()).toISOString();
@@ -97,6 +97,22 @@ export async function finalizeMpesaSuccess(
 
   if (!tx.invoice_id) return true;
   const paidAmount = Number(info.amount || tx.amount);
+
+  // Already entered by hand (staff typed the M-Pesa code while waiting)? Link it instead of counting it twice.
+  const { data: manual } = await supabase.from("payments").select("id, transaction_ref")
+    .eq("invoice_id", tx.invoice_id).eq("payment_method", "mpesa").eq("status", "completed")
+    .eq("amount", paidAmount).not("transaction_ref", "like", "ws_CO_%")
+    .gte("created_at", tx.created_at || paidAt).order("created_at").limit(5);
+  const match = (manual || []).find((m: { transaction_ref: string | null }) => info.receipt ? m.transaction_ref === info.receipt : true);
+  if (match) {
+    const { count } = await supabase.from("mpesa_transactions").select("id", { count: "exact", head: true })
+      .eq("mpesa_receipt_number", match.transaction_ref).neq("id", tx.id);
+    if (!count) {
+      await supabase.from("mpesa_transactions").update({ mpesa_receipt_number: match.transaction_ref }).eq("id", tx.id);
+      return true;
+    }
+  }
+
   const { data: invoice } = await supabase.from("invoices").select("*").eq("id", tx.invoice_id).maybeSingle();
   if (!invoice) return true;
 
