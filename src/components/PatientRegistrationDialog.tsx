@@ -18,7 +18,7 @@ import { PhoneInput } from "@/components/PhoneInput";
 import { normalizePhone } from "@/lib/validation";
 import { PAYMENT_MODES } from "@/lib/pricing";
 
-const INSURANCE_PROVIDERS = ["SHA", "Pacis", "Madison", "CIC", "AAR", "Jubilee", "Britam", "Old Mutual", "Other"];
+const INSURANCE_PROVIDERS = ["Pacis"];
 
 const SectionHeader = ({ icon: Icon, title, filled, total }: { icon: React.ElementType; title: string; filled: number; total: number }) => (
   <div className="flex items-center justify-between mb-4">
