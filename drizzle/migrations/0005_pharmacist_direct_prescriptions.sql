@@ -1,0 +1,1 @@
+CREATE POLICY "Pharmacists create outside prescriptions" ON public.prescriptions FOR INSERT TO authenticated WITH CHECK (public.has_role(auth.uid(), 'pharmacist'::app_role) OR public.has_role(auth.uid(), 'clinical_officer'::app_role));
