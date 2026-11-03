@@ -47,6 +47,8 @@ export function useFormDraft<T>(
   const [savedAt, setSavedAt] = useState<Date | null>(null);
   const loadedFor = useRef<string | null>(null);
   const skipNextSave = useRef(false);
+  /** The form as it was once it settled after opening; unchanged forms are not saved as drafts. */
+  const baseline = useRef<string | null>(null);
   const isEmptyRef = useRef(opts.isEmpty);
   isEmptyRef.current = opts.isEmpty;
 
@@ -54,12 +56,14 @@ export function useFormDraft<T>(
   useEffect(() => {
     if (!enabled || !key) { loadedFor.current = null; setRestored(false); setSavedAt(null); return; }
     setRestored(false); setSavedAt(null);
+    baseline.current = null;
     try {
       const raw = localStorage.getItem(storageKey(key));
       if (raw) {
         const saved = JSON.parse(raw) as { at: number; value: T };
         if (Date.now() - saved.at < MAX_AGE_MS) {
           skipNextSave.current = true;
+          baseline.current = "__restored__";
           setValue(saved.value);
           setRestored(true);
           setSavedAt(new Date(saved.at));
@@ -77,9 +81,11 @@ export function useFormDraft<T>(
     if (skipNextSave.current) { skipNextSave.current = false; return; }
     const t = setTimeout(() => {
       try {
-        if (isEmptyRef.current?.(value)) { localStorage.removeItem(storageKey(key)); setSavedAt(null); return; }
+        const json = JSON.stringify(value);
+        if (baseline.current === null) { baseline.current = json; return; }
+        if (json === baseline.current || isEmptyRef.current?.(value)) { localStorage.removeItem(storageKey(key)); setSavedAt(null); return; }
         const at = Date.now();
-        localStorage.setItem(storageKey(key), JSON.stringify({ at, value }));
+        localStorage.setItem(storageKey(key), JSON.stringify({ at, value: JSON.parse(json) }));
         setSavedAt(new Date(at));
       } catch { /* storage full / unavailable */ }
     }, 600);
