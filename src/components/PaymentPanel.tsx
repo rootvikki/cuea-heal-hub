@@ -65,13 +65,14 @@ export function PaymentPanel({ invoice, paymentMode, patientPhone, patient, onPa
   }, [method, patient]);
   useEffect(() => () => waitRef.current?.abort(), []);
 
+  const receiptAction = { label: "Print receipt", onClick: () => void printInvoiceReceipt(invoice.id).catch((e) => toast.error(e instanceof Error ? e.message : String(e))) };
   const stopWaiting = () => { waitRef.current?.abort(); waitRef.current = null; };
 
   const finishPaid = async (receipt?: string | null) => {
     stopWaiting();
     setMpesa({ step: "paid", receipt });
     const { data: inv } = await supabase.from("invoices").select("balance").eq("id", invoice.id).maybeSingle();
-    toast.success("M-Pesa payment received", { description: receipt ? `Receipt ${receipt}` : undefined });
+    toast.success("M-Pesa payment received", { description: receipt ? `M-Pesa code ${receipt}` : undefined, action: receiptAction, duration: 10000 });
     onPaid(Number(inv?.balance ?? 0));
   };
   const finishFailed = (message: string) => {
@@ -135,7 +136,7 @@ export function PaymentPanel({ invoice, paymentMode, patientPhone, patient, onPa
     try {
       const ref = method === "mpesa_manual" ? reference.trim().toUpperCase() : reference.trim();
       const balance = await recordPayment(invoice, amt, method, ref);
-      toast.success("Payment recorded", { description: `${formatKES(amt)} · ${ref}` });
+      toast.success("Payment recorded", { description: `${formatKES(amt)} · ${ref}`, action: receiptAction, duration: 10000 });
       onPaid(balance);
     } catch (e) {
       toast.error("Could not record payment", { description: e instanceof Error ? e.message : String(e) });
@@ -158,7 +159,7 @@ export function PaymentPanel({ invoice, paymentMode, patientPhone, patient, onPa
         {methods.map((m) => {
           const Icon = m.icon;
           return (
-            <button key={m.key} type="button" onClick={() => { setMethod(m.key); setMpesa({ step: "idle" }); }}
+            <button key={m.key} type="button" onClick={() => { stopWaiting(); setMethod(m.key); setMpesa({ step: "idle" }); }}
               className={cn("flex flex-col items-center gap-1 rounded-lg border-2 p-2.5 text-xs sm:text-sm font-medium transition-all",
                 method === m.key ? "border-primary bg-primary/5 ring-2 ring-primary/20" : "border-border hover:bg-muted/50")}>
               <Icon className="h-5 w-5" /> {m.label}
