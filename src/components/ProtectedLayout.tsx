@@ -9,7 +9,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { PageBreadcrumb } from "@/components/PageBreadcrumb";
 import IdleTimeout from "@/components/IdleTimeout";
-import ImpersonationBanner from "@/components/ImpersonationBanner";
 
 interface ProtectedLayoutProps {
   children: React.ReactNode;
@@ -63,7 +62,6 @@ const ProtectedLayout = ({ children, allowedRoles }: ProtectedLayoutProps) => {
 
   return (
     <SidebarProvider>
-      <ImpersonationBanner />
       <div className="flex min-h-screen w-full">
         <AppSidebar />
         <div className="flex-1 flex flex-col min-w-0">

@@ -21,6 +21,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { signOutThisTab } from "@/lib/isolatedSession";
 
 export function AppSidebar() {
   const navigate = useNavigate();
@@ -29,7 +30,12 @@ export function AppSidebar() {
   const { roles: userRoles, isAdmin: hasAdminAccess, profile } = useUser();
 
   const handleLogout = async () => {
-    const { error } = await supabase.auth.signOut();
+    let error: { message: string } | null = null;
+    try {
+      if (await signOutThisTab((o) => supabase.auth.signOut(o).then((r) => { error = r.error; }))) return;
+    } catch (e) {
+      error = { message: e instanceof Error ? e.message : String(e) };
+    }
     if (error) {
       toast({
         title: "Error signing out",

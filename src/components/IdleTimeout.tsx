@@ -1,3 +1,4 @@
+import { signOutThisTab } from "@/lib/isolatedSession";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -54,7 +55,7 @@ const IdleTimeout = () => {
     clearTimers();
     showWarningRef.current = false;
     setShowWarning(false);
-    await supabase.auth.signOut();
+    if (await signOutThisTab((o) => supabase.auth.signOut(o))) return;
     navigate("/auth", { replace: true });
   }, [navigate, clearTimers]);
 
