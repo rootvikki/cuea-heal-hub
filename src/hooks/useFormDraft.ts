@@ -89,7 +89,6 @@ export function useFormDraft<T>(
   const clear = useCallback(() => {
     if (!key) return;
     try { localStorage.removeItem(storageKey(key)); } catch { /* ignore */ }
-    skipNextSave.current = true;
     setRestored(false); setSavedAt(null);
   }, [key]);
 
