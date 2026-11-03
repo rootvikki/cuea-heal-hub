@@ -246,8 +246,8 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
                   </Select>
                 </div>
                 <div className="space-y-2">
-                  <Label className="text-sm font-semibold">Insurance Member Number</Label>
-                  <Input value={formData.insuranceNumber} onChange={(e) => update("insuranceNumber", e.target.value)} className="h-12 text-base" placeholder="e.g. INS-123456" />
+                  <Label className="text-sm font-semibold">Insurance Member Number *</Label>
+                  <Input required value={formData.insuranceNumber} onChange={(e) => update("insuranceNumber", e.target.value)} className="h-12 text-base" placeholder="e.g. INS-123456" />
                 </div>
               </div>
             )}
