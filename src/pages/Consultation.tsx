@@ -37,7 +37,8 @@ import { PatientSummaryCard } from "@/components/PatientSummaryCard";
 import { LabResultsTable } from "@/components/LabResultsTable";
 import { printVisitLabReport } from "@/lib/labReport";
 import { STATIONS, sendPatientTo, stationByKey, type StationKey } from "@/lib/stations";
-import { priceFor } from "@/lib/pricing";
+import { priceFor, serviceFee, serviceFeeDescription } from "@/lib/pricing";
+import { patientTypeOf } from "@/lib/billing";
 import { useUser } from "@/contexts/UserContext";
 import {
   Stethoscope, User, AlertTriangle, Activity, Pill, TestTube,
