@@ -8,3 +8,5 @@
 - Every printout uses `src/lib/letterhead.ts`: `drawInfirmaryLetterhead` for jsPDF, `printWithLetterhead` for HTML print windows, `openPdfWindow` to open PDFs (tab opened before the async build so pop-up blockers allow it) — single source for the header.
 - Test files (`*.test.ts`) are excluded from `tsconfig.app.json` because they use bun's test types.
 - A station that serves a ticket with nothing to work on (e.g. Pharmacy with no prescription) must show the patient with an action to add the order or send them on — never fall back to the list, which looks like the patient vanished.
+- Payment-mode rules (which modes each patient type may use, the check-in default, which billing methods each mode offers, two-tier pricing) live only in `src/lib/pricing.ts` with bun tests beside it (`bun test ./src/lib/pricing.test.ts`) — registration, check-in, edit biodata and the payment panel all read them, so they can't drift apart.
+- Profile gender is normalised to "Male"/"Female" by a database trigger; reports show a missing gender as "Not recorded" — so gaps stay visible instead of looking blank.
