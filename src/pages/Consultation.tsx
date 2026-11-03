@@ -1,5 +1,5 @@
 import { AdmitPatientDialog, ProcedureOrderPanel, LabResultsTab } from "@/components/ConsultationExtras";
-import { FORMULATIONS, FREQUENCIES, formatRx } from "@/lib/rxFormat";
+import { FORMULATIONS, FREQUENCIES, DURATIONS, formatRx } from "@/lib/rxFormat";
 import { FlaskConical as FlaskConical2, BedDouble } from "lucide-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { stockCheck, STOCK_LABELS } from "@/lib/pharmacyStock";
@@ -2099,7 +2099,8 @@ const Consultation = () => {
 
               <div className="grid grid-cols-2 gap-3">
                 <Field label="Duration" hint="Click for quick fill">
-                  <Input value={currentPrescription.duration} onChange={(e) => setCurrentPrescription({ ...currentPrescription, duration: e.target.value })} placeholder="e.g., 7 days" className="text-sm h-11" />
+                  <Input value={currentPrescription.duration} onChange={(e) => setCurrentPrescription({ ...currentPrescription, duration: e.target.value })} list="consult-rx-durations" placeholder="e.g. 5/7, 1/52, 1/12" className="text-sm h-11" />
+                  <datalist id="consult-rx-durations">{DURATIONS.map(d => <option key={d.value} value={d.value}>{d.label}</option>)}</datalist>
                   <div className="flex gap-1 mt-1.5">
                     {["3 days", "5 days", "7 days", "14 days", "30 days"].map(d => (
                       <Button
