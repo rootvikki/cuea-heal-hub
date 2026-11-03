@@ -813,6 +813,7 @@ const Pharmacy = () => {
                   ))}
                 </div>
               )}
+              <Pager pager={sheetPages} label="prescription sheets" />
             </TabsContent>
 
             <TabsContent value="replenishment">
