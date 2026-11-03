@@ -35,7 +35,10 @@ export function InventoryEditDialog({ item, onClose, onSaved }: { item: any | nu
       update.unit_price = parseFloat(f.unit_price) || 0;
       update.insurance_price = f.insurance_price === "" || f.insurance_price == null ? null : parseFloat(f.insurance_price);
     }
-    const { error } = await supabase.from("pharmacy_inventory").update(update).eq("id", item.id);
+    // Send only what this person changed, so a stock movement saved by someone else meanwhile isn't overwritten
+    const changed = Object.fromEntries(Object.entries(update).filter(([k, v]) => String(item[k] ?? "") !== String(v ?? "")));
+    if (Object.keys(changed).length === 0) { setSaving(false); onClose(); return; }
+    const { error } = await supabase.from("pharmacy_inventory").update(changed).eq("id", item.id);
     setSaving(false);
     if (error) { toast({ title: "Could not save", description: error.message, variant: "destructive" }); return; }
     const changes = Object.fromEntries(Object.entries(update).filter(([k, v]) => String(item[k] ?? "") !== String(v ?? "")).map(([k, v]) => [k, { from: item[k], to: v }]));

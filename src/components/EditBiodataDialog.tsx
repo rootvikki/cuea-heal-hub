@@ -11,6 +11,8 @@ import { PhoneInput } from "@/components/PhoneInput";
 import { isValidPhone, normalizePhone } from "@/lib/validation";
 import { PAYMENT_MODES, allowedPaymentModes, defaultPaymentMode, paymentModeLabel, type PaymentMode } from "@/lib/pricing";
 import { openVisitIds, setVisitPaymentMode } from "@/lib/billing";
+import { useFormDraft } from "@/hooks/useFormDraft";
+import { DraftStatus } from "@/components/DraftStatus";
 
 const normGender = (g?: string | null) => { const x = (g || "").trim().toLowerCase(); return x === "male" || x === "m" ? "Male" : x === "female" || x === "f" ? "Female" : ""; };
 
@@ -66,6 +68,9 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
     });
   }, [open, fresh]);
 
+  // Autosave edits per patient until saved
+  const draft = useFormDraft(patient?.id ? `biodata:${patient.id}` : null, f, setF, { enabled: open && !!fresh });
+
   const set = (k: string) => (e: React.ChangeEvent<HTMLInputElement>) => setF((p) => ({ ...p, [k]: e.target.value }));
   const nn = (v: string) => (v.trim() === "" ? null : v.trim());
 
@@ -120,6 +125,7 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
       }
     }
     await logAuditEvent({ action: "PATIENT_BIODATA_EDITED", module: "reception", details: { patient_id: patient.id, changes: f } });
+    draft.clear();
     toast.success("Patient biodata updated");
     onOpenChange(false);
     onSaved();
@@ -137,6 +143,7 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
       <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Edit patient biodata — {patient?.patient_id}</DialogTitle>
+          <DraftStatus draft={draft} />
         </DialogHeader>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
           {field("full_name", "Full name")}
