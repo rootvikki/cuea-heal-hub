@@ -44,9 +44,10 @@ const Reports = () => {
   const [deptData, setDeptData] = useState<any[]>([]);
 
   useEffect(() => {
+    if (financeOnly) return;
     fetchDropdownData();
     runReport();
-  }, []);
+  }, [financeOnly]);
 
   const fetchDropdownData = async () => {
     const { data: labs } = await supabase.from("lab_tests_catalog").select("id, test_name").order("test_name");
