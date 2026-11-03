@@ -6,7 +6,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Ticket, Zap, Loader2 } from "lucide-react";
+import { Ticket, Zap, Loader2, Eraser } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { CACHE_VERSION_KEY, clearThisBrowser } from "@/lib/cacheReset";
 import { toast } from "sonner";
 import { logAuditEvent } from "@/lib/auditLog";
 
@@ -70,6 +72,23 @@ export function QueueAndLiveSettings() {
     }
   };
 
+  const [clearing, setClearing] = useState(false);
+  const clearEveryone = async () => {
+    setClearing(true);
+    try {
+      const version = new Date().toISOString();
+      await saveSetting("cache_version", version);
+      logAuditEvent({ action: "cache_cleared_for_everyone", module: "settings", details: { version } });
+      toast.success("Cache cleared for everyone", { description: "Open screens clear and reload within a minute (or when someone returns to the tab)." });
+      await clearThisBrowser(queryClient);
+      localStorage.setItem(CACHE_VERSION_KEY, version);
+      setTimeout(() => window.location.reload(), 1200);
+    } catch (e) {
+      setClearing(false);
+      toast.error("Could not clear cache", { description: e instanceof Error ? e.message : String(e) });
+    }
+  };
+
   const preview = `${prefix.trim().toUpperCase().replace(/[^A-Z0-9-]/g, "").slice(0, 6)}00001`;
 
   return (
@@ -105,6 +124,32 @@ export function QueueAndLiveSettings() {
             <Switch checked={live} onCheckedChange={(v) => void toggleLive(v)} />
             {live ? "On — screens update immediately" : "Off — screens refresh every minute"}
           </label>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Eraser className="h-5 w-5 text-primary" /> Clear cache for everyone</CardTitle>
+          <CardDescription>Wipes the data stored in every user's browser — unsaved form drafts, saved preferences and cached lists — and reloads their screens with the latest version of the system. Everyone stays signed in.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="destructive" disabled={clearing}>{clearing ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Eraser className="h-4 w-4 mr-2" />}Clear cache for everyone</Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Clear the cache on every computer?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Every open screen in the system reloads within about a minute. Unsaved form drafts (registration, triage, consultation, pharmacy) on all computers will be lost — ask staff to save their work first. Saved records are not affected and nobody is signed out.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={() => void clearEveryone()}>Yes, clear for everyone</AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         </CardContent>
       </Card>
     </>
