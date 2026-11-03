@@ -17,6 +17,8 @@ import { calculateAge } from "@/lib/utils";
 import { PhoneInput } from "@/components/PhoneInput";
 import { normalizePhone } from "@/lib/validation";
 import { PAYMENT_MODES, allowedPaymentModes } from "@/lib/pricing";
+import { useFormDraft } from "@/hooks/useFormDraft";
+import { DraftStatus } from "@/components/DraftStatus";
 
 const INSURANCE_PROVIDERS = ["Pacis"];
 
@@ -43,17 +45,24 @@ interface RegistrationResult {
   fullName: string;
 }
 
+const EMPTY_FORM = {
+  fullName: "", phone: "", email: "", dateOfBirth: "", gender: "",
+  nationalId: "", nationality: "Kenyan", postalAddress: "", address: "",
+  patientType: "" as "" | "cuea_staff" | "cuea_student" | "outsider",
+  payrollNumber: "", admissionNumber: "", visitReason: "outpatient" as "outpatient" | "dental",
+  insuranceProvider: "Pacis", insuranceNumber: "", paymentMode: "",
+  nextOfKinName: "", nextOfKinRelationship: "", nextOfKinPhone: "",
+};
+
 export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: RegistrationResult) => void }) => {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [formData, setFormData] = useState({
-    fullName: "", phone: "", email: "", dateOfBirth: "", gender: "",
-    nationalId: "", nationality: "Kenyan", postalAddress: "", address: "",
-    patientType: "" as "" | "cuea_staff" | "cuea_student" | "outsider",
-    payrollNumber: "", admissionNumber: "", visitReason: "outpatient" as "outpatient" | "dental",
-    insuranceProvider: "Pacis", insuranceNumber: "", paymentMode: "",
-    nextOfKinName: "", nextOfKinRelationship: "", nextOfKinPhone: "",
+  const [formData, setFormData] = useState(EMPTY_FORM);
+  // Autosave: a half-filled registration survives closing the window or a reload
+  const draft = useFormDraft("patient-registration", formData, setFormData, {
+    reset: EMPTY_FORM,
+    isEmpty: (v) => !v.fullName && !v.phone && !v.email && !v.nationalId && !v.patientType,
   });
 
   const ageDisplay = useMemo(() => {
@@ -170,13 +179,8 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
         existing: !!result.existing,
         fullName: formData.fullName,
       };
-      setFormData({
-        fullName: "", phone: "", email: "", dateOfBirth: "", gender: "",
-        nationalId: "", nationality: "Kenyan", postalAddress: "", address: "",
-        patientType: "", payrollNumber: "", admissionNumber: "", visitReason: "outpatient",
-        insuranceProvider: "Pacis", insuranceNumber: "", paymentMode: "",
-        nextOfKinName: "", nextOfKinRelationship: "", nextOfKinPhone: "",
-      });
+      draft.clear();
+      setFormData(EMPTY_FORM);
       onSuccess?.(registrationData);
     } catch (error: any) {
       toast({ title: "Registration failed", description: error.message, variant: "destructive" });
@@ -194,6 +198,7 @@ export const PatientRegistrationDialog = ({ onSuccess }: { onSuccess?: (data: Re
         <DialogHeader>
           <DialogTitle className="text-xl">Register New Patient</DialogTitle>
           <DialogDescription>Complete all sections below. Fields marked * are required.</DialogDescription>
+          <DraftStatus draft={draft} />
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Section 1: Classification */}
