@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle2, Loader2, Smartphone, XCircle, GraduationCap, Shield, RefreshCw, Receipt } from "lucide-react";
+import { CheckCircle2, Loader2, Smartphone, XCircle, GraduationCap, Shield, RefreshCw, Receipt, Printer } from "lucide-react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { PhoneInput } from "@/components/PhoneInput";
@@ -12,6 +12,8 @@ import { toMpesaPhone } from "@/lib/validation";
 import { formatKES } from "@/lib/pricing";
 import { functionErrorMessage, recordPayment, type Invoice, type PaymentMethod } from "@/lib/billing";
 import { logAuditEvent } from "@/lib/auditLog";
+import { queryMpesa, waitForMpesa } from "@/lib/mpesaWait";
+import { printInvoiceReceipt } from "@/lib/receipt";
 
 interface PaymentPanelProps {
   invoice: Invoice;
@@ -26,7 +28,7 @@ interface PaymentPanelProps {
 type MpesaState =
   | { step: "idle" }
   | { step: "sending" }
-  | { step: "waiting"; checkoutRequestId: string; since: number; message?: string }
+  | { step: "waiting"; checkoutRequestId: string; since: number; message?: string; remainingMs?: number }
   | { step: "paid"; receipt?: string | null }
   | { step: "failed"; message: string };
 
@@ -52,7 +54,8 @@ export function PaymentPanel({ invoice, paymentMode, patientPhone, patient, onPa
   const [reference, setReference] = useState("");
   const [saving, setSaving] = useState(false);
   const [mpesa, setMpesa] = useState<MpesaState>({ step: "idle" });
-  const pollRef = useRef<number | null>(null);
+  const waitRef = useRef<AbortController | null>(null);
+  const [checking, setChecking] = useState(false);
 
   useEffect(() => { setAmount(String(owed)); }, [owed]);
   useEffect(() => {
@@ -60,34 +63,51 @@ export function PaymentPanel({ invoice, paymentMode, patientPhone, patient, onPa
     else if (method === "school_fees") setReference(patient?.admission_number || patient?.payroll_number || "");
     else setReference("");
   }, [method, patient]);
-  useEffect(() => () => { if (pollRef.current) window.clearInterval(pollRef.current); }, []);
+  useEffect(() => () => waitRef.current?.abort(), []);
 
-  const stopPolling = () => { if (pollRef.current) { window.clearInterval(pollRef.current); pollRef.current = null; } };
-
-  const checkStatus = async (checkoutRequestId: string, askSafaricom: boolean) => {
-    // 1) Our own record (updated by the M-Pesa callback)
-    const { data: tx } = await supabase.from("mpesa_transactions").select("status, mpesa_receipt_number, result_desc").eq("checkout_request_id", checkoutRequestId).maybeSingle();
-    if (tx?.status === "completed") return finishPaid(tx.mpesa_receipt_number);
-    if (tx?.status === "failed") return finishFailed(tx.result_desc || "The payment was not completed.");
-    // 2) Ask Safaricom directly (when the callback is slow or blocked)
-    if (askSafaricom) {
-      const { data, error } = await supabase.functions.invoke("mpesa-stk-push", { body: { action: "query", checkoutRequestId } });
-      if (!error && data?.status === "completed") return finishPaid(data.receipt);
-      if (!error && data?.status === "failed") return finishFailed(data.message || "The payment was not completed.");
-      if (!error && data?.status === "processing") setMpesa((s) => s.step === "waiting" ? { ...s, message: "Paid on phone — waiting for M-Pesa confirmation…" } : s);
-    }
-  };
+  const receiptAction = { label: "Print receipt", onClick: () => void printInvoiceReceipt(invoice.id).catch((e) => toast.error(e instanceof Error ? e.message : String(e))) };
+  const stopWaiting = () => { waitRef.current?.abort(); waitRef.current = null; };
 
   const finishPaid = async (receipt?: string | null) => {
-    stopPolling();
+    stopWaiting();
     setMpesa({ step: "paid", receipt });
     const { data: inv } = await supabase.from("invoices").select("balance").eq("id", invoice.id).maybeSingle();
-    toast.success("M-Pesa payment received", { description: receipt ? `Receipt ${receipt}` : undefined });
+    toast.success("M-Pesa payment received", { description: receipt ? `M-Pesa code ${receipt}` : undefined, action: receiptAction, duration: 10000 });
     onPaid(Number(inv?.balance ?? 0));
   };
   const finishFailed = (message: string) => {
-    stopPolling();
+    stopWaiting();
     setMpesa({ step: "failed", message });
+  };
+
+  /** Waits (up to 5 minutes) for M-Pesa's answer. */
+  const startWaiting = async (checkoutRequestId: string) => {
+    stopWaiting();
+    const ctrl = new AbortController();
+    waitRef.current = ctrl;
+    const since = Date.now();
+    setMpesa({ step: "waiting", checkoutRequestId, since, message: "Ask the patient to enter their M-Pesa PIN" });
+    const out = await waitForMpesa(checkoutRequestId, {
+      signal: ctrl.signal,
+      onProgress: ({ message, remainingMs }) => setMpesa((s) => s.step === "waiting" ? { ...s, message, remainingMs } : s),
+    });
+    if (out.status === "completed") return finishPaid(out.receipt);
+    if (out.status === "failed") return finishFailed(out.message);
+    if (out.status === "timeout") setMpesa((s) => s.step === "waiting" ? { ...s, remainingMs: 0, message: "No confirmation from M-Pesa yet. If the patient paid, press “Check again” — or enter the M-Pesa code from their SMS." } : s);
+  };
+
+  /** Manual "Check again" — asks M-Pesa right now. */
+  const checkNow = async (checkoutRequestId: string) => {
+    setChecking(true);
+    try {
+      const r = await queryMpesa(checkoutRequestId);
+      if (r.status === "completed") return finishPaid(r.receipt);
+      if (r.status === "failed") return finishFailed(r.message);
+      toast.info(r.status === "processing" ? "M-Pesa is still processing this payment" : "No answer from M-Pesa yet");
+      void startWaiting(checkoutRequestId);
+    } finally {
+      setChecking(false);
+    }
   };
 
   const sendStk = async () => {
@@ -104,19 +124,7 @@ export function PaymentPanel({ invoice, paymentMode, patientPhone, patient, onPa
       return;
     }
     logAuditEvent({ action: "mpesa_stk_push_sent", module: "billing", details: { invoice: invoice.invoice_number, amount: amt } });
-    const checkoutRequestId = data.checkoutRequestId as string;
-    setMpesa({ step: "waiting", checkoutRequestId, since: Date.now(), message: "Ask the patient to enter their M-Pesa PIN" });
-    let ticks = 0;
-    stopPolling();
-    pollRef.current = window.setInterval(() => {
-      ticks += 1;
-      // Check our record every 3s; ask Safaricom every 15s; give up after 2 minutes
-      void checkStatus(checkoutRequestId, ticks % 5 === 0);
-      if (ticks >= 40) {
-        stopPolling();
-        setMpesa((s) => s.step === "waiting" ? { ...s, message: "No confirmation yet. Press “Check again”, or enter the M-Pesa code by hand." } : s);
-      }
-    }, 3000);
+    void startWaiting(data.checkoutRequestId as string);
   };
 
   const recordOther = async () => {
@@ -128,7 +136,7 @@ export function PaymentPanel({ invoice, paymentMode, patientPhone, patient, onPa
     try {
       const ref = method === "mpesa_manual" ? reference.trim().toUpperCase() : reference.trim();
       const balance = await recordPayment(invoice, amt, method, ref);
-      toast.success("Payment recorded", { description: `${formatKES(amt)} · ${ref}` });
+      toast.success("Payment recorded", { description: `${formatKES(amt)} · ${ref}`, action: receiptAction, duration: 10000 });
       onPaid(balance);
     } catch (e) {
       toast.error("Could not record payment", { description: e instanceof Error ? e.message : String(e) });
@@ -151,7 +159,7 @@ export function PaymentPanel({ invoice, paymentMode, patientPhone, patient, onPa
         {methods.map((m) => {
           const Icon = m.icon;
           return (
-            <button key={m.key} type="button" onClick={() => { setMethod(m.key); setMpesa({ step: "idle" }); }}
+            <button key={m.key} type="button" onClick={() => { stopWaiting(); setMethod(m.key); setMpesa({ step: "idle" }); }}
               className={cn("flex flex-col items-center gap-1 rounded-lg border-2 p-2.5 text-xs sm:text-sm font-medium transition-all",
                 method === m.key ? "border-primary bg-primary/5 ring-2 ring-primary/20" : "border-border hover:bg-muted/50")}>
               <Icon className="h-5 w-5" /> {m.label}
@@ -174,15 +182,24 @@ export function PaymentPanel({ invoice, paymentMode, patientPhone, patient, onPa
 
           {mpesa.step === "waiting" && (
             <div className="rounded-lg border border-green-300 bg-green-50 p-3 text-sm space-y-2">
-              <p className="flex items-center gap-2 font-medium text-green-800"><Loader2 className="h-4 w-4 animate-spin" /> Waiting for the patient to pay…</p>
+              <p className="flex items-center gap-2 font-medium text-green-800">
+                {mpesa.remainingMs === 0 ? <RefreshCw className="h-4 w-4" /> : <Loader2 className="h-4 w-4 animate-spin" />}
+                {mpesa.remainingMs === 0 ? "Still no confirmation" : "Waiting for the payment…"}
+                {!!mpesa.remainingMs && <span className="ml-auto text-xs font-normal tabular-nums">{Math.floor(mpesa.remainingMs / 60000)}:{String(Math.floor((mpesa.remainingMs % 60000) / 1000)).padStart(2, "0")} left</span>}
+              </p>
               <p className="text-green-900/80">{mpesa.message}</p>
-              <Button size="sm" variant="outline" onClick={() => void checkStatus(mpesa.checkoutRequestId, true)}><RefreshCw className="h-3.5 w-3.5 mr-1" /> Check again</Button>
+              <Button size="sm" variant="outline" disabled={checking} onClick={() => void checkNow(mpesa.checkoutRequestId)}>
+                {checking ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />} Check again
+              </Button>
             </div>
           )}
           {mpesa.step === "paid" && (
-            <p className="flex items-center gap-2 rounded-lg border border-green-300 bg-green-50 p-3 text-sm font-medium text-green-800">
-              <CheckCircle2 className="h-4 w-4" /> Paid{mpesa.receipt ? ` — receipt ${mpesa.receipt}` : ""}
-            </p>
+            <div className="flex flex-wrap items-center gap-2 rounded-lg border border-green-300 bg-green-50 p-3 text-sm font-medium text-green-800">
+              <CheckCircle2 className="h-4 w-4" /> Paid{mpesa.receipt ? ` — M-Pesa code ${mpesa.receipt}` : ""}
+              <Button size="sm" variant="outline" className="ml-auto" onClick={() => void printInvoiceReceipt(invoice.id).catch((e) => toast.error(e instanceof Error ? e.message : String(e)))}>
+                <Printer className="h-3.5 w-3.5 mr-1" /> Print receipt
+              </Button>
+            </div>
           )}
           {mpesa.step === "failed" && (
             <p className="flex items-start gap-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
@@ -190,9 +207,9 @@ export function PaymentPanel({ invoice, paymentMode, patientPhone, patient, onPa
             </p>
           )}
 
-          <Button onClick={sendStk} disabled={mpesa.step === "sending" || mpesa.step === "waiting" || mpesa.step === "paid"} className="w-full h-12 bg-green-600 hover:bg-green-700 text-white">
+          <Button onClick={sendStk} disabled={mpesa.step === "sending" || (mpesa.step === "waiting" && mpesa.remainingMs !== 0) || mpesa.step === "paid"} className="w-full h-12 bg-green-600 hover:bg-green-700 text-white">
             {mpesa.step === "sending" ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Smartphone className="h-4 w-4 mr-2" />}
-            {mpesa.step === "failed" ? "Try again" : "Send M-Pesa prompt"}
+            {mpesa.step === "failed" ? "Try again" : mpesa.step === "waiting" ? "Send a new prompt" : "Send M-Pesa prompt"}
           </Button>
         </div>
       ) : (

@@ -11,6 +11,9 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { toMpesaPhone } from "@/lib/validation";
 import { functionErrorMessage } from "@/lib/billing";
+import { waitForMpesa } from "@/lib/mpesaWait";
+import { printInvoiceReceipt } from "@/lib/receipt";
+import { Printer } from "lucide-react";
 import { 
   Calendar, 
   TestTube, 
@@ -187,19 +190,20 @@ const PatientPortal = () => {
 
       setPayStatus({ kind: "waiting", text: "Check your phone and enter your M-Pesa PIN…" });
       const checkoutRequestId = data.checkoutRequestId as string;
-      // Poll every 5 s for up to 2 minutes
-      for (let i = 0; i < 24; i++) {
-        await new Promise((r) => setTimeout(r, 5000));
-        const { data: s } = await supabase.functions.invoke("mpesa-stk-push", { body: { action: "query", checkoutRequestId } });
-        if (s?.status === "completed") {
-          setPayStatus({ kind: "done", text: s.receipt ? `Paid — receipt ${s.receipt}` : "Payment received. Thank you!" });
-          toast.success("Payment received");
-          fetchPatientData();
-          return;
-        }
-        if (s?.status === "failed") { setPayStatus({ kind: "error", text: s.message || "The payment was not completed." }); return; }
+      // Waits up to 5 minutes; "still processing" never counts as failed.
+      const out = await waitForMpesa(checkoutRequestId, {
+        readOwnRecord: false,
+        onProgress: ({ message }) => setPayStatus({ kind: "waiting", text: message }),
+      });
+      if (out.status === "completed") {
+        setPayStatus({ kind: "done", text: out.receipt ? `Paid — M-Pesa code ${out.receipt}` : "Payment received. Thank you!" });
+        toast.success("Payment received");
+        fetchPatientData();
+        return;
       }
-      setPayStatus({ kind: "error", text: "No confirmation yet. If you paid, it will show on your bill shortly." });
+      if (out.status === "failed") { setPayStatus({ kind: "error", text: out.message }); return; }
+      setPayStatus({ kind: "waiting", text: "No confirmation from M-Pesa yet. If you paid, it will show on your bill shortly — no need to pay again." });
+      fetchPatientData();
     } catch (error) {
       setPayStatus({ kind: "error", text: error instanceof Error ? error.message : "Could not send the M-Pesa request" });
     } finally {
@@ -515,6 +519,16 @@ const PatientPortal = () => {
                                 >
                                   <CreditCard className="h-4 w-4 mr-2" />
                                   Pay Now
+                                </Button>
+                              )}
+                              {Number(inv.amount_paid || 0) > 0 && (
+                                <Button
+                                  variant="outline"
+                                  className="w-full mt-2"
+                                  onClick={() => void printInvoiceReceipt(inv.id).catch((e) => toast.error(e instanceof Error ? e.message : String(e)))}
+                                >
+                                  <Printer className="h-4 w-4 mr-2" />
+                                  Print receipt
                                 </Button>
                               )}
                             </CardContent>
