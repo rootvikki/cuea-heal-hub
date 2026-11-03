@@ -136,7 +136,7 @@ function ResultsTable<T extends { _id: string }>({ rows, cols }: { rows: T[]; co
 }
 
 const Summary = ({ items }: { items: { label: string; value: number | string }[] }) => (
-  <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2">
+  <div className="grid grid-cols-[repeat(auto-fill,minmax(9rem,1fr))] gap-2">
     {items.map((i) => (
       <Card key={i.label}><CardContent className="p-3">
         <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{i.label}</p>
@@ -226,7 +226,7 @@ export function VisitsReport({ variant = "reception" }: { variant?: "reception" 
           insuranceNo: p?.insurance_number || "",
           kinName: p?.next_of_kin_name || "",
           kinPhone: p?.next_of_kin_phone || "",
-          missing: !genderLabel(prof.gender).match(/^(Male|Female)$/) || !prof.date_of_birth || !prof.phone,
+          missing: genderLabel(prof.gender) === NOT_RECORDED || !prof.date_of_birth || !prof.phone,
           category: inpatient ? "Inpatient" : p?.visit_reason === "dental" ? "Dental (Outpatient)" : "Outpatient",
           paymentMode: paymentModeLabel(t.payment_mode),
           stage: stageLabel(t.workflow_stage || t.status),
@@ -403,7 +403,7 @@ export function LabReport() {
           date: o.created_at,
           name: o.patients?.profiles?.full_name || "",
           opd: o.patients?.patient_id || "",
-          gender: o.patients?.profiles?.gender || "",
+          gender: genderLabel(o.patients?.profiles?.gender),
           age: calculateAgeYears(o.patients?.profiles?.date_of_birth),
           test: o.lab_tests_catalog?.test_name || "",
           result: resultText,
