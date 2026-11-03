@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { BarChart3, TrendingUp, Users, DollarSign, Activity, Settings2, Smartphone, Loader2, CheckCircle2, Timer } from "lucide-react";
 import { AdminTemplates } from "@/components/AdminTemplates";
 import { useToast } from "@/hooks/use-toast";
+import { functionErrorMessage } from "@/lib/billing";
 
 const Settings = () => {
   const { toast } = useToast();
@@ -20,15 +21,21 @@ const Settings = () => {
   });
   const [isSuperAdmin, setIsSuperAdmin] = useState(false);
 
-  // M-Pesa config state
+  // M-Pesa config state — secret values are never loaded into the browser; blank = keep saved value
   const [mpesaConfig, setMpesaConfig] = useState({
     consumerKey: "",
     consumerSecret: "",
-    shortcode: "",
     passkey: "",
+    paymentType: "till" as "till" | "paybill",
+    tillNumber: "",
+    storeNumber: "",
+    paybillNumber: "",
   });
+  const [mpesaSaved, setMpesaSaved] = useState<Record<string, boolean>>({});
   const [mpesaEnvironment, setMpesaEnvironment] = useState("sandbox");
   const [savingMpesa, setSavingMpesa] = useState(false);
+  const [testingMpesa, setTestingMpesa] = useState(false);
+  const [mpesaTest, setMpesaTest] = useState<{ ok: boolean; message: string; config?: { environment: string; type: string; tillOrPaybill: string; storeNumber: string | null } } | null>(null);
   const [mpesaConfigured, setMpesaConfigured] = useState(false);
   const [idleTimeout, setIdleTimeout] = useState("5");
   const [savingIdle, setSavingIdle] = useState(false);
@@ -52,40 +59,70 @@ const Settings = () => {
   };
 
   const fetchMpesaConfig = async () => {
-    const { data } = await supabase
-      .from("system_settings")
-      .select("key, value")
-      .in("key", ["mpesa_consumer_key", "mpesa_consumer_secret", "mpesa_shortcode", "mpesa_passkey", "mpesa_environment"]);
+    const { data } = await supabase.from("system_settings").select("key, value").like("key", "mpesa_%");
+    const map: Record<string, string> = {};
+    (data || []).forEach((s: any) => { map[s.key] = s.value || ""; });
+    setMpesaSaved({ consumerKey: !!map.mpesa_consumer_key, consumerSecret: !!map.mpesa_consumer_secret, passkey: !!map.mpesa_passkey });
+    setMpesaConfig((prev) => ({
+      ...prev,
+      consumerKey: "", consumerSecret: "", passkey: "",
+      paymentType: map.mpesa_type === "paybill" ? "paybill" : "till",
+      tillNumber: map.mpesa_till_number || "",
+      storeNumber: map.mpesa_store_number || "",
+      paybillNumber: map.mpesa_type === "paybill" ? map.mpesa_shortcode || "" : "",
+    }));
+    setMpesaEnvironment(map.mpesa_environment || "sandbox");
+    // Show what the payment function is actually using right now (also fills numbers kept in project secrets)
+    await testMpesa(true);
+  };
 
-    if (data) {
-      const map: Record<string, string> = {};
-      data.forEach((s: any) => { map[s.key] = s.value || ""; });
-      setMpesaConfig({
-        consumerKey: map["mpesa_consumer_key"] || "",
-        consumerSecret: map["mpesa_consumer_secret"] || "",
-        shortcode: map["mpesa_shortcode"] || "",
-        passkey: map["mpesa_passkey"] || "",
-      });
-      setMpesaEnvironment(map["mpesa_environment"] || "sandbox");
-      setMpesaConfigured(!!(map["mpesa_consumer_key"] && map["mpesa_shortcode"]));
+  const testMpesa = async (prefill = false) => {
+    setTestingMpesa(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("mpesa-stk-push", { body: { action: "test" } });
+      const message = await functionErrorMessage(error, data);
+      const cfg = data?.config ?? (await (error as any)?.context?.json?.().catch(() => null))?.config;
+      const ok = !error && !!data?.success;
+      setMpesaTest({ ok, message: ok ? data.message : message, config: cfg });
+      setMpesaConfigured(ok);
+      if (prefill && cfg) {
+        setMpesaConfig((prev) => ({
+          ...prev,
+          paymentType: cfg.type === "paybill" ? "paybill" : "till",
+          tillNumber: prev.tillNumber || (cfg.type === "till" ? cfg.tillOrPaybill || "" : ""),
+          storeNumber: prev.storeNumber || cfg.storeNumber || "",
+          paybillNumber: prev.paybillNumber || (cfg.type === "paybill" ? cfg.tillOrPaybill || "" : ""),
+        }));
+      }
+    } finally {
+      setTestingMpesa(false);
     }
   };
 
   const saveMpesaConfig = async () => {
+    const c = mpesaConfig;
+    if (c.paymentType === "till" && (!c.tillNumber.trim() || !c.storeNumber.trim())) {
+      toast({ title: "Enter both numbers", description: "A Buy Goods till needs the Till number and the Store (head office) number.", variant: "destructive" });
+      return;
+    }
+    if (c.paymentType === "paybill" && !c.paybillNumber.trim()) {
+      toast({ title: "Enter the Paybill number", variant: "destructive" });
+      return;
+    }
     setSavingMpesa(true);
     try {
-      const { error } = await supabase.functions.invoke("update-mpesa-config", {
+      const { data, error } = await supabase.functions.invoke("update-mpesa-config", {
         body: {
-          consumerKey: mpesaConfig.consumerKey,
-          consumerSecret: mpesaConfig.consumerSecret,
-          shortcode: mpesaConfig.shortcode,
-          passkey: mpesaConfig.passkey,
-          environment: mpesaEnvironment,
+          consumerKey: c.consumerKey, consumerSecret: c.consumerSecret, passkey: c.passkey,
+          environment: mpesaEnvironment, paymentType: c.paymentType,
+          tillNumber: c.paymentType === "till" ? c.tillNumber : undefined,
+          storeNumber: c.paymentType === "till" ? c.storeNumber : undefined,
+          shortcode: c.paymentType === "paybill" ? c.paybillNumber : undefined,
         },
       });
-      if (error) throw error;
-      toast({ title: "M-Pesa config saved", description: "Credentials updated successfully" });
-      setMpesaConfigured(!!(mpesaConfig.consumerKey && mpesaConfig.shortcode));
+      if (error || data?.success === false) throw new Error(await functionErrorMessage(error, data));
+      toast({ title: "M-Pesa settings saved" });
+      await fetchMpesaConfig();
     } catch (err: any) {
       toast({ title: "Save failed", description: err.message, variant: "destructive" });
     } finally {
