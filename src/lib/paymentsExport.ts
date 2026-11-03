@@ -21,7 +21,9 @@ export function buildPaymentsCSV(rows: PaymentRow[]): string {
 }
 
 const AMT = "#,##0.00;(#,##0.00);-";
-const ymdToDate = (s: string) => { const [y, m, d] = s.split("-").map(Number); return new Date(y, m - 1, d); };
+/** Excel date serial for a YYYY-MM-DD day (avoids time-zone drift when writing JS dates). */
+const ymdToSerial = (s: string) => { const [y, m, d] = s.split("-").map(Number); return (Date.UTC(y, m - 1, d) - Date.UTC(1899, 11, 30)) / 86400000; };
+const dateCell = (s: string, z = "dd/mm/yyyy") => ({ t: "n", v: ymdToSerial(s), z });
 
 /**
  * Excel workbook. Every total and group sheet is a live formula over the "Payments" sheet,
@@ -35,13 +37,9 @@ export function buildPaymentsWorkbook(rows: PaymentRow[], meta: { filters: strin
 
   // ── Payments (detail) ──
   const details = XLSX.utils.aoa_to_sheet(
-    [[...DETAIL_HEADERS], ...rows.map((r) => { const v = detailValues(r); v[0] = ymdToDate(r.date) as unknown as string; return v; })],
-    { cellDates: true },
+    [[...DETAIL_HEADERS], ...rows.map((r) => { const v: unknown[] = detailValues(r); v[0] = dateCell(r.date); return v; })],
   );
-  for (let i = 2; i <= last; i++) {
-    if (details[`A${i}`]) details[`A${i}`].z = "dd/mm/yyyy";
-    if (details[`P${i}`]) details[`P${i}`].z = AMT;
-  }
+  for (let i = 2; i <= last; i++) if (details[`P${i}`]) details[`P${i}`].z = AMT;
   XLSX.utils.sheet_add_aoa(details, [["TOTAL", { t: "n", f: `SUM(P2:P${last})`, z: AMT }]], { origin: `O${n + 3}` });
   details["!cols"] = [12, 7, 16, 26, 14, 15, 14, 18, 14, 12, 14, 18, 16, 11, 22, 14].map((w) => ({ wch: w }));
   details["!autofilter"] = { ref: `A1:P${Math.max(last, 1)}` };
@@ -85,11 +83,10 @@ export function buildPaymentsWorkbook(rows: PaymentRow[], meta: { filters: strin
   const dayAoa: unknown[][] = [["Day", "Payments", "Amount (KES)"]];
   days.forEach((d, i) => {
     const r = i + 2;
-    dayAoa.push([ymdToDate(d), { t: "n", f: `COUNTIFS(${col("A")},A${r})` }, { t: "n", f: `SUMIFS(${col("P")},${col("A")},A${r})`, z: AMT }]);
+    dayAoa.push([dateCell(d, "ddd dd/mm/yyyy"), { t: "n", f: `COUNTIFS(${col("A")},A${r})` }, { t: "n", f: `SUMIFS(${col("P")},${col("A")},A${r})`, z: AMT }]);
   });
   dayAoa.push(["TOTAL", { t: "n", f: `SUM(B2:B${days.length + 1})` }, { t: "n", f: `SUM(C2:C${days.length + 1})`, z: AMT }]);
-  const dayWs = XLSX.utils.aoa_to_sheet(dayAoa, { cellDates: true });
-  for (let i = 2; i <= days.length + 1; i++) if (dayWs[`A${i}`]) dayWs[`A${i}`].z = "ddd dd/mm/yyyy";
+  const dayWs = XLSX.utils.aoa_to_sheet(dayAoa);
   dayWs["!cols"] = [{ wch: 18 }, { wch: 10 }, { wch: 16 }];
   XLSX.utils.book_append_sheet(wb, dayWs, "By day");
 
