@@ -281,7 +281,7 @@ const Billing = () => {
                         </td>
                         <td className="px-2 py-1.5 capitalize text-xs text-muted-foreground hidden sm:table-cell">{(c.billing_stage || "-").replace(/_/g, " ")}</td>
                         <td className="px-2 py-1.5 text-right">
-                          {canEditLine(c) ? <Input type="number" min={0} inputMode="decimal" value={c.amount} onChange={(e) => editCharge(c.id, { amount: e.target.value })} className={`h-8 text-sm text-right ${c._edited ? "border-[hsl(var(--warning,var(--primary)))] ring-1 ring-primary/40" : ""}`} aria-label={`KES for ${c.description}`} /> : Number(c.amount).toLocaleString()}
+                          {canEditLine(c) ? <Input type="number" min={0} inputMode="decimal" value={c.amount} onChange={(e) => editCharge(c.id, { amount: e.target.value })} className={`h-8 text-sm text-right ${c._edited ? "border-primary ring-1 ring-primary/40" : ""}`} aria-label={`KES for ${c.description}`} /> : Number(c.amount).toLocaleString()}
                         </td>
                         <td className="px-2 py-1.5">
                           {c.invoice_id ? <CheckCircle2 className="h-4 w-4 text-[hsl(var(--success))]" aria-label="On a bill" /> : (
