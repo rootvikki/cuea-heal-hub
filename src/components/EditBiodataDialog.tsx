@@ -43,7 +43,8 @@ export function EditBiodataDialog({ open, onOpenChange, patient, profile, onSave
       if (!cancelled) setFresh({ patient: { ...patient, ...(pt || {}) }, profile: { ...profile, ...(pr || {}) } });
     })();
     return () => { cancelled = true; };
-  }, [open, patient, profile]);
+    // Only reload when a different patient is opened — parents re-render (queue refreshes) and pass new objects
+  }, [open, patient?.id, patient?.user_id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!open || !fresh) return;
