@@ -93,7 +93,7 @@ serve(async (req) => {
           ? `The Passkey belongs to ${otherNumber}, so the Till and Store numbers look swapped. Swap them and save.`
           : "The Passkey does not match the store / paybill number. Ask Safaricom for the Passkey of this number."
         : null;
-      return json({ success: true, message: warning || "M-Pesa accepted the app keys and the Passkey.", warning, passkeyCheck, config: summary });
+      return json({ success: true, message: warning || "M-Pesa accepted the app keys and the Passkey.", warning, passkeyCheck, swappedCheck, config: summary });
     }
 
     const timestamp = darajaTimestamp();
