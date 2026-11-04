@@ -1,0 +1,2 @@
+COMMENT ON FUNCTION public.record_invoice_payment(uuid, numeric, text, text, timestamptz, uuid) IS 'Only way to record a payment: saves the payment row and updates the bill''s paid amount, balance and status in one locked step.';
+COMMENT ON FUNCTION public.pharmacy_issue_stock(uuid, integer, text, numeric) IS 'Subtracts dispensed stock and writes the stock-card line in one step; refuses if not enough stock.';

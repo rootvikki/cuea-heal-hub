@@ -2807,15 +2807,12 @@ export type Database = {
         }
         Returns: number
       }
-      pharmacy_receive_stock: {
+      pharmacy_issue_stock: {
         Args: {
-          _batch?: string
-          _expiry?: string
           _inventory_id: string
-          _invoice_ref?: string
+          _issued_to?: string
           _qty: number
-          _received_from?: string
-          _request_id?: string
+          _unit_price?: number
         }
         Returns: {
           average_monthly_consumption: number | null
@@ -2844,8 +2841,16 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      pharmacy_issue_stock: {
-        Args: { _inventory_id: string; _qty: number; _issued_to?: string; _unit_price?: number }
+      pharmacy_receive_stock: {
+        Args: {
+          _batch?: string
+          _expiry?: string
+          _inventory_id: string
+          _invoice_ref?: string
+          _qty: number
+          _received_from?: string
+          _request_id?: string
+        }
         Returns: {
           average_monthly_consumption: number | null
           batch_number: string | null
@@ -2902,6 +2907,38 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      record_invoice_payment: {
+        Args: {
+          _amount: number
+          _invoice_id: string
+          _method: string
+          _paid_at?: string
+          _received_by?: string
+          _reference?: string
+        }
+        Returns: {
+          amount_paid: number | null
+          balance: number | null
+          created_at: string | null
+          discount: number | null
+          encounter_id: string | null
+          id: string
+          invoice_number: string
+          net_amount: number
+          patient_id: string
+          status: Database["public"]["Enums"]["payment_status"] | null
+          tax: number | null
+          ticket_id: string | null
+          total_amount: number
+          updated_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "invoices"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       sign_off_lab_order: {
         Args: { _comments: string; _order_id: string }
         Returns: {
@@ -2934,31 +2971,6 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "lab_orders"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
-      record_invoice_payment: {
-        Args: { _invoice_id: string; _amount: number; _method: string; _reference?: string | null; _paid_at?: string; _received_by?: string }
-        Returns: {
-          amount_paid: number | null
-          balance: number | null
-          created_at: string | null
-          discount: number | null
-          encounter_id: string | null
-          id: string
-          invoice_number: string
-          net_amount: number
-          patient_id: string
-          status: Database["public"]["Enums"]["payment_status"] | null
-          tax: number | null
-          ticket_id: string | null
-          total_amount: number
-          updated_at: string | null
-        }
-        SetofOptions: {
-          from: "*"
-          to: "invoices"
           isOneToOne: true
           isSetofReturn: false
         }

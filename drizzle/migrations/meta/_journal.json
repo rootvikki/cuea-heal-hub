@@ -134,6 +134,13 @@
       "when": 1793709503064,
       "tag": "0018_atomic_payments_and_dispensing",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793787726730,
+      "tag": "0019_document_atomic_payment_functions",
+      "breakpoints": true
     }
   ]
 }
