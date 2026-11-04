@@ -118,34 +118,14 @@ export async function updateUnpaidBill(invoice: Invoice, lines: ConfirmedCharge[
 
 /** Records a (non M-Pesa STK) payment and updates the invoice. Returns the new balance. */
 export async function recordPayment(invoice: Invoice, amount: number, method: PaymentMethod | "mpesa_manual", reference: string) {
-  const { data: { user } } = await supabase.auth.getUser();
   const dbMethod = method === "mpesa_manual" ? "mpesa" : method;
-  if (method === "mpesa_manual") {
-    // The same M-Pesa code can only pay once (it may already have come in through the prompt).
-    const [{ count: used }, { count: viaPrompt }] = await Promise.all([
-      supabase.from("payments").select("id", { count: "exact", head: true }).eq("transaction_ref", reference).eq("status", "completed"),
-      supabase.from("mpesa_transactions").select("id", { count: "exact", head: true }).eq("mpesa_receipt_number", reference).eq("status", "completed"),
-    ]);
-    if (used || viaPrompt) throw new Error(`M-Pesa code ${reference} has already been recorded — this payment is already on the system.`);
-  }
-  const { error } = await supabase.from("payments").insert({
-    invoice_id: invoice.id,
-    patient_id: invoice.patient_id,
-    amount,
-    payment_method: dbMethod as any,
-    transaction_ref: reference,
-    status: "completed",
-    paid_at: new Date().toISOString(),
-    received_by: user?.id ?? null,
+  // One locked step on the server: checks the M-Pesa code is new, saves the payment and updates the bill,
+  // so two desks (or an M-Pesa confirmation arriving at the same time) cannot overwrite each other.
+  const { data, error } = await supabase.rpc("record_invoice_payment", {
+    _invoice_id: invoice.id, _amount: amount, _method: dbMethod, _reference: reference || null,
   });
-  if (error) throw new Error(`Payment could not be recorded: ${error.message}`);
-
-  const paid = Number(invoice.amount_paid || 0) + amount;
-  const balance = Math.max(Number(invoice.net_amount) - paid, 0);
-  const { error: invErr } = await supabase.from("invoices").update({
-    amount_paid: paid, balance, status: balance <= 0 ? "paid" : "partial",
-  }).eq("id", invoice.id);
-  if (invErr) throw new Error(invErr.message);
+  if (error) throw new Error(error.message.startsWith("M-Pesa code") ? error.message : `Payment could not be recorded: ${error.message}`);
+  const balance = Math.max(Number(data?.balance ?? Number(invoice.net_amount) - Number(invoice.amount_paid || 0) - amount), 0);
 
   logAuditEvent({ action: "payment_recorded", module: "billing", details: { invoice: invoice.invoice_number, method, amount, reference } });
   return balance;

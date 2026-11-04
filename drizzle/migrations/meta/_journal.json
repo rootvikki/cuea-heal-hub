@@ -127,6 +127,13 @@
       "when": 1793708903064,
       "tag": "0017_billing_desk_edit_unpaid_bill",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793709503064,
+      "tag": "0018_atomic_payments_and_dispensing",
+      "breakpoints": true
     }
   ]
 }

@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { explainResult, finalizeMpesaSuccess } from "../_shared/mpesa.ts";
+import { explainResult, finalizeMpesaSuccess, mpesaCallbackToken, sameToken } from "../_shared/mpesa.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,6 +15,12 @@ serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
   try {
+    // Only Safaricom knows the token we put in the callback address; ignore anything else.
+    const token = new URL(req.url).searchParams.get("t") || "";
+    if (!sameToken(token, await mpesaCallbackToken())) {
+      console.warn("M-Pesa callback ignored: missing or wrong token");
+      return ok();
+    }
     const supabase = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const callback = await req.json();
     const stk = callback?.Body?.stkCallback;

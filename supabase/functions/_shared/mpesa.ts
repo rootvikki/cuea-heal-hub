@@ -17,6 +17,25 @@ export const MPESA_RESULT_MESSAGES: Record<string, string> = {
   "9999": "M-Pesa could not send the prompt. Try again.",
 };
 
+/**
+ * Secret token added to the callback address sent to Safaricom. The callback is a public URL,
+ * so it only trusts messages carrying this token (anyone else could otherwise post a fake "paid").
+ * Uses MPESA_CALLBACK_SECRET when set, otherwise one derived from the service key — never shown to browsers.
+ */
+export async function mpesaCallbackToken(): Promise<string> {
+  const secret = Deno.env.get("MPESA_CALLBACK_SECRET") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(`mpesa-callback:${secret}`));
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 40);
+}
+
+/** Constant-time comparison so the token can't be guessed character by character. */
+export function sameToken(a: string, b: string): boolean {
+  if (!a || a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
 export const explainResult = (code: unknown, fallback?: string) =>
   MPESA_RESULT_MESSAGES[String(code)] || fallback || "The payment was not completed.";
 
@@ -96,7 +115,11 @@ export async function finalizeMpesaSuccess(
   if (!claimed?.length) return false;
 
   if (!tx.invoice_id) return true;
-  const paidAmount = Number(info.amount || tx.amount);
+  // Always the amount this prompt asked for — never a figure taken from the incoming message.
+  const paidAmount = Number(tx.amount);
+  if (info.amount != null && Number(info.amount) !== paidAmount) {
+    console.warn(`M-Pesa amount mismatch on ${tx.checkout_request_id}: asked ${paidAmount}, message says ${info.amount}`);
+  }
 
   // Already entered by hand (staff typed the M-Pesa code while waiting)? Link it instead of counting it twice.
   const { data: manual } = await supabase.from("payments").select("id, transaction_ref")
@@ -113,24 +136,21 @@ export async function finalizeMpesaSuccess(
     }
   }
 
-  const { data: invoice } = await supabase.from("invoices").select("*").eq("id", tx.invoice_id).maybeSingle();
-  if (!invoice) return true;
-
-  const newAmountPaid = Number(invoice.amount_paid || 0) + paidAmount;
-  const newBalance = Math.max(Number(invoice.net_amount) - newAmountPaid, 0);
-  const newStatus = newBalance <= 0 ? "paid" : "partial";
-  await supabase.from("invoices").update({ amount_paid: newAmountPaid, balance: newBalance, status: newStatus, updated_at: new Date().toISOString() }).eq("id", tx.invoice_id);
-
-  await supabase.from("payments").insert({
-    invoice_id: tx.invoice_id,
-    patient_id: invoice.patient_id,
-    amount: paidAmount,
-    payment_method: "mpesa",
+  // Saved and added to the bill in one locked step (see record_invoice_payment), so it cannot
+  // overwrite a payment the desk records at the same moment.
+  const { data: invoice, error: payErr } = await supabase.rpc("record_invoice_payment", {
+    _invoice_id: tx.invoice_id,
+    _amount: paidAmount,
+    _method: "mpesa",
     // Without a receipt yet (confirmed by status check), keep the checkout id so the callback can fill in the receipt.
-    transaction_ref: info.receipt || tx.checkout_request_id,
-    status: "completed",
-    paid_at: paidAt,
+    _reference: info.receipt || tx.checkout_request_id,
+    _paid_at: paidAt,
   });
+  if (payErr || !invoice) {
+    console.error("Could not record M-Pesa payment", tx.checkout_request_id, payErr?.message);
+    return true;
+  }
+  const newStatus = invoice.status;
 
   // Fully paid: send the patient on (pharmacy collection or check-out)
   if (newStatus === "paid" && invoice.ticket_id) {

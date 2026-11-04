@@ -312,14 +312,13 @@ const Pharmacy = () => {
         const qty = rx.planned_qty || remainingQty(rx);
         if (!item) throw new Error(`${rx.medication_name}: item no longer in inventory`);
         if (qty > item.quantity) throw new Error(`Only ${item.quantity} of ${item.drug_name} left in stock`);
-        const newQty = item.quantity - qty;
-        const { error: iErr } = await supabase.from("pharmacy_inventory").update({ quantity: newQty }).eq("id", item.id);
-        if (iErr) throw iErr;
-        item.quantity = newQty;
-        await supabase.from("pharmacy_stock_transactions").insert({
-          inventory_id: item.id, qty_issued: qty, balance: newQty, recorded_by: staffId, unit_price: rx.unit_price ?? item.unit_price,
-          issued_to: `Patient: ${sheet.patient?.profile?.full_name || rx.patient_id}${isAlt ? " (alternative)" : ""}`,
+        // Subtracted on the server in one step, so two pharmacists dispensing the same drug never overwrite each other's count.
+        const { data: after, error: iErr } = await supabase.rpc("pharmacy_issue_stock", {
+          _inventory_id: item.id, _qty: qty, _unit_price: rx.unit_price ?? item.unit_price,
+          _issued_to: `Patient: ${sheet.patient?.profile?.full_name || rx.patient_id}${isAlt ? " (alternative)" : ""}`,
         });
+        if (iErr) throw new Error(`${item.drug_name}: ${iErr.message}`);
+        item.quantity = after?.quantity ?? item.quantity - qty;
         const { error } = await supabase.from("prescriptions").update({
           status: "dispensed", dispensed: true, dispensed_at: now, dispensed_by: staffId,
           dispensing_started_at: rx.dispensing_started_at || now,

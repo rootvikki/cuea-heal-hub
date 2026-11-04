@@ -2844,6 +2844,35 @@ export type Database = {
           isSetofReturn: false
         }
       }
+      pharmacy_issue_stock: {
+        Args: { _inventory_id: string; _qty: number; _issued_to?: string; _unit_price?: number }
+        Returns: {
+          average_monthly_consumption: number | null
+          batch_number: string | null
+          category: string | null
+          created_at: string | null
+          drug_name: string
+          expiry_date: string | null
+          formulation: string | null
+          generic_name: string | null
+          id: string
+          insurance_price: number | null
+          maximum_stock: number | null
+          minimum_stock: number | null
+          package: string | null
+          quantity: number
+          reorder_level: number | null
+          strength_size: string | null
+          unit_price: number
+          updated_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "pharmacy_inventory"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
       pharmacy_set_stock: {
         Args: { _inventory_id: string; _new_qty: number; _reason?: string }
         Returns: {
@@ -2905,6 +2934,31 @@ export type Database = {
         SetofOptions: {
           from: "*"
           to: "lab_orders"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      record_invoice_payment: {
+        Args: { _invoice_id: string; _amount: number; _method: string; _reference?: string | null; _paid_at?: string; _received_by?: string }
+        Returns: {
+          amount_paid: number | null
+          balance: number | null
+          created_at: string | null
+          discount: number | null
+          encounter_id: string | null
+          id: string
+          invoice_number: string
+          net_amount: number
+          patient_id: string
+          status: Database["public"]["Enums"]["payment_status"] | null
+          tax: number | null
+          ticket_id: string | null
+          total_amount: number
+          updated_at: string | null
+        }
+        SetofOptions: {
+          from: "*"
+          to: "invoices"
           isOneToOne: true
           isSetofReturn: false
         }

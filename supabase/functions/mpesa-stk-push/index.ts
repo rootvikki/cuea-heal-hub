@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { explainResult, finalizeMpesaSuccess, isStillProcessing, loadMpesaConfig } from "../_shared/mpesa.ts";
+import { explainResult, finalizeMpesaSuccess, isStillProcessing, loadMpesaConfig, mpesaCallbackToken } from "../_shared/mpesa.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -151,7 +151,7 @@ serve(async (req) => {
         PartyA: phone,
         PartyB: cfg.partyB,
         PhoneNumber: phone,
-        CallBackURL: summary.callbackUrl,
+        CallBackURL: `${summary.callbackUrl}?t=${await mpesaCallbackToken()}`,
         // Daraja limits: AccountReference ≤ 12 chars, TransactionDesc ≤ 13 chars
         AccountReference: String(accountReference || invoice.invoice_number).replace(/[^A-Za-z0-9-]/g, "").slice(0, 12) || "CUEA",
         TransactionDesc: "CUEA Clinic",
