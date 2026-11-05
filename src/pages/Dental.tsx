@@ -22,32 +22,34 @@ import { calculateAge, cn } from "@/lib/utils";
 import { logAuditEvent } from "@/lib/auditLog";
 import { useUser } from "@/contexts/UserContext";
 
-/** Dental price list, grouped so every procedure is visible at a glance. */
-const DENTAL_CATALOG: { category: string; items: { name: string; price: number }[] }[] = [
-  { category: "Examination", items: [{ name: "Dental Examination", price: 500 }, { name: "Dental Consultation", price: 500 }, { name: "Orthodontic Consultation", price: 2000 }] },
-  { category: "Extractions", items: [{ name: "Simple Extraction", price: 1500 }, { name: "Closed Disimpaction", price: 2000 }, { name: "Open Disimpaction", price: 5000 }] },
-  { category: "Restorations", items: [
-    { name: "Amalgam Restoration F1", price: 2000 }, { name: "Amalgam Restoration F2", price: 2500 }, { name: "Amalgam Restoration F3", price: 3000 },
-    { name: "Composite Filling F1", price: 2500 }, { name: "Composite Filling F2", price: 3000 }, { name: "Composite Filling F3", price: 3500 },
-    { name: "GIC Filling F1", price: 2000 }, { name: "GIC Filling F2", price: 2500 }, { name: "GIC Filling F3", price: 3000 },
-    { name: "Temporary Filling", price: 1000 },
+/**
+ * Dental procedures, grouped as on the clinic's dental list. There are no built-in prices:
+ * the dentist types the price for each procedure done (it goes to the bill as typed).
+ */
+const DENTAL_CATALOG: { category: string; items: string[] }[] = [
+  { category: "Consultation & X-ray", items: ["Consultation", "Radiographs (per view)", "OPG", "IOPA"] },
+  { category: "Paediatric dentistry", items: [
+    "Fissure sealing (per tooth)", "Fluoride application (per quadrant)", "Composite masking (per tooth)",
+    "Root canal treatment – pulpotomy (child)", "Root canal treatment – pulpectomy", "Stainless steel crown",
+    "Prophylaxis – children", "Paediatric extraction",
   ] },
-  { category: "Endodontics", items: [
-    { name: "Root Canal - Anterior", price: 6000 }, { name: "Root Canal - Premolar", price: 8000 }, { name: "Root Canal - Molar", price: 10000 },
-    { name: "Pulpotomy", price: 3000 }, { name: "Pulpectomy", price: 4000 }, { name: "Apicectomy", price: 8000 },
+  { category: "Conservative procedures", items: [
+    "Root canal treatment – anterior teeth", "Root canal treatment – premolar", "Root canal treatment – molar",
+    "Amalgam restoration – F1", "Amalgam restoration – F2", "Amalgam restoration – F3", "Amalgam restoration – pin retained",
+    "Composite – class V", "Composite – class III", "Composite – class IV", "Composite – pin retained", "Composite – posterior",
+    "Masking procedure (per tooth)", "Resin bonded bridge (per unit)", "Temporary bridge (per unit, plus lab fee)",
+    "Temporary restoration", "GIC",
   ] },
-  { category: "Periodontics", items: [{ name: "Scaling & Polishing", price: 3000 }, { name: "Deep Scaling (per quadrant)", price: 2000 }, { name: "Gum Treatment (per quadrant)", price: 3000 }] },
-  { category: "Prosthodontics", items: [
-    { name: "Crown - PFM", price: 15000 }, { name: "Crown - Full Metal", price: 12000 }, { name: "Crown - All Ceramic", price: 20000 },
-    { name: "Stainless Steel Crown", price: 5000 }, { name: "Bridge Work (per unit)", price: 15000 }, { name: "Resin Bonded Bridge", price: 20000 },
-    { name: "Denture - Partial (Acrylic)", price: 15000 }, { name: "Denture - Full", price: 25000 },
+  { category: "Periodontal procedures", items: [
+    "Polishing / stain removal / prophylaxis – adults", "Full mouth scaling and prophylaxis", "Deep full mouth scaling and prophylaxis",
   ] },
-  { category: "Preventive", items: [{ name: "Fluoride Application", price: 1000 }, { name: "Fissure Sealing (per tooth)", price: 1500 }, { name: "Teeth Whitening", price: 5000 }] },
-  { category: "Surgery", items: [
-    { name: "Dental Abscess I&D", price: 2000 }, { name: "Alveoloplasty", price: 3000 }, { name: "Suturing (per stitch)", price: 500 },
-    { name: "Biopsy", price: 5000 }, { name: "Splinting (per tooth)", price: 1500 }, { name: "Hemostasis", price: 500 },
+  { category: "Prosthetic procedures (including lab charges)", items: [
+    "Partial denture – acrylic, first tooth", "Acrylic denture – additional tooth", "Denture repair (per arch)",
+    "Denture repair with impression", "Denture repair – tooth replacement", "Obturator",
   ] },
-  { category: "Dental X-ray", items: [{ name: "Dental X-Ray (Periapical)", price: 500 }, { name: "Dental X-Ray (OPG)", price: 2000 }] },
+  { category: "Dental extraction procedures", items: [
+    "Total extraction", "Closed disimpaction", "Open disimpaction", "Simple extraction", "Difficult extraction",
+  ] },
 ];
 
 /** FDI tooth numbers as seen facing the patient. */
@@ -56,7 +58,10 @@ const TEETH = {
   lower: ["48", "47", "46", "45", "44", "43", "42", "41", "31", "32", "33", "34", "35", "36", "37", "38"],
 };
 
-interface DentalEntry { procedure: string; teeth: string[]; notes: string; price: number }
+/** price is what the dentist typed ("" until entered). */
+interface DentalEntry { key: number; procedure: string; teeth: string[]; notes: string; price: string }
+
+const priceOk = (v: string) => v.trim() !== "" && Number.isFinite(Number(v)) && Number(v) >= 0;
 
 const Dental = () => {
   const { profile: myProfile } = useUser();
@@ -64,6 +69,7 @@ const Dental = () => {
   const [queueCollapsed, setQueueCollapsed] = useState(false);
   const [entries, setEntries] = useState<DentalEntry[]>([]);
   const [procSearch, setProcSearch] = useState("");
+  const [otherName, setOtherName] = useState("");
   const [activeTeeth, setActiveTeeth] = useState<string[]>([]);
   const [clinical, setClinical] = useState({ complaint: "", findings: "", plan: "" });
   const [nextVisit, setNextVisit] = useState("");
@@ -109,16 +115,19 @@ const Dental = () => {
 
   const catalog = useMemo(() => {
     const q = procSearch.trim().toLowerCase();
-    return DENTAL_CATALOG.map((c) => ({ ...c, items: c.items.filter((i) => !q || i.name.toLowerCase().includes(q) || c.category.toLowerCase().includes(q)) })).filter((c) => c.items.length);
+    return DENTAL_CATALOG.map((c) => ({ ...c, items: c.items.filter((i) => !q || i.toLowerCase().includes(q) || c.category.toLowerCase().includes(q)) })).filter((c) => c.items.length);
   }, [procSearch]);
 
-  const addProcedure = (p: { name: string; price: number }) => {
-    setEntries((prev) => [...prev, { procedure: p.name, teeth: activeTeeth, notes: "", price: p.price }]);
-    toast.success(`Added ${p.name}`, { description: activeTeeth.length ? `Tooth ${activeTeeth.join(", ")}` : undefined });
+  const addProcedure = (name: string) => {
+    const key = Date.now();
+    setEntries((prev) => [...prev, { key, procedure: name, teeth: activeTeeth, notes: "", price: "" }]);
     setActiveTeeth([]);
+    // Straight to the price box of the procedure just added
+    setTimeout(() => document.getElementById(`dental-price-${key}`)?.focus(), 50);
   };
   const toggleTooth = (t: string) => setActiveTeeth((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
-  const total = entries.reduce((s, e) => s + e.price, 0);
+  const total = entries.reduce((s, e) => s + (priceOk(e.price) ? Number(e.price) : 0), 0);
+  const missingPrice = entries.find((e) => !priceOk(e.price));
 
   /** Ensures this visit has ONE dental encounter and returns its id. */
   const ensureDentalEncounter = async () => {
@@ -149,6 +158,10 @@ const Dental = () => {
   /** Saves notes + procedures (charges added to the bill). Safe to call more than once. */
   const saveVisit = async () => {
     if (!selectedTicket) return;
+    if (missingPrice) {
+      document.getElementById(`dental-price-${missingPrice.key}`)?.focus();
+      throw new Error(`Type the price for ${missingPrice.procedure}`);
+    }
     const encounterId = await ensureDentalEncounter();
     const staffId = await currentStaffId();
     const { data: { user } } = await supabase.auth.getUser();
@@ -157,13 +170,13 @@ const Dental = () => {
         patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id, dentist_id: staffId ?? user?.id ?? "",
         procedure_name: entry.procedure, encounter_id: encounterId,
         tooth_number: entry.teeth.join(", ") || null, notes: entry.notes || null,
-        price: entry.price, next_visit: nextVisit || null,
+        price: Number(entry.price), next_visit: nextVisit || null,
       });
       if (error) throw new Error(error.message);
       await supabase.from("service_charges").insert({
         patient_id: selectedTicket.patient_id, ticket_id: selectedTicket.id, encounter_id: encounterId,
         service_type: "dental", description: `Dental: ${entry.procedure}${entry.teeth.length ? ` (tooth ${entry.teeth.join(", ")})` : ""}`,
-        amount: entry.price, billing_stage: "dental",
+        amount: Number(entry.price), billing_stage: "dental",
       });
     }
     if (entries.length) logAuditEvent({ action: "dental_procedures_saved", module: "dental", details: { ticket_id: selectedTicket.id, count: entries.length } });
@@ -250,7 +263,7 @@ const Dental = () => {
 
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-base">Tooth chart <span className="text-xs font-normal text-muted-foreground">(tap teeth, then a procedure)</span></CardTitle>
+                  <CardTitle className="text-base">Tooth chart <span className="text-xs font-normal text-muted-foreground">(tap teeth, then a procedure, then type its price)</span></CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-2 overflow-x-auto">
                   {(["upper", "lower"] as const).map((jaw) => (
@@ -284,16 +297,21 @@ const Dental = () => {
                     <div key={c.category} className="space-y-1.5">
                       <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">{c.category}</p>
                       <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-1.5">
-                        {c.items.map((p) => (
-                          <button key={p.name} type="button" onClick={() => addProcedure(p)}
-                            className="flex items-center justify-between gap-2 rounded-md border px-2.5 py-2 text-left text-sm hover:border-primary hover:bg-primary/5 transition-colors">
-                            <span className="leading-tight">{p.name}</span>
-                            <span className="text-[11px] text-muted-foreground whitespace-nowrap">{p.price.toLocaleString()}</span>
+                        {c.items.map((name) => (
+                          <button key={name} type="button" onClick={() => addProcedure(name)}
+                            className="flex items-center gap-2 rounded-md border px-2.5 py-2 text-left text-sm hover:border-primary hover:bg-primary/5 transition-colors">
+                            <Plus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <span className="leading-tight">{name}</span>
                           </button>
                         ))}
                       </div>
                     </div>
                   ))}
+                  {catalog.length === 0 && <p className="text-sm text-muted-foreground">No procedure matches “{procSearch}”. Add it below as another procedure.</p>}
+                  <form className="flex flex-wrap gap-2 border-t pt-3" onSubmit={(e) => { e.preventDefault(); if (otherName.trim()) { addProcedure(otherName.trim()); setOtherName(""); } }}>
+                    <Input className="h-10 flex-1 min-w-[12rem]" placeholder="Other procedure not on the list…" value={otherName} onChange={(e) => setOtherName(e.target.value)} />
+                    <Button type="submit" variant="outline" className="h-10" disabled={!otherName.trim()}><Plus className="h-4 w-4 mr-1" /> Add</Button>
+                  </form>
                 </CardContent>
               </Card>
 
@@ -307,15 +325,28 @@ const Dental = () => {
                         <Badge variant="soft">Saved · {formatKES(h.price)}</Badge>
                       </div>
                     ))}
-                    {entries.map((e, i) => (
-                      <div key={i} className="flex flex-wrap items-center gap-2 p-2.5 border rounded-lg text-sm">
-                        <strong className="flex-1 min-w-[10rem]">{e.procedure}{e.teeth.length > 0 && <span className="font-normal text-muted-foreground"> · tooth {e.teeth.join(", ")}</span>}</strong>
-                        <Input className="h-9 flex-1 min-w-[10rem]" placeholder="Notes" value={e.notes} onChange={(ev) => setEntries((p) => p.map((x, j) => (j === i ? { ...x, notes: ev.target.value } : x)))} />
-                        <Badge variant="outline">{formatKES(e.price)}</Badge>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEntries(entries.filter((_, j) => j !== i))} aria-label="Remove"><X className="h-4 w-4" /></Button>
-                      </div>
-                    ))}
-                    {entries.length > 0 && <p className="text-right font-semibold">New items: {formatKES(total)}</p>}
+                    {entries.map((e) => {
+                      const set = (patch: Partial<DentalEntry>) => setEntries((p) => p.map((x) => (x.key === e.key ? { ...x, ...patch } : x)));
+                      const bad = !priceOk(e.price);
+                      return (
+                        <div key={e.key} className={cn("flex flex-wrap items-center gap-2 p-2.5 border rounded-lg text-sm", bad && "border-amber-400 bg-amber-50/50")}>
+                          <strong className="flex-1 min-w-[10rem]">{e.procedure}{e.teeth.length > 0 && <span className="font-normal text-muted-foreground"> · tooth {e.teeth.join(", ")}</span>}</strong>
+                          <Input className="h-9 flex-1 min-w-[10rem]" placeholder="Notes" value={e.notes} onChange={(ev) => set({ notes: ev.target.value })} />
+                          <div className="flex items-center gap-1">
+                            <Label htmlFor={`dental-price-${e.key}`} className="text-xs text-muted-foreground">KES</Label>
+                            <Input id={`dental-price-${e.key}`} type="number" inputMode="numeric" min={0} className="h-9 w-28" placeholder="Price"
+                              value={e.price} onChange={(ev) => set({ price: ev.target.value })} aria-invalid={bad} />
+                          </div>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setEntries(entries.filter((x) => x.key !== e.key))} aria-label="Remove"><X className="h-4 w-4" /></Button>
+                        </div>
+                      );
+                    })}
+                    {entries.length > 0 && (
+                      <p className="text-right font-semibold">
+                        {missingPrice ? <span className="mr-3 text-sm font-normal text-amber-700">Type a price for every procedure</span> : null}
+                        New items: {formatKES(total)}
+                      </p>
+                    )}
                   </CardContent>
                 </Card>
               )}
@@ -358,7 +389,10 @@ const Dental = () => {
             <Button variant="outline" className="h-11" onClick={handleSaveOnly} disabled={saving}>
               {saving ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Save className="h-4 w-4 mr-2" />} Save
             </Button>
-            <Button className="h-11 px-6" onClick={() => setSendOpen(true)}><Send className="h-4 w-4 mr-2" /> Save & send to…</Button>
+            <Button className="h-11 px-6" onClick={() => {
+              if (missingPrice) { toast.error(`Type the price for ${missingPrice.procedure}`); document.getElementById(`dental-price-${missingPrice.key}`)?.focus(); return; }
+              setSendOpen(true);
+            }}><Send className="h-4 w-4 mr-2" /> Save & send to…</Button>
           </div>
 
           <DirectOrderDialog

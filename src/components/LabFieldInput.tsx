@@ -22,12 +22,14 @@ export function LabFieldInput({ def, value, onChange, disabled, flag, size = "sm
   const h = size === "lg" ? "h-11 text-base" : "h-9 text-sm";
 
   if (kind === "number" || kind === "text") {
-    const invalid = kind === "number" && !!value.trim() && !isValidNumber(value);
+    const invalid = kind === "number" && !def.freeText && !!value.trim() && !isValidNumber(value);
     return (
       <div>
         <Input
           data-lab-field
-          inputMode={kind === "number" ? "decimal" : undefined}
+          // Not a numeric keypad: the lab also types "<5", ">100" or a range such as "0-2"
+          inputMode={undefined}
+          placeholder={kind === "number" ? (def.freeText ? "e.g. 0-2" : "e.g. 12.5") : undefined}
           value={value}
           disabled={disabled}
           onKeyDown={onKeyDown}
@@ -36,7 +38,7 @@ export function LabFieldInput({ def, value, onChange, disabled, flag, size = "sm
           aria-invalid={invalid}
           className={cn(h, size === "lg" ? "w-28" : "w-28", (bad || invalid) && "border-destructive font-bold text-destructive", critical && "bg-destructive/10")}
         />
-        {invalid && <p className="text-[11px] text-destructive mt-0.5">Numbers only</p>}
+        {invalid && <p className="text-[11px] text-destructive mt-0.5">Type a number, &lt;5, &gt;100 or 5-10</p>}
       </div>
     );
   }

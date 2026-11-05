@@ -85,3 +85,40 @@ test("rejected samples are reported as rejected", () => {
   expect(resultCategory({ status: "rejected" })).toBe("rejected");
   expect(resultCategory({ status: "completed", flag: "critical" })).toBe("critical");
 });
+
+describe("lab sheet changes (Nov 2026)", () => {
+  test("Hb accepts '<5' and ranges, flagged critical / low", () => {
+    const hb = def("HB Levels", "Haemoglobin");
+    expect(isValidNumber("<5")).toBe(true);
+    expect(isValidNumber("5-10")).toBe(true);
+    expect(isValidNumber("5 - 10")).toBe(true);
+    expect(isValidNumber("5-")).toBe(false);
+    expect(fieldFlag(hb, "<5", "female", 30)).toBe("LL");
+    expect(fieldFlag(hb, "5-10", "female", 30)).toBe("L");
+    expect(fieldFlag(def("Full Hemogram", "HGB"), "<5", "male", 40)).toBe("LL");
+    expect(missingAnswers(STRUCTURED_FIELDS["HB Levels"], { Haemoglobin: "<5" })).toEqual([]);
+  });
+  test("urinalysis: amber normal, RBC seen grades, pus cells as a range, schistosoma", () => {
+    expect(fieldFlag(def("Urinalysis", "Color"), "Amber")).toBeNull();
+    expect(fieldFlag(def("Urinalysis", "RBCs"), "Not seen")).toBeNull();
+    expect(fieldFlag(def("Urinalysis", "RBCs"), "Seen ++")).toBe("A");
+    const pus = def("Urinalysis", "Pus Cells");
+    expect(fieldFlag(pus, "0-2")).toBeNull();
+    expect(fieldFlag(pus, "10-15")).toBe("H");
+    expect(fieldFlag(pus, "Numerous")).toBeNull();
+    expect(missingAnswers([pus], { "Pus Cells": "Numerous" })).toEqual([]);
+    expect(fieldFlag(def("Urinalysis", "Schistosoma haematobium"), "Present")).toBe("POS");
+  });
+  test("stool: green normal, starch granules", () => {
+    expect(fieldFlag(def("Stool for Ova & Cysts", "Color"), "Green")).toBeNull();
+    expect(fieldFlag(def("Stool for Ova & Cysts", "Starch Granules"), "Present")).toBe("A");
+  });
+  test("blood glucose in mmol/L, 3.5-7", () => {
+    const g = def("Blood Glucose", "Blood Glucose");
+    expect(g.unit).toBe("mmol/L");
+    expect(fieldFlag(g, "5.2")).toBeNull();
+    expect(fieldFlag(g, "8")).toBe("H");
+    expect(fieldFlag(g, "3")).toBe("L");
+    expect(fieldFlag(g, "2")).toBe("LL");
+  });
+});

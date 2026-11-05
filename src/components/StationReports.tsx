@@ -384,6 +384,12 @@ const answersOf = (test: string, f: { field_name: string; field_value: string | 
   return kind === "multi" ? splitMulti(v) : [v];
 };
 
+/** Which way a result's numbers went: any High (H/HH) and/or any Low (L/LL) line on the test. */
+const directionOf = (fields: { flag: string | null; field_name?: string }[], only?: string) => {
+  const fs = only && only !== "all" ? fields.filter((f) => f.field_name === only) : fields;
+  return { high: fs.some((f) => f.flag === "H" || f.flag === "HH"), low: fs.some((f) => f.flag === "L" || f.flag === "LL") };
+};
+
 export function LabReport() {
   const [from, setFrom] = useState(today);
   const [to, setTo] = useState(today);
@@ -391,6 +397,7 @@ export function LabReport() {
   const [result, setResult] = useState("all");
   const [param, setParam] = useState("all");
   const [answer, setAnswer] = useState("all");
+  const [level, setLevel] = useState<"all" | "high" | "low" | "either">("all");
   const [gender, setGender] = useState("all");
   const [minAge, setMinAge] = useState("");
   const [maxAge, setMaxAge] = useState("");
@@ -452,6 +459,11 @@ export function LabReport() {
       if (!f) return false;
       if (answer !== "all" && !answersOf(r.test, f).includes(answer)) return false;
     }
+    if (level !== "all") {
+      // Follows the chosen parameter when there is one (e.g. only HGB), otherwise any line on the test
+      const d = directionOf(r.fields, param);
+      if (level === "high" ? !d.high : level === "low" ? !d.low : !(d.high || d.low)) return false;
+    }
     if (gender !== "all" && (gender === "not_recorded" ? r.gender !== NOT_RECORDED : r.gender.toLowerCase() !== gender)) return false;
     if (minAge && (r.age == null || r.age < Number(minAge))) return false;
     if (maxAge && (r.age == null || r.age > Number(maxAge))) return false;
@@ -460,7 +472,7 @@ export function LabReport() {
       if (![r.name, r.opd, r.test, r.result].some((x) => x.toLowerCase().includes(s))) return false;
     }
     return true;
-  }), [rows, test, result, param, answer, gender, minAge, maxAge, text]);
+  }), [rows, test, result, param, answer, level, gender, minAge, maxAge, text]);
 
   // Parameter / answer filters follow the chosen test's answer list
   const paramDefs = test !== "all" ? STRUCTURED_FIELDS[test] || [] : [];
@@ -490,6 +502,8 @@ export function LabReport() {
     { label: "Positive", value: by("positive") },
     { label: "Negative", value: by("negative") },
     { label: "Abnormal", value: by("abnormal") },
+    { label: "High", value: filtered.filter((r) => directionOf(r.fields, param).high).length },
+    { label: "Low", value: filtered.filter((r) => directionOf(r.fields, param).low).length },
     { label: "Critical", value: by("critical") },
     { label: "Rejected", value: by("rejected") },
     { label: "Pending", value: by("pending") },
@@ -501,7 +515,7 @@ export function LabReport() {
     return [...m.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
   }, [filtered]);
 
-  const reset = () => { setTest("all"); setResult("all"); setParam("all"); setAnswer("all"); setGender("all"); setMinAge(""); setMaxAge(""); setText(""); };
+  const reset = () => { setTest("all"); setResult("all"); setParam("all"); setAnswer("all"); setLevel("all"); setGender("all"); setMinAge(""); setMaxAge(""); setText(""); };
   const subtitle = `${format(new Date(from), "dd MMM yyyy")} – ${format(new Date(to), "dd MMM yyyy")}`;
 
   return (
@@ -509,6 +523,9 @@ export function LabReport() {
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-3 items-end">
         <DateRange from={from} to={to} setFrom={setFrom} setTo={setTo} />
         <SimpleSelect label="Test" value={test} onChange={setTest} options={[{ value: "all", label: "All tests" }, ...tests.map((t) => ({ value: t.test_name, label: t.test_name }))]} />
+        <SimpleSelect label="High / Low" value={level} onChange={(v) => setLevel(v as typeof level)} options={[
+          { value: "all", label: "Any" }, { value: "high", label: "High (↑)" }, { value: "low", label: "Low (↓)" }, { value: "either", label: "High or low" },
+        ]} />
         <SimpleSelect label="Result" value={result} onChange={setResult} options={[{ value: "all", label: "All results" }, ...(Object.keys(RESULT_CATEGORY_LABELS) as ResultCategory[]).map((k) => ({ value: k, label: RESULT_CATEGORY_LABELS[k] }))]} />
         {paramDefs.length > 0 && (
           <SimpleSelect label="Parameter" value={param} onChange={setParam} options={[{ value: "all", label: "Any parameter" }, ...paramDefs.map((d) => ({ value: d.name, label: d.name }))]} />

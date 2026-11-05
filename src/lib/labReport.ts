@@ -2,16 +2,36 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { format } from "date-fns";
 import { drawInfirmaryLetterhead, openPdfWindow } from "./letterhead";
+import { getFlag } from "./labFields";
 
 type FieldDef = { name: string; unit?: string; ref?: string; refMale?: string; refFemale?: string };
 
-const flagFor = (value: string, range?: string) => {
-  const v = parseFloat(value);
-  const m = range?.match(/([\d.]+)\s*-\s*([\d.]+)/);
-  if (isNaN(v) || !m) return "";
-  if (v < parseFloat(m[1])) return "L";
-  if (v > parseFloat(m[2])) return "H";
-  return "";
+/** The built-in PDF font has no "µ", so "µmol/L" printed as "mol/L" — write it as "u" (umol/L, 10^3/uL). */
+const pdfText = (v: unknown) => String(v ?? "").replace(/µ/g, "u");
+
+/** H / L for a typed value (also "<5" or "5-10") against its range. */
+const flagFor = (value: string, range?: string) => getFlag(value, range) ?? "";
+
+/**
+ * Continues on a new page when the next block would not fit, so text is never cut off
+ * at the bottom and the report flows page after page without blank gaps.
+ */
+const room = (doc: jsPDF, y: number, needed: number) => {
+  const bottom = doc.internal.pageSize.getHeight() - 14;
+  if (y + needed <= bottom) return y;
+  doc.addPage();
+  return 20;
+};
+/** Page numbers on every page once the report is finished. */
+const numberPages = (doc: jsPDF) => {
+  const n = doc.getNumberOfPages();
+  if (n < 2) return;
+  const W = doc.internal.pageSize.getWidth(), H = doc.internal.pageSize.getHeight();
+  for (let i = 1; i <= n; i++) {
+    doc.setPage(i); doc.setFont("helvetica", "normal"); doc.setFontSize(8); doc.setTextColor(90, 90, 90);
+    doc.text(`Page ${i} of ${n}`, W / 2, H - 6, { align: "center" });
+  }
+  doc.setTextColor(0, 0, 0);
 };
 
 /** Flag text for PDFs (the standard PDF font has no arrow symbols). */
@@ -57,9 +77,9 @@ export async function printLabReport(
     ? fields.map((f) => {
         const ref = (prof.gender?.toLowerCase() === "female" && f.refFemale) || (prof.gender?.toLowerCase() === "male" && f.refMale) || f.ref || "";
         const v = values[f.name] || "";
-        return [f.name, flagFor(v, ref), v || "---", f.unit || "", ref];
+        return [f.name, flagFor(v, ref), v || "---", pdfText(f.unit), pdfText(ref)];
       })
-    : [[order.test?.test_name || "Result", flagFor(singleValue, order.test?.normal_range), singleValue || order.result_value || "---", order.test?.unit || "", order.test?.normal_range || ""]];
+    : [[order.test?.test_name || "Result", flagFor(singleValue, order.test?.normal_range), singleValue || order.result_value || "---", pdfText(order.test?.unit), pdfText(order.test?.normal_range)]];
 
   autoTable(doc, {
     startY: y + 2,
@@ -67,19 +87,23 @@ export async function printLabReport(
     body,
     theme: "plain",
     styles: { fontSize: 8.5, cellPadding: 1.4 },
+    margin: { top: 16, bottom: 16 },
+    rowPageBreak: "avoid",
     headStyles: { fontStyle: "bold", lineWidth: { bottom: 0.4 }, lineColor: maroon },
     columnStyles: { 0: { cellWidth: 35 }, 1: { cellWidth: 15, halign: "center" }, 2: { cellWidth: 30, halign: "right" }, 3: { cellWidth: 30 }, 4: { cellWidth: 40 } },
     didParseCell: (d) => { if (d.section === "body" && (d.row.raw as any[])[1]) d.cell.styles.fontStyle = "bold"; },
   });
 
-  let fy = (doc as any).lastAutoTable.finalY + 8;
+  doc.setFontSize(9);
+  const c = doc.splitTextToSize(`Comments: ${notes || order.result_notes || ""}`, W - 28);
+  let fy = room(doc, (doc as any).lastAutoTable.finalY + 8, 8 + c.length * 5 + 8 + 6);
   doc.setFontSize(8); doc.setFont("helvetica", "italic");
   doc.text("*Claim: The report is only responsible for the delivered sample!", 14, fy); fy += 8;
   doc.setFont("helvetica", "normal"); doc.setFontSize(9);
-  const c = doc.splitTextToSize(`Comments: ${notes || order.result_notes || ""}`, W - 28);
   doc.text(c, 14, fy); fy += c.length * 5 + 8;
   doc.text("Doctor: ______________________________", 14, fy);
   doc.text("Lab Technician: ______________________", W / 2 + 5, fy);
+  numberPages(doc);
 
   return doc;
   }, { autoPrint: true });
@@ -109,51 +133,56 @@ export async function printVisitLabReport(
   let y = top + 2;
   rows.forEach(([a, b]) => { doc.text(a, 14, y); doc.text(b, W / 2 + 5, y); y += 6; });
 
+  // Each test is a shaded heading row followed by its own lines. (A tall merged "test" cell can't be split
+  // across pages, which pushed whole tests onto the next page and left blank gaps.)
+  const heading = (text: string) => [{ content: text, colSpan: 5, styles: { fontStyle: "bold", fillColor: [243, 230, 233], textColor: [90, 0, 22] } }];
   const body: any[] = [];
   for (const o of orders) {
     const name = o.test?.test_name || "Lab test";
     const fields = [...(o.fields || o.lab_result_fields || [])].sort((a: any, b: any) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
     if (o.status === "rejected") {
-      body.push([{ content: name, styles: { fontStyle: "bold" } }, { content: `Sample rejected: ${o.rejection_reason || "-"} - new sample needed`, colSpan: 5, styles: { fontStyle: "italic" } }]);
+      body.push(heading(name), [{ content: `Sample rejected: ${o.rejection_reason || "-"} - new sample needed`, colSpan: 5, styles: { fontStyle: "italic" } }]);
     } else if (o.status !== "completed") {
-      body.push([{ content: name, styles: { fontStyle: "bold" } }, { content: "Result pending", colSpan: 5, styles: { fontStyle: "italic" } }]);
+      body.push(heading(name), [{ content: "Result pending", colSpan: 5, styles: { fontStyle: "italic" } }]);
     } else if (fields.length) {
-      fields.forEach((f: any, i: number) => {
-        const row: any[] = [];
-        if (i === 0) row.push({ content: name, rowSpan: fields.length, styles: { fontStyle: "bold", valign: "top" } });
-        row.push(f.field_name, f.field_value || "---", f.unit || "", f.reference_range || "", pdfFlag(f.flag));
-        body.push(row);
-      });
+      body.push(heading(name));
+      fields.forEach((f: any) => body.push([f.field_name, f.field_value || "---", pdfText(f.unit), pdfText(f.reference_range), pdfFlag(f.flag)]));
     } else {
-      body.push([{ content: name, styles: { fontStyle: "bold" } }, "Result", o.result_value || "---", o.test?.unit || "", o.test?.normal_range || "", o.flag === "critical" ? "CRIT" : o.flag === "abnormal" ? "Abn" : o.flag === "positive" ? "+ve" : ""]);
+      body.push(heading(name), ["Result", o.result_value || "---", pdfText(o.test?.unit), pdfText(o.test?.normal_range), o.flag === "critical" ? "CRIT" : o.flag === "abnormal" ? "Abn" : o.flag === "positive" ? "+ve" : ""]);
     }
   }
 
   autoTable(doc, {
     startY: y + 2,
-    head: [["Test", "Parameter", "Result", "Unit", "Ref. Range", "Flag"]],
+    head: [["Parameter", "Result", "Unit", "Ref. Range", "Flag"]],
     body,
     theme: "grid",
+    showHead: "everyPage",
+    margin: { top: 16, bottom: 16 },
+    rowPageBreak: "avoid",
     styles: { fontSize: 8.5, cellPadding: 1.6, lineColor: [120, 120, 120], lineWidth: 0.2 },
     headStyles: { fillColor: maroon, textColor: 255, fontStyle: "bold" },
-    columnStyles: { 0: { cellWidth: 34 }, 1: { cellWidth: 36 }, 2: { cellWidth: 34, halign: "right" }, 3: { cellWidth: 18 }, 4: { cellWidth: 30 }, 5: { cellWidth: 18, halign: "center" } },
+    columnStyles: { 0: { cellWidth: 52 }, 1: { cellWidth: 44, halign: "right" }, 2: { cellWidth: 24 }, 3: { cellWidth: 40 }, 4: { cellWidth: 22, halign: "center" } },
     didParseCell: (d) => {
       if (d.section !== "body") return;
       const raw = d.row.raw as any[];
-      const flag = raw[raw.length - 1];
-      if (flag && typeof flag === "string" && d.column.index >= raw.length - 4) { d.cell.styles.fontStyle = "bold"; d.cell.styles.textColor = [180, 0, 0]; }
+      if (raw.length < 5) return;
+      const flag = raw[4];
+      if (flag && typeof flag === "string" && [0, 1, 4].includes(d.column.index)) { d.cell.styles.fontStyle = "bold"; d.cell.styles.textColor = [180, 0, 0]; }
     },
   });
 
-  let fy = (doc as any).lastAutoTable.finalY + 8;
   const notes = orders.filter((o) => o.result_notes?.trim()).map((o) => `${o.test?.test_name}: ${o.result_notes}`).join("   ");
   doc.setFontSize(9);
-  if (notes) { const c = doc.splitTextToSize(`Comments: ${notes}`, W - 28); doc.text(c, 14, fy); fy += c.length * 5 + 4; }
+  const c = notes ? doc.splitTextToSize(`Comments: ${notes}`, W - 28) : [];
+  let fy = room(doc, (doc as any).lastAutoTable.finalY + 8, (c.length ? c.length * 5 + 4 : 0) + 10 + 6);
+  if (c.length) { doc.text(c, 14, fy); fy += c.length * 5 + 4; }
   doc.setFontSize(8); doc.setFont("helvetica", "italic");
   doc.text("*Claim: The report is only responsible for the delivered sample!", 14, fy); fy += 10;
   doc.setFont("helvetica", "normal"); doc.setFontSize(9);
   doc.text("Doctor: ______________________________", 14, fy);
   doc.text("Lab Technician: ______________________", W / 2 + 5, fy);
+  numberPages(doc);
 
   return doc;
   }, { autoPrint: true });

@@ -37,6 +37,8 @@ export interface LabFieldDef {
   abnormalFlag?: "POS" | "A";
   /** Not every run includes it, so it may be left empty. */
   optional?: boolean;
+  /** Number field that also accepts words (e.g. "Numerous") — words are saved but not flagged. */
+  freeText?: boolean;
   /** Only asked when another answer on the same test is one of these values. */
   showIf?: { field: string; in: string[] };
 }
@@ -115,7 +117,7 @@ export const STRUCTURED_FIELDS: Record<string, LabFieldDef[]> = {
 
   // ─── Biochemistry ───
   "Blood Glucose": [
-    { name: "Blood Glucose", unit: "mg/dL", ref: "70-100", critLow: 45, critHigh: 450 },
+    { name: "Blood Glucose", unit: "mmol/L", ref: "3.5-7", critLow: 2.5, critHigh: 25 },
   ],
   "FBS (Fasting Blood Sugar)": [
     { name: "Fasting Blood Sugar", unit: "mmol/L", ref: "3.9-5.6", critLow: 2.5, critHigh: 25 },
@@ -162,7 +164,7 @@ export const STRUCTURED_FIELDS: Record<string, LabFieldDef[]> = {
 
   // ─── Urinalysis ───
   "Urinalysis": [
-    { name: "Color", options: ["Colourless", "Pale yellow", "Yellow", "Dark yellow", "Amber", "Orange", "Red", "Brown"], normal: ["Colourless", "Pale yellow", "Yellow", "Dark yellow"] },
+    { name: "Color", options: ["Colourless", "Pale yellow", "Yellow", "Dark yellow", "Amber", "Orange", "Red", "Brown"], normal: ["Colourless", "Pale yellow", "Yellow", "Dark yellow", "Amber"] },
     { name: "Appearance", options: ["Clear", "Slightly cloudy", "Cloudy", "Turbid"], normal: ["Clear"] },
     { name: "pH", unit: "", ref: "4.5-8.0" },
     { name: "Specific Gravity", unit: "", ref: "1.005-1.030" },
@@ -174,19 +176,21 @@ export const STRUCTURED_FIELDS: Record<string, LabFieldDef[]> = {
     { name: "Ketones", options: DIP3, normal: ["Negative"] },
     { name: "Bilirubin", options: ["Negative", "+", "++", "+++"], normal: ["Negative"] },
     { name: "Urobilinogen", options: ["Normal", "+", "++", "+++"], normal: ["Normal"] },
-    { name: "Pus Cells", unit: "/HPF", ref: "0-5" },
-    { name: "RBCs", unit: "/HPF", ref: "0-2" },
+    // Counted per field — the lab writes a range such as "0-2" or "10-15"
+    { name: "Pus Cells", unit: "/HPF", ref: "0-5", freeText: true },
+    { name: "RBCs", options: ["Not seen", "Seen +", "Seen ++", "Seen +++"], normal: ["Not seen"] },
     { name: "Epithelial Cells", options: AMOUNT, normal: ["Few"] },
     { name: "Casts", kind: "multi", options: ["None seen", "Hyaline", "Granular", "RBC casts", "WBC casts", "Waxy"], normal: ["None seen", "Hyaline"] },
     { name: "Crystals", kind: "multi", options: ["None seen", "Calcium oxalate", "Uric acid", "Triple phosphate", "Amorphous", "Cystine"], normal: ["None seen"] },
     { name: "Bacteria", options: GRADE, normal: ["None seen", "Few"] },
     { name: "Yeast Cells", options: SEEN, normal: ["Not seen"], abnormalFlag: "POS" },
     { name: "Trichomonas vaginalis", options: SEEN, normal: ["Not seen"], abnormalFlag: "POS" },
+    { name: "Schistosoma haematobium", options: ABSENT, normal: ["Absent"], abnormalFlag: "POS" },
   ],
 
   // ─── Parasitology ───
   "Stool for Ova & Cysts": [
-    { name: "Color", options: ["Brown", "Yellow", "Green", "Black", "Red", "Pale / clay"], normal: ["Brown", "Yellow"] },
+    { name: "Color", options: ["Brown", "Yellow", "Green", "Black", "Red", "Pale / clay"], normal: ["Brown", "Yellow", "Green"] },
     { name: "Consistency", options: ["Formed", "Semi-formed", "Loose", "Watery", "Hard", "Mucoid"], normal: ["Formed", "Semi-formed"] },
     { name: "Mucus", options: ABSENT, normal: ["Absent"] },
     posNeg("Blood (Occult)"),
@@ -198,6 +202,7 @@ export const STRUCTURED_FIELDS: Record<string, LabFieldDef[]> = {
     organisms("Larvae", ["Strongyloides stercoralis"]),
     grade("Yeast Cells"),
     { name: "Fat Globules", options: ABSENT, normal: ["Absent"] },
+    { name: "Starch Granules", options: ABSENT, normal: ["Absent"] },
     { name: "Charcot-Leyden Crystals", options: ABSENT, normal: ["Absent"] },
   ],
   "BS for MPS": [
@@ -311,21 +316,36 @@ export const refRangeFor = (def: LabFieldDef, gender?: string | null, ageYears?:
 /** What a normal answer looks like, printed in the reference column (e.g. "Negative"). */
 export const referenceText = (def: LabFieldDef) => (def.normal?.length ? def.normal.join(" / ") : undefined);
 
-const NUMBER = /^[<>]?\s*\d+(\.\d+)?$/;
-/** True when a typed number is acceptable (digits, one decimal point, optional < or >). */
+const N = "\\d+(?:\\.\\d+)?";
+const NUMBER = new RegExp(`^(?:[<>]\\s*${N}|${N}(?:\\s*-\\s*${N})?)$`);
+/**
+ * True when a typed number is acceptable: a number ("12.5"), a machine limit ("<5", ">100")
+ * or a count range read under the microscope ("0-2", "5-10").
+ */
 export const isValidNumber = (value: string) => NUMBER.test(value.trim());
-const toNumber = (value: string) => parseFloat(value.trim().replace(/^[<>]\s*/, ""));
 
-/** "H" / "L" / null for a numeric value against a range like "3.5-9.5", "<5.2" or ">1.0". */
+/** Lowest and highest value a typed answer can mean: "<5" → (−∞, 5), "5-10" → [5, 10], "12" → [12, 12]. */
+export function numberBounds(value: string): { lo: number; hi: number } | null {
+  const v = value.trim();
+  if (!isValidNumber(v)) return null;
+  if (v.startsWith("<")) return { lo: -Infinity, hi: parseFloat(v.slice(1)) };
+  if (v.startsWith(">")) return { lo: parseFloat(v.slice(1)), hi: Infinity };
+  const [a, b] = v.split("-").map((x) => parseFloat(x));
+  return b === undefined || Number.isNaN(b) ? { lo: a, hi: a } : { lo: Math.min(a, b), hi: Math.max(a, b) };
+}
+
+/** "H" / "L" / null for a typed value against a range like "3.5-9.5", "<5.2" or ">1.0". */
 export const getFlag = (value: string, refRange: string | undefined | null): "H" | "L" | null => {
-  if (!refRange || !value || !isValidNumber(value)) return null;
-  const numVal = toNumber(value);
-  if (refRange.startsWith("<")) return numVal >= parseFloat(refRange.slice(1)) ? "H" : null;
-  if (refRange.startsWith(">")) return numVal <= parseFloat(refRange.slice(1)) ? "L" : null;
-  const match = refRange.match(/([\d.]+)\s*-\s*([\d.]+)/);
+  if (!refRange || !value) return null;
+  const b = numberBounds(value);
+  if (!b) return null;
+  const r = refRange.trim();
+  if (r.startsWith("<")) return b.lo >= parseFloat(r.slice(1)) ? "H" : null;
+  if (r.startsWith(">")) return b.hi <= parseFloat(r.slice(1)) ? "L" : null;
+  const match = r.match(/([\d.]+)\s*-\s*([\d.]+)/);
   if (match) {
-    if (numVal < parseFloat(match[1])) return "L";
-    if (numVal > parseFloat(match[2])) return "H";
+    if (b.hi < parseFloat(match[1])) return "L";
+    if (b.lo > parseFloat(match[2])) return "H";
   }
   return null;
 };
@@ -336,10 +356,10 @@ export function fieldFlag(def: LabFieldDef, value: string, gender?: string | nul
   if (!v) return null;
   const kind = fieldKind(def);
   if (kind === "number") {
-    if (!isValidNumber(v)) return null;
-    const n = toNumber(v);
-    if (def.critLow != null && n < def.critLow) return "LL";
-    if (def.critHigh != null && n > def.critHigh) return "HH";
+    const b = numberBounds(v);
+    if (!b) return null;
+    if (def.critLow != null && b.hi < def.critLow) return "LL";
+    if (def.critHigh != null && b.lo > def.critHigh) return "HH";
     return getFlag(v, refRangeFor(def, gender, ageYears));
   }
   if (kind === "text") return null;
@@ -376,7 +396,7 @@ export function missingAnswers(defs: LabFieldDef[], values: Record<string, strin
   return visibleFields(defs, values)
     .filter((d) => {
       const v = (values[d.name] || "").trim();
-      if (fieldKind(d) === "number" && v && !isValidNumber(v)) return true;
+      if (fieldKind(d) === "number" && !d.freeText && v && !isValidNumber(v)) return true;
       return !d.optional && !v;
     })
     .map((d) => d.name);

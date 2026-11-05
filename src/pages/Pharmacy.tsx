@@ -9,6 +9,7 @@ const EMPTY_DRUG = {
 };
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { InventoryEditDialog } from "@/components/InventoryEditDialog";
+import { PriceListImportDialog } from "@/components/PriceListImportDialog";
 import { useUser } from "@/contexts/UserContext";
 import { formatRx } from "@/lib/rxFormat";
 import { supabase } from "@/integrations/supabase/client";
@@ -25,7 +26,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { toast } from "sonner";
 import { StationQueue, StationShell } from "@/components/StationQueue";
 import {
-  Pill, Plus, Package, AlertTriangle, Search, ClipboardList, PackagePlus, Pencil, Printer, Receipt, CheckCircle2, ArrowLeft, Loader2, Send, Clock,
+  Pill, Plus, Package, FileSpreadsheet, AlertTriangle, Search, ClipboardList, PackagePlus, Pencil, Printer, Receipt, CheckCircle2, ArrowLeft, Loader2, Send, Clock,
 } from "lucide-react";
 import { findInventoryItem, remainingQty } from "@/lib/pharmacyStock";
 import { ReplenishmentRequestDialog } from "@/components/ReplenishmentRequestDialog";
@@ -44,6 +45,7 @@ import { authUserIdForStaff, notifyUser } from "@/lib/notifications";
 import { currentStaffId, sendPatientTo } from "@/lib/stations";
 import { formatKES, paymentModeLabel, priceFor } from "@/lib/pricing";
 import { calculateAge, cn } from "@/lib/utils";
+import { handledBy, lastActivity, nairobiDay, sheetStage, sheetTimeline, since, sortSheets, STAGE_LABEL, type SheetStage } from "@/lib/pharmacyFlow";
 
 type Decision = "dispense" | "not_available" | "alternative";
 
@@ -63,28 +65,24 @@ interface RxSheet {
   patient: any;
   items: any[];
   createdAt: string;
-  stage: "new" | "billing" | "dispense" | "done";
+  stage: SheetStage;
 }
 
-const STAGE_INFO: Record<RxSheet["stage"], { label: string; cls: string }> = {
-  new: { label: "New — check stock", cls: "bg-yellow-100 text-yellow-800 border-yellow-300" },
-  billing: { label: "At billing", cls: "bg-amber-100 text-amber-800 border-amber-300" },
-  dispense: { label: "Paid — dispense", cls: "bg-green-100 text-green-800 border-green-300" },
-  done: { label: "Done", cls: "bg-muted text-muted-foreground" },
+const STAGE_INFO: Record<SheetStage, { label: string; cls: string; hint: string }> = {
+  new: { label: STAGE_LABEL.new, cls: "bg-yellow-100 text-yellow-800 border-yellow-300", hint: "Tick what you have, then send to billing" },
+  billing: { label: STAGE_LABEL.billing, cls: "bg-amber-100 text-amber-800 border-amber-300", hint: "Waiting for payment — comes back to you" },
+  dispense: { label: STAGE_LABEL.dispense, cls: "bg-green-100 text-green-800 border-green-300", hint: "Paid — give the drugs and print" },
+  done: { label: STAGE_LABEL.done, cls: "bg-muted text-muted-foreground", hint: "Finished — open to see or reprint" },
 };
 
-const sheetStage = (items: any[], ticket: any): RxSheet["stage"] => {
-  const open = items.filter((i) => !["dispensed", "not_dispensed", "collected"].includes(i.status));
-  if (open.length === 0) return "done";
-  if (open.some((i) => i.status === "billed")) return ticket?.workflow_stage === "at_billing" ? "billing" : "dispense";
-  return "new";
-};
+type RxView = "open" | SheetStage;
 
 const esc = (v: unknown) => String(v ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]!));
 
 const Pharmacy = () => {
   const { hasAnyRole } = useUser();
   const canEditInventory = hasAnyRole(["pharmacist", "admin", "super_admin"]);
+  const [importOpen, setImportOpen] = useState(false);
   const [inventory, setInventory] = useState<any[]>([]);
   const [prescriptions, setPrescriptions] = useState<any[]>([]);
   const [tickets, setTickets] = useState<Record<string, any>>({});
@@ -108,6 +106,11 @@ const Pharmacy = () => {
   const [receiveItem, setReceiveItem] = useState<any>(null);
   const [tab, setTab] = useState("prescriptions");
   const [showOlderRx, setShowOlderRx] = useState(false);
+  const [rxView, setRxView] = useState<RxView>("open");
+  const [doneRange, setDoneRange] = useState<"today" | "week">("today");
+  const [mineOnly, setMineOnly] = useState(false);
+  const [myStaffId, setMyStaffId] = useState<string | null>(null);
+  useEffect(() => { void currentStaffId().then((id) => setMyStaffId(id ?? null)); }, []);
   const [formData, setFormData] = useState(EMPTY_DRUG);
   const drugDraft = useFormDraft("pharmacy-add-drug", formData, setFormData, {
     reset: EMPTY_DRUG,
@@ -172,7 +175,7 @@ const Pharmacy = () => {
       if (!m.has(key)) m.set(key, { key, ticketId: p.ticket_id, ticket: tickets[p.ticket_id] ?? null, patient: p.patient, items: [], createdAt: p.created_at, stage: "new" });
       m.get(key)!.items.push(p);
     }
-    return [...m.values()].map((s) => ({ ...s, ticket: s.ticketId ? tickets[s.ticketId] ?? null : null, stage: sheetStage(s.items, s.ticketId ? tickets[s.ticketId] : null) }));
+    return [...m.values()].map((s) => ({ ...s, ticket: s.ticketId ? tickets[s.ticketId] ?? null : null, stage: sheetStage(s.items, s.ticketId ? tickets[s.ticketId]?.workflow_stage : null) }));
   }, [prescriptions, tickets]);
 
   const sheet = sheets.find((s) => s.key === openKey) || null;
@@ -263,19 +266,20 @@ const Pharmacy = () => {
     setBusy("bill");
     try {
       const now = new Date().toISOString();
+      const staffId = await currentStaffId();
       for (const rx of open) {
         const l = lines[rx.id];
         const item = itemFor(rx, l);
         const unit = priceFor(item, paymentMode);
         const qty = parseInt(l.qty) || 0;
         if (l.decision === "not_available") {
-          await supabase.from("prescriptions").update({ status: "not_dispensed", pharmacy_decision: "not_available", pharmacy_notes: l.note || null, reviewed_at: now } as any).eq("id", rx.id);
+          await supabase.from("prescriptions").update({ status: "not_dispensed", pharmacy_decision: "not_available", pharmacy_notes: l.note || null, reviewed_at: now, reviewed_by: staffId } as any).eq("id", rx.id);
           continue;
         }
         await supabase.from("prescriptions").update({
           status: "billed", pharmacy_decision: l.decision, planned_qty: qty, unit_price: unit,
           alternative_inventory_id: l.decision === "alternative" ? l.alternativeId : null,
-          pharmacy_notes: l.note || null, billed_at: now, reviewed_at: now,
+          pharmacy_notes: l.note || null, billed_at: now, reviewed_at: now, reviewed_by: staffId,
         } as any).eq("id", rx.id);
         await supabase.from("service_charges").insert({
           patient_id: rx.patient_id, encounter_id: rx.encounter_id, ticket_id: sheet.ticketId,
@@ -466,12 +470,31 @@ const Pharmacy = () => {
   const isCurrentSheet = (s: RxSheet) =>
     ["at_pharmacy", "at_billing"].includes(s.ticket?.workflow_stage) || Date.now() - new Date(s.createdAt).getTime() < 18 * 3600 * 1000;
   const olderSheets = sheets.filter((s) => s.stage !== "done" && !isCurrentSheet(s));
-  const visibleSheets = sheets.filter((s) => s.stage !== "done" && (showOlderRx || isCurrentSheet(s)) && (!rq || [s.patient?.profile?.full_name, s.patient?.patient_id, ...s.items.map((i) => i.medication_name)].some((x) => x?.toLowerCase().includes(rq))));
+  const matches = (s: RxSheet) => !rq || [s.patient?.profile?.full_name, s.patient?.patient_id, s.ticket?.ticket_number, ...s.items.map((i) => i.medication_name)].some((x) => x?.toLowerCase().includes(rq));
+  const openSheets = sheets.filter((s) => s.stage !== "done" && (showOlderRx || isCurrentSheet(s)));
+  const today = nairobiDay(new Date().toISOString());
+  const weekAgo = nairobiDay(new Date(Date.now() - 6 * 24 * 3600 * 1000).toISOString());
+  // Finished sheets stay visible so the pharmacist can see (and reprint) what they did after the patient moves on
+  const doneSheets = sheets.filter((s) => {
+    if (s.stage !== "done") return false;
+    const day = nairobiDay(lastActivity(s.items) || s.createdAt);
+    return doneRange === "today" ? day === today : day >= weekAgo;
+  });
+  const counts = {
+    new: openSheets.filter((s) => s.stage === "new").length,
+    billing: openSheets.filter((s) => s.stage === "billing").length,
+    dispense: openSheets.filter((s) => s.stage === "dispense").length,
+    done: doneSheets.length,
+  };
+  const visibleSheets = sortSheets(
+    (rxView === "done" ? doneSheets : openSheets.filter((s) => rxView === "open" || s.stage === rxView))
+      .filter((s) => matches(s) && (!mineOnly || handledBy(s.items, myStaffId))),
+  );
   const openItems = sheet ? sheet.items.filter((i) => !["dispensed", "not_dispensed", "collected"].includes(i.status)) : [];
   const editable = sheet?.stage === "new";
 
   // Long lists are shown a page at a time so the screen stays short
-  const sheetPages = usePaged(visibleSheets, { size: 10, resetKey: `${rxSearch}|${showOlderRx}` });
+  const sheetPages = usePaged(visibleSheets, { size: 10, resetKey: `${rxSearch}|${showOlderRx}|${rxView}|${doneRange}|${mineOnly}` });
   const invPages = usePaged(filteredInventory, { resetKey: searchTerm });
   const cardPages = usePaged(stockTransactions, { resetKey: stockCardItem?.id });
 
@@ -515,12 +538,18 @@ const Pharmacy = () => {
               <div className="flex flex-wrap gap-2">
                 <MedicationInteractionCheck patientId={sheet.patient?.id} patientName={sheet.patient?.profile?.full_name} />
                 {sheet.ticketId && <InterimPayment ticketId={sheet.ticketId} patientId={sheet.patient?.id} />}
-                <Button variant="outline" size="sm" className="h-8" onClick={() => printSheet(sheet)}><Printer className="h-4 w-4 mr-1" /> Print prescription</Button>
+                <Button variant="outline" size="sm" className="h-8" onClick={() => printSheet(sheet)}><Printer className="h-4 w-4 mr-1" /> {sheet.stage === "done" ? "Reprint" : "Print prescription"}</Button>
                 {sheet.ticketId && <Button variant="outline" size="sm" className="h-8" onClick={() => setSendOpen(true)}><Send className="h-4 w-4 mr-1" /> Send to…</Button>}
               </div>
             </div>
           </CardHeader>
           <CardContent className="space-y-4">
+            {sheet.stage === "done" && (
+              <p className="flex items-center gap-2 rounded-lg border bg-muted/40 p-3 text-sm"><CheckCircle2 className="h-4 w-4 text-green-600" />
+                Finished {new Date(lastActivity(sheet.items)).toLocaleString("en-GB", { timeZone: "Africa/Nairobi", dateStyle: "medium", timeStyle: "short" })}
+                {handledBy(sheet.items, myStaffId) ? " — you handled this patient" : ""}. Nothing more to do; you can reprint the record.
+              </p>
+            )}
             {sheet.stage === "billing" && (
               <p className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"><Clock className="h-4 w-4" /> Waiting for payment at billing. The patient comes back here to collect.</p>
             )}
@@ -707,7 +736,7 @@ const Pharmacy = () => {
           <Tabs value={tab} onValueChange={setTab} className="space-y-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <TabsList className="flex-wrap h-auto">
-                <TabsTrigger value="prescriptions">Prescriptions ({visibleSheets.length})</TabsTrigger>
+                <TabsTrigger value="prescriptions">Prescriptions ({counts.new + counts.billing + counts.dispense})</TabsTrigger>
                 <TabsTrigger value="inventory">Inventory ({inventory.length})</TabsTrigger>
                 <TabsTrigger value="stockcard">Stock card</TabsTrigger>
                 <TabsTrigger value="replenishment">Reorder list</TabsTrigger>
@@ -725,9 +754,12 @@ const Pharmacy = () => {
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input placeholder="Search drugs…" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} className="pl-9 h-11" />
                     </div>
+            {canEditInventory && (
+              <Button variant="outline" className="gap-2 h-11" onClick={() => setImportOpen(true)}><FileSpreadsheet className="h-4 w-4" /> <span className="hidden sm:inline">Import</span> price list</Button>
+            )}
             <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
               <DialogTrigger asChild>
-                <Button className="gap-2" disabled={!canEditInventory}><Plus className="h-4 w-4" /> Add Drug</Button>
+                <Button className="gap-2 h-11" disabled={!canEditInventory}><Plus className="h-4 w-4" /> Add Drug</Button>
               </DialogTrigger>
               <DialogContent className="max-w-2xl">
                 <DialogHeader><DialogTitle>Add Medication to Inventory</DialogTitle><DraftStatus draft={drugDraft} /></DialogHeader>
@@ -790,28 +822,88 @@ const Pharmacy = () => {
               </div>
             </div>
 
-            <TabsContent value="prescriptions" className="space-y-2">
-              {olderSheets.length > 0 && (
+            <TabsContent value="prescriptions" className="space-y-3">
+              {/* Where every patient is — tap a tile to see that group. "Done" keeps your finished work visible. */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
+                {(["new", "billing", "dispense", "done"] as SheetStage[]).map((k) => (
+                  <button key={k} type="button" onClick={() => setRxView(rxView === k ? "open" : k)} aria-pressed={rxView === k}
+                    className={cn("rounded-lg border p-3 text-left transition-colors hover:bg-muted/40", rxView === k && "ring-2 ring-primary border-primary")}>
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold">{k === "done" ? (doneRange === "today" ? "Done today" : "Done (7 days)") : STAGE_INFO[k].label}</span>
+                      <span className={cn("rounded-full border px-2 text-sm font-bold", STAGE_INFO[k].cls)}>{counts[k]}</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground mt-1 leading-snug">{STAGE_INFO[k].hint}</p>
+                  </button>
+                ))}
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Showing:</span>
+                <Badge variant="secondary" className="text-sm">{rxView === "open" ? "Everyone still being served" : rxView === "done" ? "Finished" : STAGE_INFO[rxView].label}</Badge>
+                {rxView !== "open" && <Button variant="link" size="sm" className="h-auto p-0" onClick={() => setRxView("open")}>Show all open</Button>}
+                {rxView === "done" && (
+                  <div className="flex gap-1">
+                    <Button size="sm" variant={doneRange === "today" ? "default" : "outline"} className="h-8" onClick={() => setDoneRange("today")}>Today</Button>
+                    <Button size="sm" variant={doneRange === "week" ? "default" : "outline"} className="h-8" onClick={() => setDoneRange("week")}>Last 7 days</Button>
+                  </div>
+                )}
+                <label className="ml-auto flex items-center gap-2 cursor-pointer select-none">
+                  <input type="checkbox" className="h-4 w-4 accent-primary" checked={mineOnly} onChange={(e) => setMineOnly(e.target.checked)} />
+                  Only patients I handled
+                </label>
+              </div>
+
+              {rxView !== "done" && olderSheets.length > 0 && (
                 <button type="button" onClick={() => setShowOlderRx((v) => !v)} className="text-xs text-muted-foreground hover:text-foreground hover:underline">
                   {showOlderRx ? "Hide" : "Show"} {olderSheets.length} older prescription{olderSheets.length > 1 ? "s" : ""} not collected on previous days
                 </button>
               )}
               {visibleSheets.length === 0 ? (
-                <Card><CardContent className="py-12 text-center text-muted-foreground">No prescriptions waiting</CardContent></Card>
+                <Card><CardContent className="py-12 text-center text-muted-foreground">
+                  {rxView === "done" ? (mineOnly ? "You have not finished any prescriptions in this period" : "No finished prescriptions in this period") : rq ? "No patient or drug matches your search" : "No prescriptions waiting"}
+                </CardContent></Card>
               ) : (
                 <div className="grid gap-2 xl:grid-cols-2">
-                  {sheetPages.pageItems.map((s) => (
-                    <button key={s.key} type="button" onClick={() => setOpenKey(s.key)} className="w-full text-left p-3 border rounded-lg hover:bg-muted/40 transition-colors space-y-2">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="min-w-0">
-                          <p className="font-semibold truncate">{s.patient?.profile?.full_name}</p>
-                          <p className="text-xs text-muted-foreground">{s.patient?.patient_id} · {s.items.length} item(s) · {paymentModeLabel(s.ticket?.payment_mode)}</p>
+                  {sheetPages.pageItems.map((s) => {
+                    const steps = sheetTimeline(s.items, s.stage, myStaffId);
+                    const given = s.items.filter((i) => ["dispensed", "collected"].includes(i.status)).length;
+                    const notGiven = s.items.filter((i) => i.status === "not_dispensed").length;
+                    return (
+                      <button key={s.key} type="button" onClick={() => setOpenKey(s.key)}
+                        className={cn("w-full text-left p-3 border rounded-lg hover:bg-muted/40 transition-colors space-y-2", s.stage === "dispense" && "border-green-400 bg-green-50/40")}>
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="font-semibold truncate">{s.patient?.profile?.full_name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {[s.patient?.patient_id, s.ticket?.ticket_number, paymentModeLabel(s.ticket?.payment_mode)].filter(Boolean).join(" · ")}
+                            </p>
+                          </div>
+                          <div className="flex flex-col items-end gap-1">
+                            <Badge variant="outline" className={STAGE_INFO[s.stage].cls}>{STAGE_INFO[s.stage].label}</Badge>
+                            <span className="text-[11px] text-muted-foreground flex items-center gap-1"><Clock className="h-3 w-3" />
+                              {s.stage === "done" ? new Date(lastActivity(s.items)).toLocaleString("en-GB", { timeZone: "Africa/Nairobi", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }) : `${since(s.createdAt)} ago`}
+                            </span>
+                          </div>
                         </div>
-                        <Badge variant="outline" className={STAGE_INFO[s.stage].cls}>{STAGE_INFO[s.stage].label}</Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground line-clamp-2">{s.items.map((i) => i.medication_name).join(" · ")}</p>
-                    </button>
-                  ))}
+                        <p className="text-xs text-muted-foreground line-clamp-2">{s.items.map((i) => i.medication_name).join(" · ")}</p>
+                        <ol className="flex flex-wrap items-center gap-x-1 gap-y-1 text-[11px]" aria-label="Progress">
+                          {steps.map((st, i) => (
+                            <li key={st.key} className="flex items-center gap-1">
+                              {i > 0 && <span className="text-muted-foreground">›</span>}
+                              <span className={cn("rounded-full border px-2 py-0.5", st.done ? "bg-primary/10 border-primary/30 text-foreground" : "text-muted-foreground border-dashed")}>
+                                {st.done ? "✓ " : ""}{st.label}
+                                {st.at && <span className="text-muted-foreground"> {new Date(st.at).toLocaleTimeString("en-GB", { timeZone: "Africa/Nairobi", hour: "2-digit", minute: "2-digit" })}</span>}
+                                {st.byMe && <span className="font-semibold text-primary"> · you</span>}
+                              </span>
+                            </li>
+                          ))}
+                        </ol>
+                        {s.stage === "done" && (
+                          <p className="text-xs">{given} given{notGiven ? ` · ${notGiven} not available` : ""} — <span className="text-primary underline">open to view or reprint</span></p>
+                        )}
+                      </button>
+                    );
+                  })}
                 </div>
               )}
               <Pager pager={sheetPages} label="prescription sheets" />
@@ -857,7 +949,10 @@ const Pharmacy = () => {
                             {item.quantity}
                           </Badge>
                         </TableCell>
-                        <TableCell className="py-1.5 whitespace-nowrap">KES {item.unit_price}</TableCell>
+                        <TableCell className="py-1.5 whitespace-nowrap">
+                          <p>{formatKES(item.unit_price)}</p>
+                          {item.insurance_price != null && Number(item.insurance_price) !== Number(item.unit_price) && <p className="text-xs text-muted-foreground">Ins. {formatKES(item.insurance_price)}</p>}
+                        </TableCell>
                         <TableCell className="py-1.5 whitespace-nowrap">{item.expiry_date ? new Date(item.expiry_date).toLocaleDateString() : "-"}</TableCell>
                         <TableCell className="py-1.5">
                           <div className="flex gap-1 whitespace-nowrap">
@@ -939,6 +1034,7 @@ const Pharmacy = () => {
         </>
       )}
 
+      <PriceListImportDialog open={importOpen} onOpenChange={setImportOpen} inventory={inventory} canEditLab={hasAnyRole(["admin", "super_admin"])} onDone={fetchInventory} />
       <InventoryEditDialog item={editItem} onClose={() => setEditItem(null)} onSaved={fetchInventory} categories={categories} />
       <ReceiveStockDialog item={receiveItem} onClose={() => setReceiveItem(null)} onDone={fetchInventory} />
 
